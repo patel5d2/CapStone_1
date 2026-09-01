@@ -1,5 +1,9 @@
 # Enterprise Dev Group Project - Design Document
 
+[![CI](https://github.com/patel5d2/CapStone_1/actions/workflows/main.yml/badge.svg)](https://github.com/patel5d2/CapStone_1/actions/workflows/main.yml)
+
+Current release: `v0.1.0`
+
 ## 1. Introduction
 
 The application created in this problem is a University Student Directory program intended for higher learning institutions within the tri-state region. These include institutions such as Xavier University, the University of Cincinnati (UC), as well as Cincinnati State. The program solves the problem of the lack of centralization of information concerning student enrollment within the institutions within the specified regions
@@ -226,9 +230,19 @@ docker-compose up -d
 ```
 #### Option 2: Production with Pre-built Registry Image
 ```bash
-# Run just the app from GHCR
-docker run --platform linux/amd64 -p 8080:8080 ghcr.io/jonathansoriano/enterprisedevgroupproject:latest
+# Run just the app from this repository's GHCR package
+docker run -p 8080:8080 ghcr.io/patel5d2/capstone_1:latest
 ```
+
+### Releases and packages
+
+Version tags in the form `vX.Y.Z` run the release workflow. A successful run:
+
+- publishes `ghcr.io/patel5d2/capstone_1` with version, major/minor, SHA, and `latest` tags;
+- creates a GitHub release with the executable JAR, CycloneDX image SBOM, and SHA-256 checksums;
+- records build provenance for both the JAR and container image.
+
+The version tag must match the non-SNAPSHOT version in `pom.xml`.
 ---
 
 ## Technology Stack
