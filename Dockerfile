@@ -9,7 +9,7 @@ RUN apk update && apk upgrade --no-cache
 
 # Add metadata labels
 LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,iankellenberger" \
-    version="0.1.0" \
+    version="0.1.1" \
     description="EnterpriseDevGroupProject Spring Boot Application"
 
 # Copy the Maven wrapper and pom.xml first to leverage Docker layer caching
