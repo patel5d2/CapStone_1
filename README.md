@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/patel5d2/CapStone_1/actions/workflows/main.yml/badge.svg)](https://github.com/patel5d2/CapStone_1/actions/workflows/main.yml)
 
-Current release: `v0.1.0`
+Current release: `v0.1.1`
 
 ## 1. Introduction
 
@@ -238,7 +238,7 @@ docker run -p 8080:8080 ghcr.io/patel5d2/capstone_1:latest
 
 Version tags in the form `vX.Y.Z` run the release workflow. A successful run:
 
-- publishes `ghcr.io/patel5d2/capstone_1` with version, major/minor, SHA, and `latest` tags;
+- publishes `ghcr.io/patel5d2/capstone_1` for Linux AMD64 and ARM64 with version, major/minor, SHA, and `latest` tags;
 - creates a GitHub release with the executable JAR, CycloneDX image SBOM, and SHA-256 checksums;
 - records build provenance for both the JAR and container image.
 
