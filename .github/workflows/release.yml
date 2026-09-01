@@ -139,6 +139,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Verify published platforms
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          manifest="$(docker buildx imagetools inspect --raw "${IMAGE}@${DIGEST}")"
+
+          for architecture in amd64 arm64; do
+            if ! jq -e --arg architecture "$architecture" \
+              'any(.manifests[]; .platform.os == "linux" and .platform.architecture == $architecture)' \
+              <<< "$manifest" >/dev/null; then
+              echo "Published image is missing linux/${architecture}." >&2
+              exit 1
+            fi
+          done
+
       - name: Attest container provenance
         uses: actions/attest@v4
         with:
