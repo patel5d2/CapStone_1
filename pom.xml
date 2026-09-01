@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.jonathansoriano</groupId>
     <artifactId>EnterpriseDevGroupProject</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>EnterpriseDevGroupProject</name>
     <description>EnterpriseDevGroupProject</description>
     <url/>
