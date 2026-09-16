@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
           rel="stylesheet" />
     <link rel="stylesheet" href="/css/style.css" />
+    <script src="/js/clerk-auth.js"></script>
 </head>
 
 <body class="auth-page">
@@ -26,7 +27,7 @@
         <a href="/about.html" class="nav-link">About</a>
         <a href="/search.html" class="nav-link">Search</a>
         <span class="nav-divider">|</span>
-        <a href="/login.html" class="btn btn-outline-sm">Sign In</a>
+        <span class="nav-auth" data-clerk-auth></span>
     </div>
 </nav>
 
@@ -63,136 +64,21 @@
             <button type="button" class="tab-btn" id="signup-tab" onclick="switchTab('signup')">SIGN UP</button>
         </div>
 
-        <!-- SIGN IN Form -->
+        <!-- Clerk owns the credential flow: email/password, verification, social
+             sign-in and password reset all happen inside these mounted components. -->
         <div class="tab-content" id="signin-content">
-            <form action="/login" method="post">
-                <div class="form-group">
-                    <label class="form-label" for="username">UNIVERSITY EMAIL</label>
-                    <input type="email" id="username" name="username" class="form-input"
-                           placeholder="student@edu.university" required />
-                    <small class="form-hint">* Requires verification via .edu domain</small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="password">PASSWORD</label>
-                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••"
-                           required />
-                </div>
-                <div id="login-error" style="display:none; color:#ef4444; margin-bottom:12px; font-size:14px;">
-                    Invalid email or password. Please try again.
-                </div>
-                <button type="submit" class="btn-primary-full" id="signin-btn">SIGN IN</button>
-            </form>
-
-            <div class="divider"><span>SECURE ENTRY</span></div>
-            <a href="#" class="sso-link">INSTITUTIONAL SSO LOGIN</a>
+            <div id="clerk-signin"></div>
         </div>
 
-        <!-- SIGN UP Form (hidden by default) -->
-        <!-- This form collects all required fields for the StudentSignupRequest DTO on the backend -->
         <div class="tab-content" id="signup-content" style="display: none;">
-            <form id="signup-form" onsubmit="return handleSignUp(event)">
+            <div id="clerk-signup"></div>
+        </div>
 
-                <!-- Row: First Name & Last Name -->
-                <div class="form-row">
-                    <div class="form-group form-group-half">
-                        <label class="form-label" for="reg-firstName">FIRST NAME</label>
-                        <input type="text" id="reg-firstName" name="firstName" class="form-input"
-                               placeholder="John" required />
-                    </div>
-                    <div class="form-group form-group-half">
-                        <label class="form-label" for="reg-lastName">LAST NAME</label>
-                        <input type="text" id="reg-lastName" name="lastName" class="form-input"
-                               placeholder="Doe" required />
-                    </div>
-                </div>
-
-                <!-- University Email -->
-                <div class="form-group">
-                    <label class="form-label" for="reg-email">UNIVERSITY EMAIL</label>
-                    <input type="email" id="reg-email" name="email" class="form-input"
-                           placeholder="student@university.edu" pattern=".+\.edu$"
-                           title="Please use a valid .edu email address" required />
-                    <small class="form-hint">* Only .edu email addresses are accepted</small>
-                    <small class="form-error" id="email-error"
-                           style="display:none; color:#ef4444; margin-top:4px;"></small>
-                </div>
-
-                <!-- Password -->
-                <div class="form-group">
-                    <label class="form-label" for="reg-password">CREATE PASSWORD</label>
-                    <input type="password" id="reg-password" name="password" class="form-input"
-                           placeholder="Min. 8 characters" minlength="8" required />
-                </div>
-
-                <!-- University Selection (maps to universityId integer on the backend) -->
-                <div class="form-group">
-                    <label class="form-label" for="reg-university">UNIVERSITY</label>
-                    <select id="reg-university" name="universityId" class="form-input" required>
-                        <option value="">Select University</option>
-                        <option value="1">University of Cincinnati</option>
-                        <option value="2">Northern Kentucky University</option>
-                        <option value="3">Xavier University</option>
-                        <option value="4">Miami University</option>
-                        <option value="5">Thomas More University</option>
-                        <option value="6">Cincinnati State</option>
-                        <option value="7">Mount St. Joseph University</option>
-                        <option value="8">Cincinnati Christian University</option>
-                    </select>
-                </div>
-
-                <!-- Row: Grade & Major -->
-                <div class="form-row">
-                    <div class="form-group form-group-half">
-                        <label class="form-label" for="reg-grade">GRADE</label>
-                        <select id="reg-grade" name="grade" class="form-input" required>
-                            <option value="">Select Grade</option>
-                            <option value="Freshman">Freshman</option>
-                            <option value="Sophomore">Sophomore</option>
-                            <option value="Junior">Junior</option>
-                            <option value="Senior">Senior</option>
-                        </select>
-                    </div>
-                    <div class="form-group form-group-half">
-                        <label class="form-label" for="reg-major">MAJOR</label>
-                        <input type="text" id="reg-major" name="major" class="form-input"
-                               placeholder="e.g. Computer Science" required />
-                    </div>
-                </div>
-
-                <!-- Row: City & State -->
-                <div class="form-row">
-                    <div class="form-group form-group-half">
-                        <label class="form-label" for="reg-city">CITY</label>
-                        <input type="text" id="reg-city" name="residentCity" class="form-input"
-                               placeholder="Cincinnati" required />
-                    </div>
-                    <div class="form-group form-group-half">
-                        <label class="form-label" for="reg-state">STATE</label>
-                        <select id="reg-state" name="residentState" class="form-input" required>
-                            <option value="">Select</option>
-                            <option value="OH">OH</option>
-                            <option value="KY">KY</option>
-                            <option value="IN">IN</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Social Media Link (optional) -->
-                <div class="form-group">
-                    <label class="form-label" for="reg-social">SOCIAL MEDIA LINK (OPTIONAL)</label>
-                    <input type="url" id="reg-social" name="socialMediaLink" class="form-input"
-                           placeholder="https://linkedin.com/in/your-profile" />
-                </div>
-
-                <!-- Submit -->
-                <button type="submit" class="btn-primary-full" id="signup-btn">VERIFIED SIGN UP</button>
-
-                <!-- Status message area for success/error feedback -->
-                <div id="signup-message" style="margin-top: 12px; text-align: center; font-size: 14px;"></div>
-            </form>
-
-            <div class="divider"><span>SECURE ENTRY</span></div>
-            <a href="#" class="sso-link">INSTITUTIONAL SSO LOGIN</a>
+        <!-- Shown if Clerk cannot be reached, so the card is never silently empty -->
+        <div class="tab-content" id="clerk-error" style="display: none;">
+            <p style="text-align:center; color:#ef4444; padding:40px 0;">
+                Could not reach the sign-in service. Please check your connection and reload.
+            </p>
         </div>
 
     </div>
@@ -200,9 +86,7 @@
 
 <script>
     /**
-     * Switches between Sign In and Sign Up tabs.
-     * Toggles visibility of the sign-in and sign-up content panels,
-     * and updates the active tab styling accordingly.
+     * Switches between the Sign In and Sign Up panels.
      */
     function switchTab(tab) {
         const signinTab = document.getElementById('signin-tab');
@@ -223,103 +107,37 @@
         }
     }
 
-    // Check URL parameters for error or logout messages
-    window.addEventListener('DOMContentLoaded', function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const errorDiv = document.getElementById('login-error');
-
-        if (urlParams.has('error')) {
-            errorDiv.style.display = 'block';
+    window.addEventListener('DOMContentLoaded', function () {
+        // ?tab=signup lets the landing page link straight to registration
+        if (new URLSearchParams(window.location.search).get('tab') === 'signup') {
+            switchTab('signup');
         }
 
-        if (urlParams.has('logout')) {
-            // Show a non-intrusive inline banner instead of a blocking alert
-            const banner = document.createElement('div');
-            banner.textContent = '✓ You have been signed out successfully.';
-            banner.style.cssText = 'background:#0d9488;color:#fff;padding:12px 20px;border-radius:8px;text-align:center;font-size:14px;font-weight:500;margin-bottom:16px;animation:fadeInDown .4s ease;';
-            const style = document.createElement('style');
-            style.textContent = '@keyframes fadeInDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeOut{from{opacity:1}to{opacity:0}}';
-            document.head.appendChild(style);
-            const authCard = document.querySelector('.auth-card');
-            if (authCard) authCard.insertBefore(banner, authCard.firstChild);
-            setTimeout(() => { banner.style.animation = 'fadeOut .5s ease forwards'; setTimeout(() => banner.remove(), 500); }, 4000);
-        }
-    });
-
-    /**
-     * Handles the sign-up form submission.
-     * Collects all form fields, builds a JSON payload matching the backend's
-     * StudentSignupRequest DTO, and sends a POST request to /student.
-     * On success, notifies the user and switches to the sign-in tab.
-     * On failure, displays the error message returned by the server.
-     */
-    async function handleSignUp(e) {
-        e.preventDefault();
-
-        const emailInput = document.getElementById('reg-email');
-        const emailError = document.getElementById('email-error');
-        const messageDiv = document.getElementById('signup-message');
-        const email = emailInput.value.trim().toLowerCase();
-
-        // Clear previous error
-        emailError.style.display = 'none';
-        emailError.textContent = '';
-        emailInput.style.borderColor = '';
-        messageDiv.textContent = '';
-
-        // Validate .edu email
-        if (!email.endsWith('.edu')) {
-            emailError.textContent = 'Only .edu email addresses are accepted. Please use your university email.';
-            emailError.style.display = 'block';
-            emailInput.style.borderColor = '#ef4444';
-            emailInput.focus();
-            return false;
-        }
-
-        // Build JSON payload matching StudentSignupRequest DTO
-        const payload = {
-            firstName: document.getElementById('reg-firstName').value,
-            lastName: document.getElementById('reg-lastName').value,
-            email: email,
-            password: document.getElementById('reg-password').value,
-            universityId: parseInt(document.getElementById('reg-university').value),
-            grade: document.getElementById('reg-grade').value,
-            major: document.getElementById('reg-major').value,
-            residentCity: document.getElementById('reg-city').value,
-            residentState: document.getElementById('reg-state').value,
-            socialMediaLink: document.getElementById('reg-social').value
-        };
-
-        try {
-            const response = await fetch('/student', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            const text = await response.text();
-
-            if (response.ok) {
-                messageDiv.style.color = '#22c55e';
-                messageDiv.textContent = text;
-
-                setTimeout(() => {
-                    switchTab('signin');
-                }, 1500);
-            } else {
-                messageDiv.style.color = '#ef4444';
-                messageDiv.textContent = text || "Signup failed.";
+        ClerkAuth.ready.then(function (clerk) {
+            // Already signed in — nothing to do on this page
+            if (clerk.user) {
+                window.location.href = '/search.html';
+                return;
             }
 
-        } catch (error) {
-            messageDiv.style.color = '#ef4444';
-            messageDiv.textContent = "Unable to connect to server.";
-        }
+            clerk.mountSignIn(document.getElementById('clerk-signin'), {
+                forceRedirectUrl: '/search.html',
+                signUpForceRedirectUrl: '/profile.html'
+            });
 
-        return false;
-    }
+            // New accounts land on the profile page to fill in their directory
+            // details — Clerk holds the credential, the directory holds the rest.
+            clerk.mountSignUp(document.getElementById('clerk-signup'), {
+                forceRedirectUrl: '/profile.html',
+                signInForceRedirectUrl: '/search.html'
+            });
+        }).catch(function (err) {
+            console.error('Clerk failed to load:', err);
+            document.getElementById('signin-content').style.display = 'none';
+            document.getElementById('signup-content').style.display = 'none';
+            document.getElementById('clerk-error').style.display = 'block';
+        });
+    });
 </script>
 
 </body>

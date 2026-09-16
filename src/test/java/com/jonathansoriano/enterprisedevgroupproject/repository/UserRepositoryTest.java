@@ -59,10 +59,25 @@ class UserRepositoryTest {
     }
 
     @Test
+    void insertNewUser_noPassword_insertionSuccessful() {
+        //Arrange - accounts created after the move to Clerk carry no local credential
+        UserRequest userRequest = UserRequest.builder()
+                .role("USER")
+                .email("clerk-user@email.com")
+                .password(null)
+                .build();
+        int expectRowsAffected = 1;
+        //Act
+        int actualRowsAffected = userRepository.insertNewUser(userRequest);
+        //Assert
+        assertEquals(expectRowsAffected, actualRowsAffected);
+    }
+
+    @Test
     void insertNewUser_insertionFailed() {
-        //Arrange
+        //Arrange - role is still NOT NULL, so this violates the schema
         UserRequest request = UserRequest.builder()
-                .role("User")
+                .role(null)
                 .email("test@email.com")
                 .password(null)
                 .build();

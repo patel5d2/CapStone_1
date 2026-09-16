@@ -23,6 +23,18 @@ spring:
       enabled: true
       path: /h2-console
 
+  # ── Clerk authentication ──
+  # Incoming Clerk session tokens are checked against this instance's signing keys.
+  # jwk-set-uri is given explicitly so the keys are fetched on first use rather than
+  # at startup: the app still boots if Clerk is briefly unreachable. issuer-uri stays
+  # set so the 'iss' claim is validated too. Override both for a production instance.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${CLERK_ISSUER:https://mighty-escargot-6562.clerk.accounts.dev}
+          jwk-set-uri: ${CLERK_JWKS_URI:https://mighty-escargot-6562.clerk.accounts.dev/.well-known/jwks.json}
+
 # ── Actuator & Prometheus ──
 management:
   endpoints:

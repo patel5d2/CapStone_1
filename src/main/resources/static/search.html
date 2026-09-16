@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
           rel="stylesheet" />
     <link rel="stylesheet" href="/css/style.css" />
+    <script src="/js/clerk-auth.js"></script>
 </head>
 
 <body class="search-page">
@@ -26,7 +27,7 @@
         <a href="/about.html" class="nav-link">About</a>
         <a href="/search.html" class="nav-link nav-link-active">Search</a>
         <a href="/profile.html" class="nav-link">My Profile</a>
-        <a href="#" class="btn-outline-sm" onclick="event.preventDefault(); fetch('/logout', { method: 'POST' }).then(() => window.location.href = '/login.html?logout=true');">Sign Out</a>
+        <span class="nav-auth" data-clerk-auth></span>
     </div>
 </nav>
 
@@ -116,6 +117,13 @@
 </div>
 
 <script>
+    // The directory is for signed-in students only. Spring Security rejects the
+    // /student call without a Clerk token anyway; this just avoids showing an
+    // empty page to someone who needs to sign in first.
+    window.addEventListener('DOMContentLoaded', function () {
+        ClerkAuth.requireSignedIn();
+    });
+
     // Store the current results so sorting can re-render without refetching
     let currentStudents = [];
 
@@ -171,7 +179,7 @@
         const url = '/student' + (params.toString() ? '?' + params.toString() : '');
 
         try {
-            const response = await fetch(url);
+            const response = await ClerkAuth.fetch(url);
 
             if (response.ok) {
                 const students = await response.json();

@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -67,6 +68,19 @@ public class ExceptionTranslator {
         ExceptionWrapper wrapper = new ExceptionWrapper(HttpStatus.BAD_REQUEST.value(), "Property validation error(s):" + errorMessage, request.getRequestURI());
 
         return new ResponseEntity<>(wrapper, HttpStatus.BAD_REQUEST);
+    }
+
+    // Carries its own status (e.g. a request whose Clerk token has no email claim).
+    // Without this handler the catch-all below would turn it into a 500.
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ExceptionWrapper> handleResponseStatusException(ResponseStatusException ex,
+            HttpServletRequest request) {
+        log.warn("Request rejected at {}: ", request.getRequestURI(), ex);
+
+        ExceptionWrapper wrapper = new ExceptionWrapper(ex.getStatusCode().value(), ex.getReason(),
+                request.getRequestURI());
+
+        return new ResponseEntity<>(wrapper, ex.getStatusCode());
     }
 
     // Any other exception thrown will be caught here

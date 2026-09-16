@@ -25,5 +25,8 @@ CREATE TABLE app_user (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   role varchar(20) NOT NULL,
   email varchar(255) NOT NULL,
-  password varchar(255) NOT NULL
+  -- Nullable since Clerk became the identity provider: accounts created after the
+  -- migration have no local credential. Legacy rows keep their bcrypt hash, which
+  -- nothing reads any more.
+  password varchar(255) NULL
 );

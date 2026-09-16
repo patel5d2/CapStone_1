@@ -35,6 +35,8 @@ public class StudentSignupRequest {
     @NotBlank(message = "Major field is required")
     private String major;
 
+    // Set server-side from the caller's Clerk session token; a value sent by the
+    // client is overwritten before this request reaches the service layer.
     @NotBlank(message = "Email field is required")
     @Email(message = "Please provide a valid email address")
     @Pattern(
@@ -42,10 +44,6 @@ public class StudentSignupRequest {
             message = "Email format is invalid"
     )
     private String email;
-
-    @NotBlank(message = "Password is required")
-    @Size(min = 4, max = 255, message = "Password must be between 4 and 255 characters")
-    private String password;
 
     private String socialMediaLink;
 }

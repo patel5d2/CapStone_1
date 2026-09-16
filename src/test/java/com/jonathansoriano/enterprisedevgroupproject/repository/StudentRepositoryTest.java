@@ -212,7 +212,6 @@ class StudentRepositoryTest {
                 .grade("Freshman")
                 .major("General Studies")
                 .email("test@email.com")
-                .password("passw0rd!")
                 .socialMediaLink(null)
                 .build();
         int expectRowsAffected = 1;
@@ -234,7 +233,6 @@ class StudentRepositoryTest {
                 .grade("Freshman")
                 .major("General Studies")
                 .email("test@email.com")
-                .password("passw0rd!")
                 .socialMediaLink(null)
                 .build();
         //Act and Assert

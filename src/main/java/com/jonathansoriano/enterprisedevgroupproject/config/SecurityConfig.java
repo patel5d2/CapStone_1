@@ -1,72 +1,42 @@
 package com.jonathansoriano.enterprisedevgroupproject.config;
 
-import com.jonathansoriano.enterprisedevgroupproject.service.CustomUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
+/**
+ * Authentication is delegated to Clerk. The browser signs the user in with Clerk,
+ * then attaches the Clerk session token as a {@code Authorization: Bearer <jwt>}
+ * header on API calls. This application never sees a password: it only validates
+ * the JWT signature against Clerk's JWKS endpoint (configured via
+ * {@code spring.security.oauth2.resourceserver.jwt.issuer-uri}).
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
-    private final CustomUserDetailsService userDetailsService;
-
-    public SecurityConfig(CustomUserDetailsService userDetailsService) {
-        this.userDetailsService = userDetailsService;
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
-    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/about.html", "/login.html", "/profile.html", "/css/**", "/favicon.ico").permitAll() // Pages that dont require authentication
-                        .requestMatchers(HttpMethod.POST, "/student").permitAll() // Endpoint that doesn't require authentication
-                        .requestMatchers(HttpMethod.GET, "/student").authenticated() // Endpoint that requires authentication
-                        .requestMatchers(HttpMethod.GET,"/student/profile").authenticated() //Endpoint that requires authentication
-                        .requestMatchers(HttpMethod.PUT,"/student/profile").authenticated() //Endpoint that requires authentication
-                        .requestMatchers("/search.html").authenticated() // Page that requires authentication
+                        // Static pages are served to everyone. A browser cannot attach a bearer
+                        // header to a top-level navigation, so the signed-in gate for pages is
+                        // enforced client-side by Clerk (see /js/clerk-auth.js). The data below
+                        // is what is actually protected.
+                        .requestMatchers("/", "/*.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/student/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                .formLogin(form -> form
-                        .loginPage("/login.html")
-                        .loginProcessingUrl("/login")
-                        .defaultSuccessUrl("/search.html", true)
-                        .failureUrl("/login.html?error=true")
-                        .permitAll()
-                )
-                .logout(logout -> logout
-                        .logoutUrl("/logout")
-                        .logoutSuccessUrl("/login.html?logout=true")
-                        .permitAll()
-                )
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/student","/student/profile","/login")
-                );
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                // Bearer tokens are sent explicitly by JavaScript, never as an ambient cookie,
+                // so there is no session to fix and no CSRF vector to protect against.
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable);
 
         return http.build();
     }

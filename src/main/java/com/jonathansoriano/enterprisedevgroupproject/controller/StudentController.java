@@ -3,7 +3,6 @@ package com.jonathansoriano.enterprisedevgroupproject.controller;
 import com.jonathansoriano.enterprisedevgroupproject.domain.EditStudentDetailsRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
-import com.jonathansoriano.enterprisedevgroupproject.model.CustomerUserDetails;
 import com.jonathansoriano.enterprisedevgroupproject.model.Student;
 import com.jonathansoriano.enterprisedevgroupproject.model.StudentAccountDetails;
 import com.jonathansoriano.enterprisedevgroupproject.service.StudentService;
@@ -11,7 +10,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -71,9 +72,8 @@ public class StudentController {
      * @return a {@code ResponseEntity} containing the student's account details
      */
     @GetMapping("/profile")
-    public ResponseEntity<StudentAccountDetails> getProfile(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        // 'userDetails' IS the Principal.
-        String currentUserName = userDetails.getUsername();
+    public ResponseEntity<StudentAccountDetails> getProfile(@AuthenticationPrincipal Jwt clerkSession) {
+        String currentUserName = emailOf(clerkSession);
 
         StudentAccountDetails studentAccountDetails = service.findByEmail(currentUserName);
         return ResponseEntity.ok(studentAccountDetails);
@@ -87,31 +87,56 @@ public class StudentController {
      * @return a {@code ResponseEntity} containing a success message upon successful profile update
      */
     @PutMapping("/profile")
-    public ResponseEntity<String> updateStudent(@AuthenticationPrincipal CustomerUserDetails userDetails, @Valid @RequestBody EditStudentDetailsRequest studentDetails) {
-        String successfulAccountUpdate = service.updateStudent(userDetails.getUsername(), studentDetails);
+    public ResponseEntity<String> updateStudent(@AuthenticationPrincipal Jwt clerkSession, @Valid @RequestBody EditStudentDetailsRequest studentDetails) {
+        String successfulAccountUpdate = service.updateStudent(emailOf(clerkSession), studentDetails);
 
         return new ResponseEntity<>(successfulAccountUpdate, HttpStatus.OK);
     }
 
     /**
-     * Creates a new student in the system based on the provided signup request.
+     * Creates the directory profile for the caller. The caller has already signed up
+     * with Clerk by this point, so the request carries only the directory fields;
+     * the email is taken from the verified Clerk session token, never from the body.
      *
-     * @param student the {@code StudentSignupRequest} object containing the
-     *                student's information
-     *                such as first name, last name, city, state, university ID,
-     *                grade, major, email,
-     *                password, and social media link
+     * @param clerkSession the caller's verified Clerk session token
+     * @param student      the {@code StudentSignupRequest} object containing the
+     *                     student's information such as first name, last name, city,
+     *                     state, university ID, grade, major, and social media link
      * @return a {@code ResponseEntity} containing a success message upon successful
      *         student creation
      */
 
     @PostMapping
-    public ResponseEntity<String> createNewStudent(@Valid @RequestBody StudentSignupRequest student) {
+    public ResponseEntity<String> createNewStudent(@AuthenticationPrincipal Jwt clerkSession,
+            @Valid @RequestBody StudentSignupRequest student) {
+
+        // The body's email is advisory only. Trusting it would let any signed-in user
+        // create or claim a profile under somebody else's address.
+        student.setEmail(emailOf(clerkSession));
 
         String successfulInsertionMessage = service.insertNewStudent(student);
 
         return new ResponseEntity<>(successfulInsertionMessage, HttpStatus.CREATED);
 
+    }
+
+    /**
+     * Reads the verified email address out of a Clerk session token. The claim is
+     * populated by the instance's session token customization
+     * ({@code session.claims.email}); a token without it cannot be tied to a
+     * directory record, so the request is rejected rather than guessed at.
+     *
+     * @param clerkSession the caller's verified Clerk session token
+     * @return the caller's email address
+     */
+    private static String emailOf(Jwt clerkSession) {
+        String email = clerkSession == null ? null : clerkSession.getClaimAsString("email");
+
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                    "Clerk session token is missing the 'email' claim");
+        }
+        return email;
     }
 
 }

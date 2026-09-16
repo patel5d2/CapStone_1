@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
         rel="stylesheet" />
     <link rel="stylesheet" href="/css/style.css" />
+    <script src="/js/clerk-auth.js"></script>
 </head>
 
 <body class="auth-page">
@@ -25,27 +26,8 @@
             <a href="/about.html" class="nav-link">About</a>
             <a href="/search.html" class="nav-link">Search</a>
             <span class="nav-divider">|</span>
-            <!-- User Dropdown Menu -->
-            <div class="nav-user" id="user-menu">
-                <button type="button" class="nav-user-btn" onclick="toggleUserMenu()">
-                    <div class="nav-avatar">👤</div>
-                    <span class="nav-user-name">Account</span>
-                    <span class="nav-chevron">▼</span>
-                </button>
-                <div class="nav-dropdown">
-                    <div class="nav-dropdown-label">Navigation</div>
-                    <a href="/profile.html" class="nav-dropdown-item nav-link-active" id="update-profile-link">
-                        <span class="dropdown-icon">✏️</span> Update Profile
-                    </a>
-                    <a href="/search.html" class="nav-dropdown-item">
-                        <span class="dropdown-icon">🔍</span> Search Students
-                    </a>
-                    <div class="nav-dropdown-divider"></div>
-                    <a href="#" onclick="handleLogout(event)" class="nav-dropdown-item logout-item" id="logout-link">
-                        <span class="dropdown-icon">🚪</span> Sign Out
-                    </a>
-                </div>
-            </div>
+            <!-- Clerk's user button: account management and sign-out -->
+            <span class="nav-auth" data-clerk-auth></span>
         </div>
     </nav>
 
@@ -120,7 +102,7 @@
                         <label class="form-label" for="edit-email">EMAIL</label>
                         <input type="email" id="edit-email" name="email" class="form-input" readonly
                             style="background: #f0f0f0; cursor: not-allowed;" />
-                        <small class="form-hint">Email cannot be changed (used for sign-in)</small>
+                        <small class="form-hint">Email comes from your Clerk account and is changed there</small>
                     </div>
 
                     <!-- Row: Grade & Major (mandatory) -->
@@ -168,13 +150,13 @@
                         <small class="form-hint">Must begin with http:// or https://</small>
                     </div>
 
-                    <!-- New Password (optional) -->
+                    <!-- Password and email live in Clerk, not in this form -->
                     <div class="form-group">
-                        <label class="form-label" for="edit-password">NEW PASSWORD (OPTIONAL)</label>
-                        <input type="password" id="edit-password" name="newPassword" class="form-input"
-                            placeholder="Leave blank to keep current password" minlength="8" />
-                        <small class="form-hint">Min. 8 characters — only fill in if you want to change your
-                            password</small>
+                        <label class="form-label">PASSWORD &amp; SIGN-IN</label>
+                        <button type="button" class="btn-outline-sm" id="manage-account-btn">
+                            MANAGE ACCOUNT
+                        </button>
+                        <small class="form-hint">Change your password, email or connected accounts in Clerk</small>
                     </div>
 
                     <!-- Submit -->
@@ -213,8 +195,7 @@
             major: 'edit-major',
             residentCity: 'edit-city',
             residentState: 'edit-state',
-            socialMediaLink: 'edit-social',
-            newPassword: 'edit-password'
+            socialMediaLink: 'edit-social'
         };
 
         /**
@@ -238,13 +219,32 @@
             input.parentElement.appendChild(errorEl);
         }
 
+        // A Clerk account exists before the directory profile does. When the backend
+        // has no student row for this email yet, the same form creates one (POST)
+        // instead of updating it (PUT).
+        let isNewProfile = false;
+
         /**
-         * On page load, fetch the logged in user's data from the backend
-         * and pre-fill the form fields.
+         * On page load, fetch the signed-in user's directory profile and pre-fill the
+         * form. A 404 means this is a freshly signed-up account with nothing to
+         * pre-fill, so the form is shown blank in "create" mode.
          */
         window.addEventListener('DOMContentLoaded', async function () {
+            const user = await ClerkAuth.requireSignedIn();
+            if (!user) return;
+
+            document.getElementById('manage-account-btn').addEventListener('click', async function () {
+                (await ClerkAuth.ready).openUserProfile();
+            });
+
             try {
-                const response = await fetch('/student/profile');
+                const response = await ClerkAuth.fetch('/student/profile');
+
+                if (response.status === 404) {
+                    isNewProfile = true;
+                    startNewProfile(user);
+                    return;
+                }
 
                 if (!response.ok) {
                     showError('Could not load your profile. Please sign in again.');
@@ -257,6 +257,19 @@
                 showError('Unable to connect to server.');
             }
         });
+
+        /**
+         * Shows an empty form for a student who has signed up with Clerk but is not
+         * in the directory yet. Only the email is known, and it comes from Clerk.
+         */
+        function startNewProfile(user) {
+            document.getElementById('edit-email').value =
+                user.primaryEmailAddress ? user.primaryEmailAddress.emailAddress : '';
+            document.getElementById('edit-btn').textContent = 'CREATE PROFILE';
+
+            document.getElementById('loading-content').style.display = 'none';
+            document.getElementById('edit-content').style.display = 'block';
+        }
 
         /**
          * Populates form fields with the student's existing data.
@@ -304,7 +317,6 @@
             clearFieldErrors(form);
             messageDiv.innerHTML = '';
 
-            const newPassword = document.getElementById('edit-password').value;
             const payload = {
                 firstName: document.getElementById('edit-firstName').value.trim(),
                 lastName: document.getElementById('edit-lastName').value.trim(),
@@ -314,20 +326,30 @@
                 major: document.getElementById('edit-major').value.trim(),
                 residentCity: document.getElementById('edit-city').value.trim(),
                 residentState: document.getElementById('edit-state').value,
-                socialMediaLink: document.getElementById('edit-social').value.trim() || null,
-                password: document.getElementById('edit-password').value.trim() || null
+                socialMediaLink: document.getElementById('edit-social').value.trim() || null
             };
 
             try {
-                const response = await fetch('/student/profile', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                // The backend takes the email from the Clerk token either way; sending
+                // it keeps the payload shape the DTOs already validate.
+                const response = await ClerkAuth.fetch(
+                    isNewProfile ? '/student' : '/student/profile',
+                    {
+                        method: isNewProfile ? 'POST' : 'PUT',
+                        body: JSON.stringify(payload)
+                    }
+                );
 
                 if (response.ok) {
                     const text = await response.text();
                     messageDiv.innerHTML = `<div class="form-alert form-alert-success">${text}</div>`;
+
+                    if (isNewProfile) {
+                        // The row exists now, so further saves are edits
+                        isNewProfile = false;
+                        document.getElementById('edit-btn').textContent = 'SAVE CHANGES';
+                        setTimeout(() => { window.location.href = '/search.html'; }, 1200);
+                    }
                 } else {
                     const text = await response.text();
                     let parsed = null;
@@ -370,34 +392,6 @@
             return false;
         }
 
-        /**
-         * Toggle the user dropdown menu open/closed.
-         */
-        function toggleUserMenu() {
-            document.getElementById('user-menu').classList.toggle('open');
-        }
-
-        // Close menu when clicking outside
-        document.addEventListener('click', function (e) {
-            const menu = document.getElementById('user-menu');
-            if (menu && !menu.contains(e.target)) {
-                menu.classList.remove('open');
-            }
-        });
-
-        /**
-         * Handle the user logout by sending a POST request to Spring Security's /logout endpoint.
-         */
-        async function handleLogout(e) {
-            e.preventDefault();
-            try {
-                await fetch('/logout', { method: 'POST' });
-                window.location.href = '/login.html?logout=true';
-            } catch (err) {
-                console.error('Logout failed:', err);
-                window.location.href = '/login.html?logout=true';
-            }
-        }
     </script>
 
 </body>

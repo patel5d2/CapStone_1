@@ -15,8 +15,6 @@ import com.jonathansoriano.enterprisedevgroupproject.model.StudentAccountDetails
 import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
 import com.jonathansoriano.enterprisedevgroupproject.repository.UserRepository;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -28,12 +26,10 @@ import java.util.List;
 public class StudentService {
     private final StudentRepository studentRepository;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
 
     public StudentService(StudentRepository studentRepository, UserRepository userRepository) {
         this.studentRepository = studentRepository;
         this.userRepository = userRepository;
-        this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
     /**
@@ -76,8 +72,8 @@ public class StudentService {
     /**
      * Inserts a new student into the system by creating corresponding entries in
      * the user table
-     * and the student table. The student's password is hashed before insertion for
-     * security purposes. Transactional annotation is used to ensure both writes
+     * and the student table. No credential is stored: the student has already
+     * authenticated with Clerk. Transactional annotation is used to ensure both writes
      * either succeed together or both roll back together. Without it, a failure on
      * the second insert (student) after the first insert (user) succeeded would
      * leave
@@ -86,8 +82,8 @@ public class StudentService {
      *
      * @param student The {@link StudentSignupRequest} object containing the new
      *                student's details
-     *                such as name, email, resident information, university details,
-     *                and password.
+     *                such as name, email, resident information, and university
+     *                details.
      * @return A message indicating the success or failure of the student signup
      *         operation.
      *         If successful, returns "Student Signup Successful!".
@@ -106,17 +102,14 @@ public class StudentService {
                     "An existing account already exists with the email: " + student.getEmail());
         }
 
-        // Step 1: Hash the plain-text password before storing it in the app_user table
-        String hashedPassword = hashPlainTextPassword(student.getPassword());
+        // Step 1: Build a UserRequest DTO from the signup request to insert into
+        // app_user table. There is no password to store: Clerk holds the credential.
+        UserRequest userRequest = buildUserRequestFromStudentSignupRequest(student);
 
-        // Step 2: Build a UserRequest DTO from the signup request to insert into
-        // app_user table
-        UserRequest userRequest = buildUserRequestFromStudentSignupRequest(student, hashedPassword);
-
-        // Step 3: Insert the user credentials into the app_user table first
+        // Step 2: Insert the user record into the app_user table first
         int userInsertionResult = userRepository.insertNewUser(userRequest);
 
-        // Step 4: Insert the student profile into the student table
+        // Step 3: Insert the student profile into the student table
         int studentInsertionResult = studentRepository.insertNewStudent(student);
 
         return "Student Signup Successful!";
@@ -131,8 +124,8 @@ public class StudentService {
      *                       to the student and user account.
      * @return A confirmation message indicating the successful update of the
      *         account.
-     * @throws SearchNotFoundException If the student or user associated with the
-     *                                 provided username cannot be found.
+     * @throws SearchNotFoundException If the student associated with the provided
+     *                                 username cannot be found.
      */
     @Transactional
     public String updateStudent(String username, EditStudentDetailsRequest studentDetails) {
@@ -140,23 +133,16 @@ public class StudentService {
         // Student from repo to Student object
         StudentUpdateDto outdatedStudent = studentRepository.findStudentByEmail(username)
                 .orElseThrow(() -> new SearchNotFoundException("Student Not found!"));
-        // Do a find in the User table using the username (email) and assign returned
-        // User from repo to User Object
-        UserDto outdatedUser = userRepository.findByEmail(username)
-                .orElseThrow(() -> new SearchNotFoundException("User not found!"));
 
         // Set the values of the Student object with the values in the
-        // EditStudentDetailsRequest object
-        // We won't allow student/user to change their email, since this is tied to
-        // their authentication
+        // EditStudentDetailsRequest object.
+        // The email is not editable here: it is the Clerk identity this record hangs
+        // off, and it is changed through Clerk's own user profile UI.
         StudentUpdateDto updatedStudent = updateStudentUpdateDto(outdatedStudent, studentDetails);
-
-        UserDto updatedUser = updateUserDto(outdatedUser, studentDetails);
 
         // Send Updated Student Object to the Repository layer and wait to see if the
         // update was successful
         int studentResult = studentRepository.updateStudent(updatedStudent);
-        int userResult = userRepository.updateUser(updatedUser);
 
         return "Account Updated Successfully!";
     }
@@ -185,48 +171,21 @@ public class StudentService {
     }
 
     /**
-     * Updates the given UserDto with data from the EditStudentDetailsRequest.
-     * If the provided studentDetails object contains a non-blank password, it is
-     * encrypted
-     * and set in the UserDto.
-     *
-     * @param userDto        the UserDto object to be updated
-     * @param studentDetails the EditStudentDetailsRequest containing updated
-     *                       student information
-     * @return the updated UserDto object
-     */
-    private UserDto updateUserDto(UserDto userDto, EditStudentDetailsRequest studentDetails) {
-        if (studentDetails.getPassword() != null && !studentDetails.getPassword().isBlank()) {
-            userDto.setPassword(passwordEncoder.encode(studentDetails.getPassword()));
-        }
-        return userDto;
-    }
-
-    private String hashPlainTextPassword(String password) {
-        return passwordEncoder.encode(password);
-    }
-
-    /**
      * Converts a {@link StudentSignupRequest} object into a {@link UserRequest}
      * object.
      * This method is used to prepare a user request for inserting a user into the
      * system's user table.
-     * The resulting {@link UserRequest} includes the user's email, hashed password,
-     * and a default role of "USER".
+     * The resulting {@link UserRequest} includes the user's email and a default role
+     * of "USER". There is no password: Clerk authenticates the user.
      *
      * @param studentSignupRequest the source {@link StudentSignupRequest}
-     *                             containing the student's signup details,
-     *                             such as email and plain text password.
-     * @param hashedPassword       the hashed version of the student's plain text
-     *                             password to ensure security.
+     *                             containing the student's signup details.
      * @return a {@link UserRequest} object containing the mapped user data.
      */
-    private static UserRequest buildUserRequestFromStudentSignupRequest(StudentSignupRequest studentSignupRequest,
-            String hashedPassword) {
+    private static UserRequest buildUserRequestFromStudentSignupRequest(StudentSignupRequest studentSignupRequest) {
         return UserRequest.builder()
                 .role("USER")
                 .email(studentSignupRequest.getEmail())
-                .password(hashedPassword)
                 .build();
     }
 
