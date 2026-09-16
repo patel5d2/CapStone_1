@@ -12,6 +12,11 @@
         rel="stylesheet" />
     <link rel="stylesheet" href="/css/style.css" />
     <script src="/js/clerk-auth.js"></script>
+    <!-- Clerk, in load order. clerk-js 6 ships without UI components: the ui bundle
+         defines the constructor that clerk-auth.js hands to Clerk.load(), so it has to
+         execute first. Real tags, not injected, and pinned to matching versions. -->
+    <script src="https://cdn.jsdelivr.net/npm/@clerk/ui@1.33.0/dist/ui.browser.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6.32.0/dist/clerk.browser.js" crossorigin="anonymous"></script>
 </head>
 
 <body class="auth-page">

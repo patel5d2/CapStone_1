@@ -17,23 +17,32 @@
 
   // Publishable keys are safe to ship to the browser — that is what they are for.
   // The matching secret key stays server-side in .env and is never referenced here.
-  var PUBLISHABLE_KEY = 'pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA';
-  var CLERK_JS = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6.32.1/dist/clerk.browser.js';
+  //
+  // The key is published on window rather than as a data- attribute so it lives in
+  // one file instead of in every page's <script> tag. clerk.browser.js falls back to
+  // this global when no script carries data-clerk-publishable-key, and it is read at
+  // the moment that bundle executes — hence this file must be loaded first.
+  //
+  // Switching instances (dev -> production) is a change to this one line; the CDN URLs
+  // in the page <script> tags are instance-independent.
+  window.__clerk_publishable_key = 'pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA';
 
   var ready = new Promise(function (resolve, reject) {
-    var script = document.createElement('script');
-    script.src = CLERK_JS;
-    script.crossOrigin = 'anonymous';
-    script.setAttribute('data-clerk-publishable-key', PUBLISHABLE_KEY);
-    script.onerror = function () {
-      reject(new Error('Could not load Clerk from the CDN'));
-    };
-    script.onload = function () {
-      window.Clerk.load()
+    // Both Clerk <script> tags sit after this file in the page, so they have executed
+    // by the time the document has finished parsing.
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!window.Clerk) {
+        reject(new Error('Could not load Clerk from the CDN'));
+        return;
+      }
+
+      // clerk-js 6 no longer bundles the UI. Without this option Clerk.load() still
+      // resolves and the session works, but every mount* call throws
+      // "Clerk was not loaded with Ui components".
+      window.Clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor } })
         .then(function () { resolve(window.Clerk); })
         .catch(reject);
-    };
-    document.head.appendChild(script);
+    });
   });
 
   /**

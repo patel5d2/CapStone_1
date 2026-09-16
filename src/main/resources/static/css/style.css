@@ -127,6 +127,14 @@ a {
     gap: 24px;
 }
 
+/* Slot the Clerk-rendered auth controls into the nav: sign-in/sign-up links when
+   signed out, the user button when signed in. Matches .nav-links' own spacing. */
+.nav-auth {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+}
+
 .nav-link {
     font-size: 13px;
     font-weight: 450;
