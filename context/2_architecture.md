@@ -1,22 +1,53 @@
 # 2. Architecture — Tech Stack & Systems
 
-> **Read the Status column before writing code.** `PRESENT` = in the repo now.
-> `PLANNED` = agreed target, not yet installed. Never write code that assumes a
-> `PLANNED` dependency exists; add the dependency in its own step first.
+> **Read the Status column before writing code.** `BUILT` = in the repo and working.
+> `PARTIAL` = present but incomplete or broken. `PLANNED` = agreed, not yet installed.
+> Never import a `PLANNED` dependency; add it in its own sprint task first.
 
 ## Architecture style
 
-**Modular monolith.** One Spring Boot deployable that serves a compiled React SPA
-from its own static resources. Internally organised *package-by-feature*. This is a
-deliberate choice over microservices — see ADR-002 in `5_progress.md`.
+**Modular monolith.** One Spring Boot deployable serving a compiled React SPA from its
+own static resources, organised *package-by-feature*. Chosen over microservices for a
+five-person team on a two-semester timeline — see ADR-002.
 
 ```
-Browser ──► Spring Boot (:8080) ──► PostgreSQL
-  │           ├── /            React SPA (static, from src/main/resources/static)
-  │           ├── /api/**      REST, Clerk JWT required
-  │           └── /actuator/** health public, rest authenticated
-  └───────► Clerk (accounts.dev)   sign-in UI, token issuance, JWKS
+Browser ──► Spring Boot (:8080) ──► PostgreSQL 16
+  │           ├── /              React SPA (built by Vite into static resources)
+  │           ├── /api/**        REST + WebSocket, Clerk JWT required
+  │           └── /actuator/**   health public, everything else authenticated
+  ├───────► Clerk               sign-in UI, 2FA, token issuance, JWKS
+  ├───────► Cloudinary / S3     listing and profile images
+  └───────► Google Maps JS API  campus pins, meetup spots, events
+                 ▲
+  Clerk ─────────┘ user.created webhook ──► POST /api/webhooks/clerk
 ```
+
+## Invariants
+
+Rules the codebase must never violate. A violation is a bug, not a preference. Several
+map directly to graded contract objectives.
+
+1. **Identity comes only from a verified Clerk JWT.** Never from a request body, query
+   parameter, header, or client-supplied id. *(OWASP A01)*
+2. **Every mutation checks ownership before it writes.** Load the row, compare its owner
+   to the caller, reject on mismatch. A `WHERE owner = ?` clause alone is insufficient —
+   a missing row and a forbidden row must not be indistinguishable. *(OWASP A01)*
+3. **Only verified institutional accounts may post, message, or browse listings.** The
+   landing page is the only anonymous surface.
+4. **Personal contact details are never exposed to another user.** All communication is
+   in-platform. Email addresses are never returned by a public-facing API.
+5. **Profile field visibility is the user's choice.** Any field the user marks private is
+   filtered server-side, never merely hidden in the client.
+6. **All SQL is parameterised.** No string-concatenated queries, ever. *(OWASP A03)*
+7. **Schema changes happen only through a migration.** Never `ddl-auto`, never a manual
+   `ALTER`, never an edit to an applied migration.
+8. **No secret reaches the client, the repo, or a log line.** Configuration comes from
+   environment variables. *(Team Rule 9)*
+9. **Controllers never return JPA entities.** Always a `dto/*Response`.
+10. **Every list endpoint is paginated and bounded.** No unbounded `List<T>` — objective 4
+    is search under one second at 10,000 listings.
+11. **Contrast meets WCAG 2.1 AA in every school theme and in dark mode.** Theming may
+    never reduce accessibility below the standard.
 
 ## Tech stack
 
@@ -24,163 +55,183 @@ Browser ──► Spring Boot (:8080) ──► PostgreSQL
 
 | Concern | Choice | Status |
 |---|---|---|
-| Language | Java **21** (LTS) | PRESENT — but see Version drift |
-| Framework | Spring Boot **4.1.1** | PRESENT |
-| Build | Maven via `./mvnw` | PRESENT |
-| Web | `spring-boot-starter-webmvc` | PRESENT |
-| Persistence | Spring Data JPA / Hibernate | PRESENT |
-| Legacy persistence | `NamedParameterJdbcTemplate` + `util/SqlUtils` | PRESENT — **to be removed** |
-| Migrations | **Flyway**, `ddl-auto: validate` | PLANNED — top priority |
-| Database | PostgreSQL **16** | PRESENT (dev/prod profiles) |
-| Dev/test database | H2 in-memory | PRESENT — **to be removed** |
-| Auth | Clerk + `spring-boot-starter-oauth2-resource-server` | PRESENT |
-| Validation | `spring-boot-starter-validation` (Jakarta) | PRESENT |
-| Boilerplate | Lombok | PRESENT |
-| Metrics | Actuator + `micrometer-registry-prometheus` | PRESENT |
-| API docs | **springdoc-openapi** | PLANNED |
+| Language | Java **21** (LTS) | BUILT — pin it; Dockerfile currently uses 25 |
+| Framework | Spring Boot **4.1.1** | BUILT |
+| Build | Maven via `./mvnw` | BUILT |
+| Web | `spring-boot-starter-webmvc` | BUILT |
+| Persistence | Spring Data JPA / Hibernate | BUILT |
+| Legacy persistence | `NamedParameterJdbcTemplate` + `util/SqlUtils` | PARTIAL — **delete**, see ADR-011 |
+| Migrations | **Flyway**, `ddl-auto: validate` | PLANNED — **Sprint 0, blocking** |
+| Database | PostgreSQL **16** | PARTIAL — app crash-loops against it, see below |
+| Dev/test database | H2 in-memory | BUILT — **remove**, replace with Testcontainers |
+| Auth | Clerk + `spring-boot-starter-oauth2-resource-server` | BUILT |
+| Clerk webhook sync | `user.created` → student row | PLANNED — Sprint 1 |
+| Real-time messaging | **WebSocket (STOMP)** | PLANNED — Sprint 6, objective 6 |
+| Image storage | **Cloudinary or S3** | PLANNED — Sprint 1, objective 3 |
+| Validation | `spring-boot-starter-validation` | BUILT |
+| Boilerplate | Lombok | BUILT |
+| Metrics | Actuator + `micrometer-registry-prometheus` | BUILT |
+| API docs | springdoc-openapi | PLANNED |
 
 ### Frontend
 
 | Concern | Choice | Status |
 |---|---|---|
-| Framework | React **19** | PRESENT |
-| Language | TypeScript **~6.0** | PRESENT |
-| Bundler | Vite **8** | PRESENT |
-| Styling | Tailwind CSS **4** via `@tailwindcss/vite` | PRESENT |
-| Routing | `react-router-dom` **7** | PRESENT |
-| Auth | `@clerk/clerk-react` **5** | PRESENT |
-| Icons | `lucide-react` | PRESENT |
-| Lint | `oxlint` | PRESENT |
+| Framework | React **19** | BUILT |
+| Language | TypeScript **~6.0** | BUILT |
+| Bundler | Vite **8** | BUILT |
+| Styling | Tailwind CSS **4** (`@tailwindcss/vite`) | BUILT |
+| Routing | `react-router-dom` **7** | BUILT |
+| Auth | `@clerk/clerk-react` **5** | BUILT |
+| Icons | `lucide-react` | BUILT |
+| Lint | `oxlint` | BUILT |
+| Maps | **Google Maps JavaScript API** | PLANNED — Sprint 9 |
+| WebSocket client | **STOMP over SockJS** | PLANNED — Sprint 6 |
 | Unit tests | **Vitest + Testing Library** | PLANNED — zero frontend tests today |
 
 ### Testing, CI & ops
 
 | Concern | Choice | Status |
 |---|---|---|
-| Backend tests | JUnit 5 + Mockito | PRESENT |
-| DB tests | **Testcontainers (Postgres)** | PLANNED |
+| Backend tests | JUnit 5 + Mockito (63 passing) | BUILT |
+| DB tests | **Testcontainers (Postgres 16)** | PLANNED — Sprint 0 |
 | E2E | **Playwright** | PLANNED |
-| Coverage | JaCoCo report | PRESENT — no `check` gate, PLANNED |
-| Code scanning | **CodeQL + Trivy + dependency-review** | PLANNED |
-| Container | Multi-stage Dockerfile, non-root, healthcheck | PRESENT |
-| Orchestration | Docker Compose (app, db, prometheus, grafana) | PRESENT |
-| CI | GitHub Actions (`main.yml`, `release.yml`) | PRESENT |
-| Registry | GHCR, multi-arch amd64 + arm64 | PRESENT |
+| Coverage | JaCoCo report | PARTIAL — no `check` gate |
+| Code scanning | **CodeQL + Trivy + dependency-review** | PLANNED — objective 10 |
+| Container | Multi-stage Dockerfile, non-root, healthcheck | BUILT |
+| Orchestration | Docker Compose (app, db, prometheus, grafana) | PARTIAL — app crash-loops |
+| CI | GitHub Actions | PARTIAL — builds the image, never starts it |
+| Registry | GHCR, multi-arch amd64 + arm64 | BUILT |
 
-**Do not add:** Kubernetes, Redis, Kafka, GraphQL, a service mesh, distributed
-tracing, or a separate frontend host. None address a problem this project has.
+**Do not add:** Kubernetes, Redis, Kafka, GraphQL, a service mesh, or a separate
+frontend host. None address a measured bottleneck. Native mobile is a stretch goal only.
 
-## System boundaries
+## ⚠ Blocking defect — Sprint 0
 
-| Boundary | Contract |
-|---|---|
-| SPA → API | `fetch` with `Authorization: Bearer <Clerk session token>`. All JSON. |
-| API → Clerk | Outbound HTTPS to the JWKS endpoint only, on first token validation. |
-| API → Postgres | JDBC over the compose `backend` network. |
-| Prometheus → API | Scrapes `/actuator/prometheus` on the `monitoring` network. |
+**The app crash-loops on PostgreSQL.** `docker compose up` does not yield a working
+application; neither does the published GHCR image. Only the default H2 profile runs.
 
-The API is **stateless**: no server-side session, `open-in-view: false`, CSRF disabled
-because credentials are never ambient cookies. It therefore scales horizontally;
-all state is in Postgres and Clerk.
+Reproduced 16 Sep 2026 against a clean Postgres 16, `SPRING_PROFILES_ACTIVE=dev`:
+
+```
+Started EnterpriseDevGroupProjectApplication in 4.334 seconds
+org.springframework.jdbc.BadSqlGrammarException: bad SQL grammar
+  [SELECT id, name FROM university ORDER BY name]
+  at SupportResourceSeeder.run(SupportResourceSeeder.java:47)
+Caused by: PSQLException: ERROR: relation "university" does not exist
+Application run failed → Commencing graceful shutdown
+```
+
+Hibernate created its 17 tables; `university`, `student` and `app_user` were absent.
+`db/init/*.sql` is never mounted to `/docker-entrypoint-initdb.d/`, and both Postgres
+profiles set `spring.sql.init.mode: never`. CI builds the container but never starts it,
+so nothing caught it. **Objective 11 (99% availability) is unachievable until this is
+fixed.**
+
+## Identity model
+
+**Key on the Clerk user ID (`sub`), never on email.** Emails are mutable in Clerk; a
+changed email orphans that user's rows.
+
+- `user.created` webhook → create `student` with `clerk_user_id`.
+- Email domain → school mapping at creation.
+- Admin role → a Clerk metadata flag, read from the token.
+- Email is display data, subject to invariant 4 and the user's privacy settings.
+
+**Current state:** ownership is keyed on **email** across 16 entity columns and 37
+`CurrentUser.emailOf(...)` call sites. Migrating this is Sprint 1 (ADR-005 reversal).
 
 ## Database schema
 
-**JPA-managed (17 tables, created by Hibernate today, by Flyway once PLANNED lands):**
+**JPA-managed (17 tables):** `listing`, `listing_photo`, `listing_favorite`,
+`listing_report`, `conversation`, `conversation_participant`, `message`, `blocked_user`,
+`user_report`, `post`, `post_comment`, `post_like`, `app_group`, `group_membership`,
+`event`, `support_resource`, `anonymous_request`
 
-`listing`, `listing_photo`, `listing_favorite`, `listing_report`,
-`conversation`, `conversation_participant`, `message`, `blocked_user`, `user_report`,
-`post`, `post_comment`, `post_like`, `app_group`, `group_membership`, `event`,
-`support_resource`, `anonymous_request`
+**Hand-managed legacy (3 tables, raw SQL — to be folded into JPA):** `university`,
+`student`, `app_user`. `app_user.password` is dead; Clerk owns credentials.
 
-**Hand-managed legacy (3 tables, raw SQL):** `university`, `student`, `app_user`
+**Missing columns the contract requires on `listing`:** `condition`, `pickup_location`.
+Present: `sellerEmail`, `title`, `description`, `category`, `listingType`, `status`,
+`price`, `courseCode`, `schoolId`, `photoUrls`, `createdAt`, `updatedAt`.
 
-- `app_user.password` is nullable and **dead** — Clerk owns credentials.
-- `SchoolRepository` reads `university` with raw JDBC and exposes it as `/api/schools`.
-- **Ownership is keyed on email**, not on a user id: `sellerEmail`, `authorEmail`,
-  `senderEmail`, `createdByEmail`, `requesterEmail`, `blockerEmail`, … across **16
-  entity columns** and **37 `CurrentUser.emailOf(...)` call sites**. Clerk emails are
-  mutable, so this is a known design defect — see ADR-005.
-
-### ⚠ Known blocking defect
-
-The legacy three tables are **never created on PostgreSQL**:
-`db/init/*.sql` is not mounted to `/docker-entrypoint-initdb.d/` in
-`docker-compose.yml`, and both Postgres profiles set `spring.sql.init.mode: never`.
-
-Verified: the app boots, then `SupportResourceSeeder` → `SchoolRepository.findAll()`
-runs `SELECT id, name FROM university`, throws `relation "university" does not exist`,
-and the application shuts down. `docker compose up` crash-loops. Only the default
-H2 profile runs. Fixing this is task 1 in `5_progress.md`.
+**Planned tables:** `school_domain`, `offer`, `seller_review`, `notification`,
+`meetup_spot`, `profile_privacy`.
 
 ## Data flows
 
-**Authentication**
-1. SPA loads, `ClerkProvider` initialises with `VITE_CLERK_PUBLISHABLE_KEY`.
-2. User signs in through Clerk's hosted component; Clerk issues a short-lived JWT
-   (60s lifetime) carrying a custom `email` claim.
-3. `AuthTokenBridge` publishes Clerk's `getToken` into `lib/authToken.ts`.
-4. `lib/api.ts` fetches a fresh token per request and sets the bearer header.
-5. Spring validates the signature against the Clerk JWKS and the `iss` claim.
-6. `CurrentUser.emailOf(jwt)` reads the `email` claim, rejecting `401` if absent.
+**Authentication** — SPA initialises Clerk → user signs in (institutional email, 2FA) →
+Clerk issues a 60-second JWT carrying a custom `email` claim → `AuthTokenBridge`
+publishes `getToken` into `lib/authToken.ts` → `lib/api.ts` attaches a fresh bearer
+token per request → Spring validates signature against the Clerk JWKS and the `iss`
+claim → `CurrentUser` resolves the caller.
 
-**Profile creation** — `GET /student/profile` returns `404` when no directory row
-exists; the SPA then `POST`s to `/student`. The server overwrites any `email` in the
-body with the token's email so a caller cannot claim another address.
+**Webhook sync (planned)** — Clerk `user.created` → `POST /api/webhooks/clerk` → verify
+the Svix signature → create the student row keyed by `clerk_user_id` → map the email
+domain to a school. The webhook endpoint is the **only** unauthenticated `/api` route,
+and it authenticates by signature.
 
-## REST surface (44 endpoints)
+## REST surface
 
-| Base | Endpoints |
-|---|---|
-| `/student` | `GET` search · `POST` create profile · `GET /profile` · `PUT /profile` |
-| `/api/schools` | `GET` |
-| `/api/marketplace` | `GET/POST /listings` · `GET/PUT/DELETE /listings/{id}` · `POST /listings/{id}/favorite|sold|report` · `DELETE /listings/{id}/favorite` · `GET /favorites` · `GET /my-listings` |
-| `/api/messages/conversations` | `GET` · `POST` · `GET /{id}/messages` · `POST /{id}/messages` · `POST /{id}/read` |
-| `/api/community/posts` | `GET` · `POST` · `DELETE /{id}` · `GET/POST /{id}/comments` · `POST/DELETE /{id}/like` · `POST /{id}/pin` |
-| `/api/community/groups` | `GET` · `GET /mine` · `POST` · `POST /{id}/join` · `POST /{id}/leave` |
-| `/api/community/events` | `GET` · `POST` |
-| `/api/support` | `GET /resources` · `GET /requests` · `GET /requests/mine` · `POST /requests` · `POST /requests/{id}/fulfill` |
-| `/api/users/block` | `GET` · `POST` · `DELETE /{email}` |
-| `/api/users/report` | `POST` |
+44 endpoints today. Bases: `/api/marketplace`, `/api/messages/conversations`,
+`/api/community/{posts,groups,events}`, `/api/support`, `/api/users/{block,report}`,
+`/api/schools`, and the legacy `/student`.
 
-`/student` is the only base outside `/api` — moving it to `/api/students` is a
-PLANNED task, because that also collapses the hardcoded route lists in
-`SecurityConfig` and `SpaForwardingConfig` into one rule.
+`/student` is the only base outside `/api` — moving it to `/api/students` also collapses
+the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one rule.
 
 ## Environment variables
 
-**Backend** (`.env`, git-ignored; see `.env.example`)
+**Backend** (`.env`, git-ignored)
 
 | Variable | Purpose |
 |---|---|
-| `SPRING_PROFILES_ACTIVE` | `default` (H2) · `dev` · `prod` |
-| `DATABASE_HOST` / `DATABASE_PORT` | Postgres location (`db` / `5432` in compose) |
+| `SPRING_PROFILES_ACTIVE` | `default` · `dev` · `prod` |
+| `DATABASE_HOST` / `DATABASE_PORT` | Postgres location |
 | `DATABASE_USERNAME` / `DATABASE_PASSWORD` | Postgres credentials |
 | `DEV_DATABASE_NAME` / `PROD_DATABASE_NAME` | Database name per profile |
-| `CLERK_ISSUER` | Clerk issuer URL, validates the `iss` claim |
-| `CLERK_JWKS_URI` | Clerk JWKS endpoint; set so keys load lazily, not at boot |
-| `CLERK_SECRET_KEY` | Clerk Backend API. **Server-only. Never in client code.** |
-| `CLERK_PUBLISHABLE_KEY` | Public key (mirrors the frontend value) |
-| `JAVA_OPTS` | JVM tuning, e.g. `-Xmx512m` |
+| `CLERK_ISSUER` | Clerk issuer URL, validates `iss` |
+| `CLERK_JWKS_URI` | JWKS endpoint; keys load lazily, not at boot |
+| `CLERK_SECRET_KEY` | Backend API. **Server-only.** |
+| `CLERK_WEBHOOK_SECRET` | *(planned)* Svix signature verification |
+| `CLOUDINARY_URL` *or* `AWS_S3_BUCKET` / `AWS_REGION` | *(planned)* image storage |
+| `JAVA_OPTS` | JVM tuning |
 | `GF_SECURITY_ADMIN_USER` / `_PASSWORD` | Grafana login |
 
 **Frontend** (`frontend/.env`, git-ignored)
 
 | Variable | Purpose |
 |---|---|
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key; baked in at build time. Must point at the same Clerk instance as `CLERK_ISSUER`. |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key, baked in at build. Must match `CLERK_ISSUER`. |
+| `VITE_GOOGLE_MAPS_API_KEY` | *(planned)* Maps JS API, HTTP-referrer restricted |
 
 ## External integrations
 
-**Clerk** is the only third-party runtime dependency.
-- App: `app_3JQAD8C90nX8hkoj6wkJ8u783sk`, development instance.
-- Sign-up requires **username + email + password**; passwords have a **15-character
-  minimum**; email is verified by code; **device trust is enabled** (new devices get
-  an email challenge).
-- The default session token carries a custom `email` claim, added via
-  `session.claims` instance config. **Removing that claim breaks every endpoint.**
+**Clerk** — app `app_3JQAD8C90nX8hkoj6wkJ8u783sk`, development instance.
+- Sign-up requires username + email + password; 15-character password minimum; email
+  verified by code; **device trust enabled**.
+- The default session token carries a custom `email` claim via `session.claims`.
+  **Removing that claim breaks every endpoint.**
+- **Two-factor authentication is currently OFF** (`second_factor_strategies: []`) and
+  there is **no institutional-domain allowlist**. Both are required by objective 1.
 - Managed with the `clerk` CLI (`clerk link`, `clerk env pull`, `clerk doctor`).
 
-## Version drift to fix
+**Cloudinary / S3** *(planned)* — images; signed uploads, never a client-side secret.
+**Google Maps JS API** *(planned)* — referrer-restricted browser key.
 
-`pom.xml` targets Java 21, CI runs JDK 21, the Dockerfile builds *and runs* on
-Temurin **25**. Pin all three deliberately.
+## Security & compliance obligations
+
+From the contract's Ethical and Legal Considerations — these bind the architecture:
+
+- **OWASP Top Ten** assessed before the final demo, with focus on **broken access
+  control** and **injection**. No high-severity findings (objective 10).
+- **TLS** for all traffic. *(Unresolved: local runs are plain HTTP on :8080 — TLS
+  terminates at the deployment boundary; record how at deploy time.)*
+- **Passwords as adaptive hashes** — *discharged by Clerk*, which owns credential
+  storage. CampusBridge stores no passwords. Record this so a reader looking for
+  bcrypt in the codebase understands why there is none.
+- **Ohio Rev. Code § 1349.19** — a written breach-notification procedure is required.
+- **FERPA posture** — no registrar data; data minimisation; user-controlled field
+  visibility.
+- **WCAG 2.1 AA** — including contrast across every school theme.
+- **ACM Code of Ethics** — reject a convenient feature that needlessly exposes user data.
