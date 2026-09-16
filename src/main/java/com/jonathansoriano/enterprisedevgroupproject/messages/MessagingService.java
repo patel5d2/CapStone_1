@@ -137,6 +137,7 @@ public class MessagingService {
         }
     }
 
+    @Transactional
     public void unblock(String blockerEmail, String blockedEmail) {
         blockedUserRepository.deleteByBlockerEmailAndBlockedEmail(blockerEmail, blockedEmail);
     }

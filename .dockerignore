@@ -8,3 +8,9 @@ target/
 README.md
 .dockerignore
 Dockerfile
+
+# The frontend image stage installs dependencies and builds from source;
+# copying a host build would be slower and could be stale.
+frontend/node_modules
+frontend/dist
+src/main/resources/static

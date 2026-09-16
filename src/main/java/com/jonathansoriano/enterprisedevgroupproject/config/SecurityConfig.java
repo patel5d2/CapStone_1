@@ -24,11 +24,21 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
-                        // Static pages are served to everyone. A browser cannot attach a bearer
-                        // header to a top-level navigation, so the signed-in gate for pages is
-                        // enforced client-side by Clerk (see /js/clerk-auth.js). The data below
-                        // is what is actually protected.
-                        .requestMatchers("/", "/*.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
+                        // The React bundle is served to everyone. A browser cannot attach a bearer
+                        // header to a top-level navigation or to an asset request, so the signed-in
+                        // gate for pages is enforced client-side by Clerk (see RequireAuth in the
+                        // SPA router). The data below is what is actually protected.
+                        .requestMatchers("/", "/index.html", "/assets/**", "/*.svg", "/*.ico", "/*.png",
+                                "/*.webmanifest", "/*.txt").permitAll()
+                        // Client-side routes: Spring forwards these to index.html
+                        // (see SpaForwardingConfig) so a refresh or deep link still loads the app.
+                        .requestMatchers("/marketplace", "/messages", "/community", "/support", "/directory",
+                                "/profile", "/sign-in/**", "/sign-up/**").permitAll()
+                        // Liveness only, so the container healthcheck and orchestrators can see
+                        // whether the app is up. Everything else under /actuator — metrics,
+                        // prometheus, env, info — stays authenticated: those describe the system
+                        // and must not be readable anonymously.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/student/**").authenticated()
                         .anyRequest().authenticated()
                 )

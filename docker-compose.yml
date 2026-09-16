@@ -22,11 +22,16 @@ services:
     networks:
       - backend
 
-  # Spring Boot Application (from GHCR Registry)
+  # Spring Boot application, serving the compiled React SPA from its static
+  # resources. Built from this checkout so `docker compose up` runs the code in
+  # the working tree — including the frontend, which the Dockerfile compiles in
+  # its own stage. To run a published image instead, comment out `build` and
+  # pull ghcr.io/patel5d2/capstone_1:latest.
   app:
-    image: ghcr.io/jonathansoriano/enterprisedevgroupproject:latest
+    build:
+      context: .
+    image: ghcr.io/patel5d2/capstone_1:local
     container_name: enterprisedevgroupproject
-    pull_policy: always  # Always pull latest image
     ports:
       - "8080:8080"
     environment:

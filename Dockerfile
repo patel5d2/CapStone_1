@@ -1,5 +1,24 @@
 # ============================================================
-# Stage 1: Build
+# Stage 1a: Frontend build (React + TypeScript SPA)
+# ============================================================
+FROM node:22-alpine AS frontend
+WORKDIR /frontend
+
+# Install dependencies first so this layer caches on lockfile changes only
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+# The Clerk publishable key is baked in at build time. Publishable keys are
+# meant to be public; override per environment with --build-arg.
+ARG VITE_CLERK_PUBLISHABLE_KEY=pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+# vite.config.ts writes the bundle to ../src/main/resources/static, which
+# resolves to /src/main/resources/static inside this stage.
+RUN npm run build
+
+# ============================================================
+# Stage 1b: Build
 # ============================================================
 FROM eclipse-temurin:25-jdk-alpine AS build
 WORKDIR /app
@@ -8,7 +27,7 @@ WORKDIR /app
 RUN apk update && apk upgrade --no-cache
 
 # Add metadata labels
-LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,iankellenberger" \
+LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,shamakpatel,jessicapham" \
     version="0.1.1" \
     description="EnterpriseDevGroupProject Spring Boot Application"
 
@@ -21,8 +40,10 @@ RUN chmod +x mvnw
 RUN --mount=type=cache,target=/root/.m2/repository \
     ./mvnw dependency:go-offline -q
 
-# Copy source and build the application JAR
+# Copy source, drop the compiled SPA into the static resources the JAR serves,
+# then build the application JAR
 COPY src ./src
+COPY --from=frontend /src/main/resources/static ./src/main/resources/static
 RUN --mount=type=cache,target=/root/.m2/repository \
     ./mvnw clean package -DskipTests -q
 

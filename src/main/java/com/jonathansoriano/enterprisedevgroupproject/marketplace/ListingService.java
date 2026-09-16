@@ -5,6 +5,7 @@ import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingResp
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ReportRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -110,6 +111,7 @@ public class ListingService {
         }
     }
 
+    @Transactional
     public void unfavorite(Long id, String userEmail) {
         favoriteRepository.deleteByListingIdAndUserEmail(id, userEmail);
     }

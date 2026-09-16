@@ -4,6 +4,7 @@ import com.jonathansoriano.enterprisedevgroupproject.community.dto.GroupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.GroupResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -54,6 +55,7 @@ public class GroupService {
         }
     }
 
+    @Transactional
     public void leave(Long groupId, String userEmail) {
         membershipRepository.deleteByGroupIdAndUserEmail(groupId, userEmail);
     }

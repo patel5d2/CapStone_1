@@ -52,4 +52,7 @@ management:
         include: health,info,prometheus,metrics
   endpoint:
     health:
-      show-details: always
+      # /actuator/health is reachable anonymously so container healthchecks work,
+      # so details (database, disk, connection pool) are shown only to callers
+      # with a valid Clerk token. Anonymous callers see just {"status":"UP"}.
+      show-details: when_authorized

@@ -168,9 +168,13 @@ The application created in this problem is a University Student Directory progra
 
 ## 6. Scrum Roles
 
-- **Scrum Master/Product Owner/GitHub admin**: Ian Kellenberger & Dharmin Patel - Responsible for defining features and prioritizing backlog
-- **UI/UX**: Matthew Brown - Facilitates scrum ceremonies and removes impediments
-- **Backend Developer**: Jonathan Soriano 
+Five members:
+
+- **Scrum Master and Developer**: Jonatan Soriano Sanjuan — facilitates scrum ceremonies, removes impediments, and develops
+- **DevOps and QA**: Dharmin Patel — build pipeline, containers, releases, and test strategy
+- **Developer**: Matthew Brown
+- **Developer and UI/UX**: Shamak Patel — interface design and front-end development
+- **Security**: Jessica Pham — OWASP review, authentication and authorization, dependency and container scanning
 
 
 ---
@@ -189,10 +193,33 @@ The application created in this problem is a University Student Directory progra
 
 
 ### How to Run the Project
-To run the project from the terminal, use the following command:
+
+The app is a React + TypeScript single-page app served by a Spring Boot API.
+
+**Day-to-day development** — two terminals, with hot reload on the frontend:
+
 ```bash
+# Terminal 1 — API on http://localhost:8080
+./mvnw spring-boot:run
+
+# Terminal 2 — SPA on http://localhost:5173 (proxies /api and /student to 8080)
+cd frontend
+cp .env.example .env     # first time only
+npm install              # first time only
+npm run dev
+```
+
+**Single-server run** — build the SPA into the backend's static resources, then
+run just Spring Boot on http://localhost:8080:
+
+```bash
+cd frontend && npm install && npm run build && cd ..
 ./mvnw spring-boot:run
 ```
+
+The compiled bundle is generated, not committed, so `npm run build` is required
+at least once before the single-server run serves any UI. The Docker image runs
+that build itself in a dedicated stage.
 
 ---
 
@@ -245,9 +272,17 @@ Version tags in the form `vX.Y.Z` run the release workflow. A successful run:
 The version tag must match the non-SNAPSHOT version in `pom.xml`.
 ---
 
-## CampusBridge Tabs
+## CampusBridge App
 
-Beyond the student directory (search & profile), the app now includes four more
+The frontend is a React 19 + TypeScript SPA (Vite, Tailwind v4, Clerk) living in
+[`frontend/`](frontend/README.md). It ships as part of the same JAR and container
+as the API: `npm run build` writes the bundle into `src/main/resources/static`,
+and Spring forwards client-side routes to `index.html`
+(`config/SpaForwardingConfig.java`). The layout is a desktop header nav plus a
+native-style bottom tab bar on phones, so the planned React Native app can reuse
+the same navigation model and API contracts.
+
+Beyond the student directory (search & profile), the app includes four more
 tabs, all authenticated with the same Clerk session as the rest of the site:
 
 - **Marketplace** (`/marketplace.html`) — create, search, favorite, and report
@@ -276,9 +311,10 @@ Cloudinary/S3 (listings currently take a plain photo URL), and the campus map.
 
 - **Backend**: Spring Boot, Spring Data JPA
 - **Database**: PostgreSQL / H2 (for development)
-- **Frontend**: Thymeleaf
+- **Frontend**: React 19 + TypeScript, Vite, Tailwind CSS v4, React Router
+- **Authentication**: Clerk (`@clerk/clerk-react` in the SPA, JWT validation in the API)
 - **Testing**: JUnit, Mockito, Spring Test
-- **Build Tool**: Maven
+- **Build Tool**: Maven (backend), npm/Vite (frontend)
 - **Version Control**: Git/GitHub
 - **CI/CD**: GitHub Actions
 - **Deployment**: [AWS / Heroku / Azure / Other]

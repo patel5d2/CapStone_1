@@ -6,6 +6,7 @@ import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -66,6 +67,7 @@ public class PostService {
         }
     }
 
+    @Transactional
     public void unlike(Long postId, String userEmail) {
         postLikeRepository.deleteByPostIdAndUserEmail(postId, userEmail);
     }
