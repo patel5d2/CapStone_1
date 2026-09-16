@@ -23,6 +23,15 @@ spring:
       enabled: true
       path: /h2-console
 
+  # university/student/app_user are managed by hand (see h2-schema.sql / db/init) and
+  # are plain JDBC, not JPA entities, so Hibernate never sees them. ddl-auto=update
+  # only ever creates/alters tables for the newer @Entity classes (marketplace,
+  # messages, community, support) and leaves everything else untouched.
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
   # ── Clerk authentication ──
   # Incoming Clerk session tokens are checked against this instance's signing keys.
   # jwk-set-uri is given explicitly so the keys are fetched on first use rather than

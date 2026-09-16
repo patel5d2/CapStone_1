@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Support – CampusBridge</title>
+    <meta name="description" content="Food pantries, emergency aid, counseling, and anonymous requests for Cincinnati-area students." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <script src="/js/clerk-auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@clerk/ui@1.33.0/dist/ui.browser.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6.32.0/dist/clerk.browser.js" crossorigin="anonymous"></script>
+</head>
+
+<body class="search-page">
+
+<nav class="nav nav-search">
+    <div class="nav-brand">
+        <div class="nav-logo">🎓</div>
+        <span class="nav-title">CAMPUSBRIDGE</span>
+    </div>
+    <div class="nav-links">
+        <a href="/search.html" class="nav-link">Directory</a>
+        <a href="/marketplace.html" class="nav-link">Marketplace</a>
+        <a href="/community.html" class="nav-link">Community</a>
+        <a href="/support.html" class="nav-link nav-link-active">Support</a>
+        <a href="/messages.html" class="nav-link">Messages</a>
+        <span class="nav-auth" data-clerk-auth></span>
+    </div>
+</nav>
+
+<main class="search-main" style="max-width: 900px; margin: 0 auto; padding: 32px 24px;">
+    <h1 class="section-heading">Support</h1>
+    <p class="section-subheading">You're not alone. Every Cincinnati-area school has resources — find them here, or ask anonymously.</p>
+
+    <div class="tab-switcher">
+        <button class="tab-btn tab-btn-active" id="tab-resources" onclick="switchSection('resources')">Resources</button>
+        <button class="tab-btn" id="tab-requests" onclick="switchSection('requests')">Anonymous Requests</button>
+        <button class="tab-btn" id="tab-mine" onclick="switchSection('mine')">My Requests</button>
+    </div>
+
+    <!-- Resources -->
+    <section id="section-resources">
+        <div class="filter-group" style="max-width: 320px;">
+            <label class="filter-label" for="resource-school">SCHOOL</label>
+            <select id="resource-school" class="filter-select" onchange="loadResources()">
+                <option value="">All Schools</option>
+            </select>
+        </div>
+        <div id="resources-list" style="margin-top: 16px;"><p class="empty-text">Loading resources…</p></div>
+    </section>
+
+    <!-- Public anonymous requests -->
+    <section id="section-requests" style="display:none;">
+        <div class="app-card" style="margin-bottom: 20px;">
+            <h3 class="app-card-title" style="margin-bottom: 14px;">Ask for Help — Anonymously</h3>
+            <div class="form-row">
+                <select id="req-category" class="filter-select">
+                    <option value="FOOD_PANTRY">Food</option>
+                    <option value="EMERGENCY_AID">Emergency Aid</option>
+                    <option value="COUNSELING">Counseling</option>
+                    <option value="OTHER">Other</option>
+                </select>
+                <select id="req-school" class="filter-select">
+                    <option value="">No specific school</option>
+                </select>
+            </div>
+            <textarea id="req-description" class="form-textarea" placeholder="Describe what you need — this is posted without your name attached."></textarea>
+            <div class="app-card-actions">
+                <button class="btn-primary-sm" onclick="createRequest()">Submit Anonymously</button>
+            </div>
+        </div>
+        <div id="requests-list"><p class="empty-text">Loading requests…</p></div>
+    </section>
+
+    <!-- My requests -->
+    <section id="section-mine" style="display:none;">
+        <div id="mine-list"><p class="empty-text">Loading your requests…</p></div>
+    </section>
+</main>
+
+<script>
+    window.addEventListener('DOMContentLoaded', async () => {
+        await ClerkAuth.requireSignedIn();
+        await loadSchoolOptions();
+        loadResources();
+    });
+
+    async function loadSchoolOptions() {
+        try {
+            const res = await ClerkAuth.fetch('/api/schools');
+            const schools = res.ok ? await res.json() : [];
+            const options = schools.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+            document.getElementById('resource-school').insertAdjacentHTML('beforeend', options);
+            document.getElementById('req-school').insertAdjacentHTML('beforeend', options);
+        } catch (e) { /* ignore */ }
+    }
+
+    function switchSection(name) {
+        ['resources', 'requests', 'mine'].forEach(s => {
+            document.getElementById('section-' + s).style.display = (s === name) ? 'block' : 'none';
+            document.getElementById('tab-' + s).classList.toggle('tab-btn-active', s === name);
+        });
+        if (name === 'requests') loadRequests();
+        if (name === 'mine') loadMine();
+    }
+
+    async function loadResources() {
+        const list = document.getElementById('resources-list');
+        const schoolId = document.getElementById('resource-school').value;
+        try {
+            const url = '/api/support/resources' + (schoolId ? '?schoolId=' + schoolId : '');
+            const res = await ClerkAuth.fetch(url);
+            const resources = res.ok ? await res.json() : [];
+            if (!resources.length) {
+                list.innerHTML = '<div class="empty-state"><div class="empty-icon">🤝</div><h2 class="empty-title">No resources listed</h2></div>';
+                return;
+            }
+            list.innerHTML = '<div class="app-grid">' + resources.map(r => `
+                <div class="app-card">
+                    <div class="app-card-header">
+                        <div class="app-card-title">${escapeHtml(r.name)}</div>
+                        <span class="badge">${escapeHtml(r.category.replace('_', ' '))}</span>
+                    </div>
+                    <p class="app-card-body">${escapeHtml(r.description || '')}</p>
+                    ${r.contactInfo ? `<div class="app-card-meta">📞 ${escapeHtml(r.contactInfo)}</div>` : ''}
+                    ${r.address ? `<div class="app-card-meta">📍 ${escapeHtml(r.address)}</div>` : ''}
+                </div>
+            `).join('') + '</div>';
+        } catch (e) {
+            list.innerHTML = '<p class="empty-text">Could not load resources.</p>';
+        }
+    }
+
+    async function createRequest() {
+        const description = document.getElementById('req-description').value.trim();
+        if (!description) { alert('Please describe what you need'); return; }
+        const body = {
+            category: document.getElementById('req-category').value,
+            schoolId: document.getElementById('req-school').value || null,
+            description: description
+        };
+        const res = await ClerkAuth.fetch('/api/support/requests', { method: 'POST', body: JSON.stringify(body) });
+        if (res.ok) {
+            document.getElementById('req-description').value = '';
+            loadRequests();
+        } else {
+            alert('Could not submit your request');
+        }
+    }
+
+    async function loadRequests() {
+        const list = document.getElementById('requests-list');
+        try {
+            const res = await ClerkAuth.fetch('/api/support/requests?status=OPEN');
+            const requests = res.ok ? await res.json() : [];
+            if (!requests.length) {
+                list.innerHTML = '<div class="empty-state"><div class="empty-icon">🙌</div><h2 class="empty-title">No open requests</h2></div>';
+                return;
+            }
+            list.innerHTML = requests.map(r => `
+                <div class="app-card" style="margin-bottom: 16px;">
+                    <div class="app-card-header">
+                        <span class="badge">${escapeHtml(r.category.replace('_', ' '))}</span>
+                        <span class="badge badge-open">${escapeHtml(r.status)}</span>
+                    </div>
+                    <p class="app-card-body">${escapeHtml(r.description)}</p>
+                    <div class="app-card-actions">
+                        <button class="btn-primary-sm" onclick="fulfillRequest(${r.id})">I can help</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = '<p class="empty-text">Could not load requests.</p>';
+        }
+    }
+
+    async function fulfillRequest(id) {
+        if (!confirm('Mark this request as fulfilled by you?')) return;
+        await ClerkAuth.fetch(`/api/support/requests/${id}/fulfill`, { method: 'POST' });
+        loadRequests();
+    }
+
+    async function loadMine() {
+        const list = document.getElementById('mine-list');
+        try {
+            const res = await ClerkAuth.fetch('/api/support/requests/mine');
+            const requests = res.ok ? await res.json() : [];
+            if (!requests.length) {
+                list.innerHTML = '<p class="empty-text">You haven\'t submitted any requests.</p>';
+                return;
+            }
+            list.innerHTML = requests.map(r => {
+                const badgeClass = r.status === 'OPEN' ? 'badge-open' : 'badge-fulfilled';
+                return `
+                    <div class="app-card" style="margin-bottom: 16px;">
+                        <div class="app-card-header">
+                            <span class="badge">${escapeHtml(r.category.replace('_', ' '))}</span>
+                            <span class="badge ${badgeClass}">${escapeHtml(r.status)}</span>
+                        </div>
+                        <p class="app-card-body">${escapeHtml(r.description)}</p>
+                        <div class="app-card-meta">Submitted ${new Date(r.createdAt).toLocaleString()}</div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            list.innerHTML = '<p class="empty-text">Could not load your requests.</p>';
+        }
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>

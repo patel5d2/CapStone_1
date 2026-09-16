@@ -245,6 +245,33 @@ Version tags in the form `vX.Y.Z` run the release workflow. A successful run:
 The version tag must match the non-SNAPSHOT version in `pom.xml`.
 ---
 
+## CampusBridge Tabs
+
+Beyond the student directory (search & profile), the app now includes four more
+tabs, all authenticated with the same Clerk session as the rest of the site:
+
+- **Marketplace** (`/marketplace.html`) — create, search, favorite, and report
+  listings (sell, rent, free/donate, looking-for), with a My Listings /
+  Favorites view and mark-as-sold.
+- **Messages** (`/messages.html`) — direct and per-listing conversations,
+  block/report users. Polls for new messages; real-time delivery via
+  WebSockets is planned for a later sprint.
+- **Community** (`/community.html`) — a general post feed (like/comment),
+  groups (major, graduation year, or course study group), and an events
+  board.
+- **Support** (`/support.html`) — each school's food pantry, emergency aid,
+  and counseling contacts, plus anonymous help requests that any student can
+  offer to fulfill.
+
+All of it is backed by new REST endpoints under `/api/marketplace`,
+`/api/messages`, `/api/community`, and `/api/support` (see the corresponding
+packages under `src/main/java/.../{marketplace,messages,community,support}`).
+Their tables are plain JPA entities managed by `spring.jpa.hibernate.ddl-auto:
+update`, kept separate from the hand-written `university` / `student` /
+`app_user` tables so the existing directory and Clerk auth are untouched.
+Known follow-ups: real-time chat over WebSockets, image upload to
+Cloudinary/S3 (listings currently take a plain photo URL), and the campus map.
+
 ## Technology Stack
 
 - **Backend**: Spring Boot, Spring Data JPA

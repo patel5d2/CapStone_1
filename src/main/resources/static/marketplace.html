@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marketplace – CampusBridge</title>
+    <meta name="description" content="Buy, sell, rent, and give away items with verified students at Cincinnati-area schools." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <script src="/js/clerk-auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@clerk/ui@1.33.0/dist/ui.browser.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6.32.0/dist/clerk.browser.js" crossorigin="anonymous"></script>
+</head>
+
+<body class="search-page">
+
+<nav class="nav nav-search">
+    <div class="nav-brand">
+        <div class="nav-logo">🎓</div>
+        <span class="nav-title">CAMPUSBRIDGE</span>
+    </div>
+    <div class="nav-links">
+        <a href="/search.html" class="nav-link">Directory</a>
+        <a href="/marketplace.html" class="nav-link nav-link-active">Marketplace</a>
+        <a href="/community.html" class="nav-link">Community</a>
+        <a href="/support.html" class="nav-link">Support</a>
+        <a href="/messages.html" class="nav-link">Messages</a>
+        <span class="nav-auth" data-clerk-auth></span>
+    </div>
+</nav>
+
+<div class="search-layout">
+    <aside class="sidebar">
+        <h2 class="sidebar-title">FILTERS</h2>
+        <p class="sidebar-subtitle">Find what you need</p>
+
+        <form id="filter-form" onsubmit="return false;">
+            <div class="filter-group">
+                <label class="filter-label" for="q">SEARCH</label>
+                <input type="text" id="q" class="filter-input" placeholder="Title or description..." />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="category">CATEGORY</label>
+                <select id="category" class="filter-select">
+                    <option value="">All Categories</option>
+                    <option value="BOOKS">Books</option>
+                    <option value="CLOTHES">Clothes</option>
+                    <option value="EVENT_TICKETS">Event Tickets</option>
+                    <option value="FURNITURE">Furniture</option>
+                    <option value="ELECTRONICS">Electronics</option>
+                    <option value="OTHER">Other</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="listingType">TYPE</label>
+                <select id="listingType" class="filter-select">
+                    <option value="">Sell, Rent, Free & Looking For</option>
+                    <option value="SELL">For Sale</option>
+                    <option value="RENT">For Rent</option>
+                    <option value="FREE">Free / Donate</option>
+                    <option value="LOOKING_FOR">Looking For</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="courseCode">COURSE CODE</label>
+                <input type="text" id="courseCode" class="filter-input" placeholder="e.g. CS 2021" />
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="schoolId">SCHOOL</label>
+                <select id="schoolId" class="filter-select">
+                    <option value="">All Schools</option>
+                </select>
+            </div>
+            <button type="button" class="btn-search" onclick="loadListings()">🔍 SEARCH</button>
+        </form>
+
+        <div class="tab-switcher" style="margin-top: 24px;">
+            <button class="tab-btn tab-btn-active" id="tab-all" onclick="switchView('all')">All</button>
+            <button class="tab-btn" id="tab-mine" onclick="switchView('mine')">My Listings</button>
+            <button class="tab-btn" id="tab-favorites" onclick="switchView('favorites')">Favorites</button>
+        </div>
+    </aside>
+
+    <main class="search-main">
+        <div class="results-header">
+            <div>
+                <h1 class="results-title">Marketplace</h1>
+                <p class="results-count" id="results-count">Loading…</p>
+            </div>
+            <button class="btn-primary-sm" onclick="toggleNewListingForm()">+ New Listing</button>
+        </div>
+
+        <div id="new-listing-form" class="app-card" style="display:none; margin-bottom: 20px;">
+            <h3 class="app-card-title" style="margin-bottom: 14px;">Create a Listing</h3>
+            <div class="form-row">
+                <input type="text" id="nl-title" class="filter-input" placeholder="Title" />
+                <select id="nl-category" class="filter-select">
+                    <option value="BOOKS">Books</option>
+                    <option value="CLOTHES">Clothes</option>
+                    <option value="EVENT_TICKETS">Event Tickets</option>
+                    <option value="FURNITURE">Furniture</option>
+                    <option value="ELECTRONICS">Electronics</option>
+                    <option value="OTHER">Other</option>
+                </select>
+                <select id="nl-type" class="filter-select" onchange="onListingTypeChange()">
+                    <option value="SELL">For Sale</option>
+                    <option value="RENT">For Rent</option>
+                    <option value="FREE">Free / Donate</option>
+                    <option value="LOOKING_FOR">Looking For</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <input type="number" id="nl-price" class="filter-input" placeholder="Price ($)" min="0" step="0.01" />
+                <input type="text" id="nl-courseCode" class="filter-input" placeholder="Course code (for textbooks)" />
+                <select id="nl-schoolId" class="filter-select">
+                    <option value="">No specific school</option>
+                </select>
+            </div>
+            <textarea id="nl-description" class="form-textarea" placeholder="Description"></textarea>
+            <input type="text" id="nl-photoUrl" class="filter-input" style="margin-top: 10px;" placeholder="Photo URL (optional)" />
+            <div class="app-card-actions">
+                <button class="btn-primary-sm" onclick="createListing()">Post Listing</button>
+                <button class="btn-ghost-sm" onclick="toggleNewListingForm()">Cancel</button>
+            </div>
+        </div>
+
+        <div id="results-container">
+            <div class="empty-state" id="empty-state">
+                <div class="empty-icon">🛒</div>
+                <h2 class="empty-title">Loading the marketplace…</h2>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    let currentView = 'all';
+    let schools = [];
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        await ClerkAuth.requireSignedIn();
+        await loadSchools();
+        loadListings();
+    });
+
+    async function loadSchools() {
+        try {
+            const res = await ClerkAuth.fetch('/api/schools');
+            schools = res.ok ? await res.json() : [];
+        } catch (e) {
+            schools = [];
+        }
+        const options = schools.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+        document.getElementById('schoolId').insertAdjacentHTML('beforeend', options);
+        document.getElementById('nl-schoolId').insertAdjacentHTML('beforeend', options);
+    }
+
+    function onListingTypeChange() {
+        const type = document.getElementById('nl-type').value;
+        document.getElementById('nl-price').disabled = (type === 'FREE' || type === 'LOOKING_FOR');
+        if (document.getElementById('nl-price').disabled) document.getElementById('nl-price').value = '';
+    }
+
+    function switchView(view) {
+        currentView = view;
+        ['all', 'mine', 'favorites'].forEach(v => {
+            document.getElementById('tab-' + v).classList.toggle('tab-btn-active', v === view);
+        });
+        loadListings();
+    }
+
+    function toggleNewListingForm() {
+        const form = document.getElementById('new-listing-form');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function createListing() {
+        const title = document.getElementById('nl-title').value.trim();
+        if (!title) { alert('Title is required'); return; }
+        const type = document.getElementById('nl-type').value;
+        const priceVal = document.getElementById('nl-price').value;
+        const photoUrl = document.getElementById('nl-photoUrl').value.trim();
+
+        const body = {
+            title: title,
+            description: document.getElementById('nl-description').value.trim(),
+            category: document.getElementById('nl-category').value,
+            listingType: type,
+            price: (type === 'FREE' || type === 'LOOKING_FOR' || !priceVal) ? null : parseFloat(priceVal),
+            courseCode: document.getElementById('nl-courseCode').value.trim() || null,
+            schoolId: document.getElementById('nl-schoolId').value || null,
+            photoUrls: photoUrl ? [photoUrl] : []
+        };
+
+        try {
+            const res = await ClerkAuth.fetch('/api/marketplace/listings', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            if (res.ok) {
+                toggleNewListingForm();
+                document.getElementById('nl-title').value = '';
+                document.getElementById('nl-description').value = '';
+                document.getElementById('nl-photoUrl').value = '';
+                switchView('all');
+            } else {
+                const err = await res.json().catch(() => null);
+                alert(err && err.message ? err.message : 'Could not create listing');
+            }
+        } catch (e) {
+            alert('Could not connect to the server');
+        }
+    }
+
+    async function loadListings() {
+        const container = document.getElementById('results-container');
+        container.innerHTML = '<div class="loading-state"><div class="spinner"></div><span class="loading-text">Loading…</span></div>';
+
+        let url;
+        if (currentView === 'mine') {
+            url = '/api/marketplace/my-listings';
+        } else if (currentView === 'favorites') {
+            url = '/api/marketplace/favorites';
+        } else {
+            const params = new URLSearchParams();
+            const q = document.getElementById('q').value.trim();
+            const category = document.getElementById('category').value;
+            const listingType = document.getElementById('listingType').value;
+            const courseCode = document.getElementById('courseCode').value.trim();
+            const schoolId = document.getElementById('schoolId').value;
+            if (q) params.append('q', q);
+            if (category) params.append('category', category);
+            if (listingType) params.append('listingType', listingType);
+            if (courseCode) params.append('courseCode', courseCode);
+            if (schoolId) params.append('schoolId', schoolId);
+            url = '/api/marketplace/listings' + (params.toString() ? '?' + params.toString() : '');
+        }
+
+        try {
+            const res = await ClerkAuth.fetch(url);
+            if (!res.ok) throw new Error('Request failed');
+            const listings = await res.json();
+            document.getElementById('results-count').textContent = listings.length + (listings.length === 1 ? ' listing' : ' listings');
+            renderListings(listings);
+        } catch (e) {
+            container.innerHTML = '<div class="no-results"><div class="no-results-icon">⚠️</div><h2 class="no-results-title">Something went wrong</h2><p class="no-results-text">Could not load listings.</p></div>';
+        }
+    }
+
+    function renderListings(listings) {
+        const container = document.getElementById('results-container');
+        if (!listings.length) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">🛒</div><h2 class="empty-title">Nothing here yet</h2><p class="empty-text">Try different filters, or be the first to post a listing.</p></div>';
+            return;
+        }
+        container.innerHTML = '<div class="app-grid">' + listings.map(buildListingCard).join('') + '</div>';
+    }
+
+    function buildListingCard(l) {
+        const priceText = l.price != null ? '$' + Number(l.price).toFixed(2) : (l.listingType === 'FREE' ? 'FREE' : (l.listingType === 'LOOKING_FOR' ? 'WANTED' : ''));
+        const badgeClass = l.status === 'AVAILABLE' ? 'badge-available' : (l.status === 'PENDING' ? 'badge-pending' : 'badge-sold');
+        const photo = (l.photoUrls && l.photoUrls[0]) ? `<img src="${escapeHtml(l.photoUrls[0])}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px;" onerror="this.style.display='none'">` : '';
+        return `
+            <div class="app-card">
+                ${photo}
+                <div class="app-card-header">
+                    <div>
+                        <div class="app-card-title">${escapeHtml(l.title)}</div>
+                        <div class="app-card-meta">${escapeHtml(l.category)} · ${escapeHtml(l.listingType)}${l.courseCode ? ' · ' + escapeHtml(l.courseCode) : ''}</div>
+                    </div>
+                    <span class="badge ${badgeClass}">${escapeHtml(l.status)}</span>
+                </div>
+                <p class="app-card-body">${escapeHtml(l.description || '')}</p>
+                <div class="app-card-meta">${priceText ? '<strong>' + priceText + '</strong> · ' : ''}Seller: ${escapeHtml(l.sellerEmail)}</div>
+                <div class="app-card-actions">
+                    <button class="btn-ghost-sm" onclick="startChat(${l.id})">💬 Message Seller</button>
+                    <button class="btn-ghost-sm" onclick="toggleFavorite(${l.id}, ${l.favorited})">${l.favorited ? '★ Favorited' : '☆ Favorite'}</button>
+                    ${currentView === 'mine' && l.status !== 'SOLD' ? `<button class="btn-ghost-sm" onclick="markSold(${l.id})">Mark Sold</button>` : ''}
+                    ${currentView === 'mine' ? `<button class="btn-danger-sm" onclick="deleteListing(${l.id})">Delete</button>` : `<button class="btn-ghost-sm" onclick="reportListing(${l.id})">Report</button>`}
+                </div>
+            </div>
+        `;
+    }
+
+    async function startChat(listingId) {
+        try {
+            const res = await ClerkAuth.fetch('/api/messages/conversations', {
+                method: 'POST',
+                body: JSON.stringify({ listingId: listingId })
+            });
+            if (res.ok) {
+                window.location.href = '/messages.html';
+            } else {
+                const err = await res.json().catch(() => null);
+                alert(err && err.message ? err.message : 'Could not start a conversation');
+            }
+        } catch (e) {
+            alert('Could not connect to the server');
+        }
+    }
+
+    async function toggleFavorite(id, currentlyFavorited) {
+        const method = currentlyFavorited ? 'DELETE' : 'POST';
+        try {
+            await ClerkAuth.fetch(`/api/marketplace/listings/${id}/favorite`, { method: method });
+            loadListings();
+        } catch (e) { /* ignore */ }
+    }
+
+    async function markSold(id) {
+        if (!confirm('Mark this listing as sold?')) return;
+        await ClerkAuth.fetch(`/api/marketplace/listings/${id}/sold`, { method: 'POST' });
+        loadListings();
+    }
+
+    async function deleteListing(id) {
+        if (!confirm('Delete this listing?')) return;
+        await ClerkAuth.fetch(`/api/marketplace/listings/${id}`, { method: 'DELETE' });
+        loadListings();
+    }
+
+    async function reportListing(id) {
+        const reason = prompt('Why are you reporting this listing?');
+        if (!reason) return;
+        await ClerkAuth.fetch(`/api/marketplace/listings/${id}/report`, {
+            method: 'POST',
+            body: JSON.stringify({ reason: reason })
+        });
+        alert('Thanks — this listing has been reported to moderators.');
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>

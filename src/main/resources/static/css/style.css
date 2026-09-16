@@ -1333,6 +1333,277 @@ a {
     animation-delay: 0.27s;
 }
 
+/* =========================================
+   CAMPUSBRIDGE TABS — Marketplace, Messages,
+   Community, Support
+   Shared components layered on top of the
+   existing search-layout / card / form styles.
+   ========================================= */
+
+.app-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+    animation: cardFadeIn 0.25s ease both;
+}
+
+.app-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.app-card-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.app-card-meta {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+}
+
+.app-card-body {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 10px 0;
+    white-space: pre-wrap;
+}
+
+.app-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: var(--color-badge-bg);
+    color: var(--color-accent);
+}
+
+.badge-available { background: var(--color-success-bg); color: var(--color-success); }
+.badge-pending { background: #fffbeb; color: #b45309; }
+.badge-sold { background: var(--color-error-bg); color: var(--color-error); }
+.badge-free { background: #eff6ff; color: #1d4ed8; }
+.badge-open { background: var(--color-success-bg); color: var(--color-success); }
+.badge-fulfilled { background: var(--color-badge-bg); color: var(--color-text-muted); }
+
+.btn-danger-sm {
+    padding: 8px 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--color-error-border);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--t);
+}
+
+.btn-danger-sm:hover { background: var(--color-error-border); }
+
+.btn-ghost-sm {
+    padding: 8px 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--color-border-mid);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--t);
+}
+
+.btn-ghost-sm:hover { background: var(--color-highlight); }
+
+.form-textarea {
+    width: 100%;
+    min-height: 90px;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border-mid);
+    border-radius: var(--r-md);
+    font-family: var(--font);
+    font-size: 14px;
+    resize: vertical;
+}
+
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.tab-switcher {
+    display: flex;
+    gap: 6px;
+    background: var(--color-highlight);
+    border: 1px solid var(--color-border);
+    border-radius: var(--r-pill);
+    padding: 4px;
+    width: fit-content;
+    margin-bottom: 24px;
+}
+
+.tab-btn {
+    padding: 8px 18px;
+    border-radius: var(--r-pill);
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: var(--t);
+}
+
+.tab-btn-active {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+.section-heading {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 4px;
+}
+
+.section-subheading {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin-bottom: 20px;
+}
+
+/* --- Chat / Messages layout --- */
+.chat-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    height: calc(100vh - var(--nav-h));
+}
+
+.chat-sidebar {
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    background: var(--color-surface);
+}
+
+.chat-list-item {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: var(--t);
+}
+
+.chat-list-item:hover { background: var(--color-highlight); }
+.chat-list-item.active { background: var(--color-badge-bg); }
+
+.chat-list-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.chat-unread-dot {
+    background: var(--color-error);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: var(--r-pill);
+    padding: 1px 7px;
+}
+
+.chat-main {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-thread {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-bubble {
+    max-width: 60%;
+    padding: 10px 14px;
+    border-radius: var(--r-lg);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.chat-bubble-mine {
+    align-self: flex-end;
+    background: var(--color-accent);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-bubble-theirs {
+    align-self: flex-start;
+    background: var(--color-highlight);
+    border: 1px solid var(--color-border);
+    border-bottom-left-radius: 4px;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.chat-input-row input {
+    flex: 1;
+}
+
+@media (max-width: 860px) {
+    .chat-layout {
+        grid-template-columns: 1fr;
+    }
+    .chat-sidebar {
+        display: none;
+    }
+    .chat-sidebar.mobile-visible {
+        display: block;
+    }
+    .chat-main.mobile-hidden {
+        display: none;
+    }
+}
+
 @keyframes cardFadeIn {
     from {
         opacity: 0;
