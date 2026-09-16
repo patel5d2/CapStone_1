@@ -1,82 +1,100 @@
 # 1. Overview — Product Vision & Core Flows
 
-> **Source of truth: the signed Senior Design Team Contract (02 Sep 2026).**
-> This file is the contract expressed for builders. Where this file and the code
-> disagree, the contract wins and the code is wrong. Changing documented scope needs
-> a team majority vote (Team Rule 8).
+> **Requirements authority: the signed Senior Design Team Contract (02 Sep 2026).**
+> The contract itself is not checked into this repository. This file preserves the
+> team's recorded objectives and distinguishes them from implementation and proposals;
+> it does not establish new contract scope. Scope changes need a team majority vote
+> and meeting record (Team Rule 8). See [progress](5_progress.md) for evidence and gaps.
 
 ## What CampusBridge is
 
-**A verified, regional campus marketplace for the Cincinnati metro area — with the
-community features that keep it alive between transactions.**
+**CampusBridge aims to be a verified, regional campus marketplace for the Cincinnati
+metro area, with community features that keep it useful between transactions.**
 
-The marketplace is the product. The directory, messaging and feeds are not separate
-features bolted on; they exist to solve the **cold-start / liquidity problem** that
-kills campus marketplaces (Chen, 2021). A single campus never generates enough
-simultaneous buyers and sellers, and national platforms show a Midwest student items
-from the West Coast. CampusBridge pools every Cincinnati-area school into **one
-verified regional network**, and gives students reasons to return between purchases.
+The marketplace is the product. The product hypothesis is that a regional network
+offers students more nearby buyers and sellers than a single-campus service. The
+directory, messaging and feeds give students reasons to return between purchases.
+This is the intended product; school verification, moderation and other requirements
+remain incomplete in the current implementation.
 
-> The repository's README history describes a "University Student Directory." That
-> framing is obsolete. The directory is one surface inside the Community tab.
+The earlier directory-only design is preserved in the
+[archived design document](../docs/design-document.md). The target navigation places
+the directory inside Community; the current shell still has a separate Directory item.
 
 ## Schools
 
-Six supported institutions: **University of Cincinnati, Xavier, Northern Kentucky
-University, Miami University, Cincinnati State, Mount St. Joseph.**
-Each maps to an institutional email domain.
+The plan names six institutions: **University of Cincinnati, Xavier, Northern Kentucky
+University, Miami University, Cincinnati State, Mount St. Joseph.** The objective is
+registration and listing creation at at least six schools, with institutional-domain
+verification and no per-student admin setup.
 
-> The database currently seeds **eight** — the six above plus Thomas More University
-> and Cincinnati Christian University. The contract requires "at least six." Treat
-> the seeded list as the working set; the six above are the ones themed and tested.
+The H2 and legacy PostgreSQL seed scripts contain **eight school records**, adding
+Thomas More University and Cincinnati Christian University. Seed records are not
+evidence of current institutional eligibility or tested support. The launch list and
+email-domain mapping need confirmation; automatic school theming is not implemented.
 
-## Roles
+## Intended roles
 
 | Role | Established by | Can do |
 |---|---|---|
-| **Visitor** | Not signed in | Landing page only |
+| **Visitor** | Not signed in | Landing and authentication pages; no protected application data |
 | **Student** | Clerk account on a verified institutional email | Everything except moderation |
-| **Admin** | Clerk metadata flag | Delete listings, suspend accounts, process reports, manage schools and categories |
+| **Admin** | Proposed Clerk metadata capability | Delete listings, suspend accounts, process reports, manage schools and categories |
 
-Authorization is **ownership-based** (you may edit your own listing) plus the single
-admin flag. There are no other roles.
+The target authorization model combines ownership checks with an admin capability.
+Currently the app validates Clerk JWTs and uses email-based ownership; admin
+authorization, institutional-domain enforcement and per-field privacy are not
+implemented. See [architecture](2_architecture.md) for the current identity model.
 
-## The app: four tabs
+## Target navigation: four tabs
 
-Navigation is four tabs, not five. The student directory lives **inside Community**.
+The design calls for four tabs, with the student directory **inside Community**.
+These are roadmap surfaces, not a claim that every listed feature is complete.
+The current shell has five destinations: Marketplace, Community, Support, Messages
+and Directory. Four-tab consolidation is planned for Sprint 2.
 
 | Tab | Contains |
 |---|---|
-| **Marketplace** | Listings (sell / rent / free / looking-for), photos, categories, status, search and filters, course-code textbook search, favourites, My Listings, purchase history, report |
-| **Messages** | One inbox — Marketplace / Groups / Direct. Real-time chat, unread counts, photos, offers, mark-sold, seller reviews, block and report |
-| **Community** | Student directory, groups by major and graduation year, course study groups, posts with comments and likes, peer mentorship, events board |
+| **Marketplace** | Listings (sell / rent / free / looking-for), photos, categories, status, search and filters, course-code textbook search, favourites, My Listings, report |
+| **Messages** | One inbox — Marketplace / Groups / Direct. Real-time chat, unread counts, photos, block and report |
+| **Community** | Student directory, groups by major and graduation year, posts with comments and likes, events board |
 | **Support** | Per-school essentials hub (food pantry, emergency aid, counselling), anonymous requests fulfilled through the donate section |
 
-Shared across every tab: student profile, campus map, notification centre, home feed,
-admin tools, school-based theming, dark mode, accessibility.
+Shared design requirements include student profiles, admin tools, school-based
+theming, dark mode and accessibility. The full roadmap still needs scope confirmation
+where it goes beyond the recorded contract objectives below.
 
-## Core user flows
+**Proposed additions awaiting a recorded scope decision:** offers, seller reviews,
+purchase history, peer mentorship, course study groups, campus map and meetup spots,
+notification centre, and home feed. Their appearance in the sprint plan does not
+constitute team approval or completed implementation.
 
-1. **Sign up** — Clerk, restricted to institutional email domains, verified by
-   one-time link, with two-factor authentication.
-2. **Profile sync** — a `user.created` webhook creates the student record keyed by
-   **Clerk user ID**; the email domain maps to the school.
+## Intended core user flows
+
+1. **Sign up** — Clerk, restricted to approved institutional email domains, with
+   verified email and two-factor authentication. The verification method and factor
+   configuration need deployment verification; a JWT alone does not prove eligibility.
+2. **Profile sync (proposed implementation)** — a `user.created` webhook creates the
+   student record keyed by **Clerk user ID**; the email domain maps to the school.
+   Today profile creation is an explicit API action and ownership uses email.
 3. **Complete profile** — name, school, major, graduation year, bio, photo, and
    per-field privacy settings.
 4. **List an item** — title, description, category, price, condition, pickup
    location, up to five photos.
 5. **Find an item** — filter by school, category, price range, condition; sort by
    date or price; search textbooks by course code.
-6. **Transact** — message the seller in-platform, make an offer, agree a safe campus
-   meetup spot from the map, mark sold, leave a review.
-7. **Stay engaged** — directory, groups, study groups, events, mentorship.
+6. **Transact** — message the seller in-platform, arrange an in-person exchange, mark
+   sold. Structured offers, mapped meetup spots and seller reviews are proposed additions.
+7. **Stay engaged** — directory, groups, events. Study groups and mentorship are proposals.
 8. **Get help** — browse the school's essentials hub, or submit an anonymous request.
 9. **Stay safe** — block, report; an admin actions every report from one view.
 
 ## Success criteria
 
-Straight from the contract's objectives. These are how the project is graded — each
-is measurable, and each must be demonstrable at the final presentation.
+The following eleven objectives are recorded here from the team's contract summary.
+They remain the acceptance targets; they are not measured results or a declaration
+that the current app satisfies them. Evidence and remaining work belong in the
+[objectives scoreboard](5_progress.md#contract-objectives--scoreboard).
 
 | # | Criterion | Target |
 |---|---|---|
@@ -92,29 +110,35 @@ is measurable, and each must be demonstrable at the final presentation.
 | 10 | Security | **No high-severity OWASP Top Ten findings** at the final demonstration |
 | 11 | Reliability | **99% availability** over the evaluation period, per the monitoring dashboards |
 
-## In scope
+## Recorded delivery scope
 
-Everything in the four tabs above, plus: image upload, admin and moderation,
-institutional-domain restriction, two-factor authentication, per-school theming, the
-campus map, notification centre, home feed, WCAG 2.1 AA accessibility, containerised
-deployment with dependency scanning and metrics.
+The eleven objectives require the marketplace, directory, messaging, discussion
+feeds, image upload, admin and moderation, institutional-domain restriction,
+two-factor authentication and per-school theming. The recorded delivery plan also
+includes WCAG 2.1 AA accessibility and containerised deployment with dependency
+scanning and metrics. Preserve these requirements while resolving implementation
+gaps; proposals above need a recorded scope decision before being treated as
+additional commitments.
 
 ## Explicitly out of scope
 
 - **Payments, escrow, or money movement.** Transactions are arranged in-platform and
-  settled in person. If payments are ever added it must be through a PCI-compliant
-  third party that assumes that liability.
+  settled in person. Adding payments requires a separate scope, provider and compliance
+  review; choosing a provider does not by itself settle legal responsibility.
 - **Native mobile apps.** Responsive web only. React Native / Expo is a *stretch goal*
   after the core is delivered, reusing the same backend and Clerk.
-- **Registrar or enrollment-system integration.** All data comes from users directly —
-  this is deliberate, and keeps the platform outside FERPA's scope.
+- **Registrar or enrollment-system integration.** The product plan uses user-supplied
+  profile data. This boundary is a data-minimisation choice, not a legal determination
+  about FERPA; any institutional relationship or data integration needs its own review.
 - **Organizations / multi-tenancy.** Clerk supports it; CampusBridge does not use it.
 - **Anything outside the Cincinnati metropolitan region.** Regional density is the
   product thesis, not a limitation to be removed.
 
-## Prohibited listings
+## Intended prohibited-listing policy
 
-Enforced as content policy, surfaced at listing creation and actionable by admins:
+The recorded policy prohibits:
 alcohol, tobacco, illegal substances, firearms, medications, live animals, recalled
-products, **pirated textbooks** (17 U.S.C. § 106), and **coursework, exams or solution
-manuals** — which violate participating universities' academic-integrity policies.
+products, **pirated textbooks**, and **coursework, exams or solution manuals**.
+The policy must be surfaced at listing creation and supported by admin review.
+Reports can currently be stored, but the moderation queue and enforcement are
+incomplete; do not describe the policy as already enforced.

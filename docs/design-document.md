@@ -4,14 +4,18 @@
 > CampusBridge marketplace. Preserved because the use cases, user stories and class
 > diagram are Fall 2026 course deliverables (Timeline Tasks 3 and 5).
 >
-> **These requirements describe the student directory only** — they predate the
-> marketplace pivot. The current, complete set of graded requirements is the 11 success
-> criteria in [`context/1_overview.md`](../context/1_overview.md). Refreshing the
-> storyboard and class diagram for the four-tab app is Sprint 0 work (S0-4, S0-5).
+> **Historical course artifact, not current implementation or policy.** The directory
+> use cases, email-sharing assumptions, authentication model and JSON schema below
+> predate the marketplace pivot. Read the [overview](../context/1_overview.md) for
+> recorded objectives and scope proposals, [architecture](../context/2_architecture.md)
+> for current implementation, [progress](../context/5_progress.md) for remaining work,
+> and [team and agent rules](../context/6_rules.md) for current policy. The signed
+> contract itself is not included in this repository.
 >
-> The class-diagram description below is retained verbatim and contains a known error:
-> it describes `Task`, `Project`, `TaskRepository`, `TaskService`, `TaskController` and
-> `TaskDTO` entities that have never existed in this codebase. Corrected in S0-5.
+> The historical content below is retained unchanged. Its class-diagram description
+> includes `Task`, `Project`, `TaskRepository`, `TaskService`, `TaskController` and
+> `TaskDTO`, which are absent from the current source tree. The storyboard and diagram
+> refresh remain planned Sprint 0 work (S0-4, S0-5); this archive is not the corrected ERD.
 
 ---
 

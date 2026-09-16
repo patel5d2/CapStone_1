@@ -7,19 +7,28 @@
 > and append to the logs. Never reflow or reorder sections — that turns every merge into
 > a conflict.
 
-**Updated:** 2026-09-16 · **Baseline commit:** `c0c21d6`
+**Updated:** 2026-09-16 · **Documentation audit baseline:** `1b28132`
 **Current sprint:** **Sprint 0 — Plan and set up (Sep 14 – Sep 25, 2026)**
 
 ---
 
 ## 🔴 Blocking — must clear in Sprint 0
 
-**The app crash-loops on PostgreSQL.** `docker compose up` yields no working
-application; the published GHCR image is equally broken. Only the default H2 profile
-runs. **Objective 11 (99% availability) is unreachable until this is fixed**, and every
-sprint from 1 onward assumes a working Postgres.
+**Two startup blockers:** the current Compose file does not parse, and PostgreSQL
+schema initialization remains incomplete. `docker compose --env-file .env.example
+config --quiet` failed during this documentation audit with:
 
-Reproduced 2026-09-16 (clean Postgres 16, `SPRING_PROFILES_ACTIVE=dev`):
+```text
+yaml: line 2, column 9: mapping values are not allowed in this context
+```
+
+The first line of `docker-compose.yml` contains a stray `url=...` value. Fixing its
+syntax alone will not fix the database failure below. The default H2 profile is the
+documented development path; the published image and live deployment were not checked
+in this audit. **Objective 11 requires working startup and monitoring.**
+
+Earlier recorded reproduction, 2026-09-16 (clean Postgres 16,
+`SPRING_PROFILES_ACTIVE=dev`; not re-run in this documentation audit):
 
 ```
 Started EnterpriseDevGroupProjectApplication in 4.334 seconds
@@ -42,10 +51,13 @@ Definition of Done.
 
 - [x] Definition of Done agreed — recorded in `6_rules.md`
 - [x] Context folder written and reconciled with the signed contract
-- [ ] **S0-1 Flyway baseline.** Add `flyway-core`; `V1__baseline.sql` covering all 20
+- [ ] **S0-1 Flyway baseline.** Add `spring-boot-starter-flyway` and
+      `org.flywaydb:flyway-database-postgresql`; use
+      `src/main/resources/db/migration/V1__baseline.sql` covering all 20
       tables (17 JPA + `university`, `student`, `app_user`); `ddl-auto: validate`;
       delete `h2-schema.sql`, `h2-data.sql`, `db/init/`; seed schools in
-      `V2__seed_schools.sql`. **Clears the blocker.**
+      `V2__seed_schools.sql`. Validate fresh and existing database upgrade paths before
+      removing old initialization sources. **Addresses the database blocker.**
 - [ ] **S0-2 Drop H2.** Remove the dependency and console config; default profile points
       at Postgres; Testcontainers so tests run on Postgres 16.
 - [ ] **S0-3 CI starts the container it builds.** `docker compose up -d`, poll
@@ -55,6 +67,14 @@ Definition of Done.
 - [ ] **S0-6 Backlog** in GitHub Projects, stories sized for Sprints 1–5
 - [ ] **S0-7 Pin Java 21** — pom 21 / CI 21 / Dockerfile Temurin 25 disagree
 - [ ] **S0-8 Enable branch protection** on `main` (Team Rule 5)
+- [ ] **S0-9 Correct Compose syntax.** Remove the stray non-YAML first line in a config
+      fix and pass `docker compose --env-file .env.example config --quiet` before startup.
+- [ ] **S0-10 Complete monitoring wiring.** Decide how Prometheus authenticates to the
+      protected metrics endpoint, add actual dashboards, and configure/verify latency
+      histogram data. Health alone is not uptime evidence.
+- [ ] **S0-11 Align release artifacts.** Build the SPA before packaging the release JAR;
+      the Docker path already builds it. Review configuration forwarding for Clerk and
+      production database settings before claiming deployment readiness.
 
 ---
 
@@ -64,23 +84,27 @@ The graded criteria. Keep this honest; the final report is written from it.
 
 | # | Objective | Status | Lands in |
 |---|---|---|---|
-| 1 | Institutional email + 2FA, 100% validated | ❌ **2FA off; no domain allowlist** | Sprint 1 |
+| 1 | Institutional email + 2FA, 100% validated | ❌ no application enforcement; prior Clerk snapshot reported 2FA/allowlist off, live settings unverified | Sprint 1 |
 | 2 | ≥6 schools, no admin setup needed | ⚠️ 8 seeded, no domain mapping | Sprint 1 |
 | 3 | Listing < 2 min on mobile, 5 photos | ❌ no image upload; missing `condition`, `pickup_location` | Sprints 1, 3 |
-| 4 | Search < 1s at 10,000 listings | ❌ no pagination, no indexes, never load-tested | Sprint 4 |
-| 5 | Partial-match directory across schools | ✅ works | done |
-| 6 | Messaging < 2s, no contacts shared | ⚠️ request/response only; directory exposes emails | Sprint 6 |
-| 7 | Post/reply/report on both feed types | ⚠️ posts and reports exist; school vs major feeds not split | Sprint 8 |
+| 4 | Search < 1s at 10,000 listings | ❌ unbounded results, no explicit search indexes or recorded load-test evidence | Sprint 4 |
+| 5 | Partial-match directory across schools | ⚠️ implemented with backend tests; browser/demo acceptance not recorded here | Implementation present |
+| 6 | Messaging < 2s, no contacts shared | ⚠️ 5s active-chat polling; multiple DTOs expose personal emails | Sprint 6 |
+| 7 | Post/reply/report on both feed types | ⚠️ post/reply/like exist; no post-report endpoint or separate school/major feeds | Sprint 8 |
 | 8 | School theming automatic on login | ❌ one palette only | Sprint 2 |
 | 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
-| 10 | No high-severity OWASP findings | ❌ not assessed; no CodeQL/Trivy | Sprint 12 |
-| 11 | 99% availability | ❌ **crash-loops on Postgres** | Sprint 0 |
+| 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
+| 11 | 99% availability | ❌ Compose parse failure, Postgres schema blocker, monitoring incomplete | Sprint 0 |
 
 ---
 
 ## Sprint schedule
 
 Two-week sprints, Monday to Friday of the following week.
+
+This is the recorded planning schedule, not evidence of approval or completion.
+Entries involving scope additions in Open Question 6 remain proposals. University
+calendar dates and the final presentation window need team confirmation.
 
 ### Fall 2026
 
@@ -138,7 +162,12 @@ Postgres 16 + Prometheus + Grafana. CI: `./mvnw verify` + JaCoCo, frontend
 lint/type-check/build, multi-arch build with GHA cache. Dependabot, CODEOWNERS, GHCR
 release workflow. Actuator `show-details: when_authorized`.
 
-**Tests:** 63 backend tests green (`./mvnw test`, verified 2026-09-16). Zero frontend tests.
+**Historical test evidence:** 63 backend tests reported green with `./mvnw test` on
+2026-09-16 in the previous progress record. This audit did not re-run them. Seven Java
+test classes are checked in; no frontend test runner is configured. CI generates a
+JaCoCo report without a coverage threshold. Release Trivy scans are present but use
+`exit-code: 0`; no CodeQL analysis or dependency-review job is configured. The release
+JAR job omits the frontend build, unlike the container build.
 
 ---
 
@@ -146,14 +175,18 @@ release workflow. Actuator `show-details: when_authorized`.
 
 Per **Team Rule 8**, architecture decisions are made by majority vote and recorded in the
 meeting minutes. Entries marked *Proposed* have **not** been voted on.
+Existing *Accepted* labels below are retained from earlier records; their meeting
+minutes are not in the checkout. Merged implementation or a configured setting alone
+does not establish a team vote. Confirm that evidence before treating a new decision
+as accepted. A proposed replacement does not yet supersede an implemented decision.
 
 | # | Decision | Rationale | Status |
 |---|---|---|---|
 | 001 | Clerk as identity provider | Removes password storage, verification, reset, 2FA and device trust from scope | **Accepted** — merged, named as done in the sprint plan |
 | 002 | Modular monolith, package-by-feature | One deployable for a 5-person team; feature packages are the seams if extraction is ever needed | **Accepted** — de facto |
 | 003 | SPA served from Spring static resources | One artifact, one port, one deploy; no CORS, no second container | **Accepted** — de facto |
-| 004 | Custom `email` claim on the session token | Identifies the caller without a Clerk Backend API round-trip per request | **Accepted** — in production config |
-| 005 | Ownership keyed on email | Expedient: legacy tables already keyed on email | **Superseded by 012** |
+| 004 | Custom `email` claim on the session token | Identifies the caller without a Clerk Backend API round-trip per request | **Accepted** — required by current code; hosted configuration not re-verified |
+| 005 | Ownership keyed on email | Expedient: legacy tables already keyed on email | **Current implementation; replacement proposed in 012** |
 | 006 | Clerk modal over inline `mountSignIn` | Inline SignIn cannot render new-device verification and redirects to the hosted portal | **Accepted** — since superseded by `@clerk/clerk-react` |
 | 007 | `jwk-set-uri` **and** `issuer-uri` | Lazy key loading so the app boots when Clerk is briefly unreachable, while still validating `iss` | **Accepted** |
 | 008 | PostgreSQL in every environment | H2-in-test / Postgres-in-prod hid the crash-loop; dialect parity beats in-memory speed | **Proposed** — Sprint 0 |

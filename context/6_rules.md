@@ -24,7 +24,8 @@ From the Senior Design Team Contract, signed 02 Sep 2026.
 
 - **Every change goes through a pull request.** No member pushes directly to `main`, and
   every PR needs review and approval from at least one other member. *(Rule 5)*
-  → Commits `2d7ec86`–`c0c21d6` went straight to `main`. Enable branch protection (S0-8).
+  Branch protection is a Sprint 0 action (S0-8); its live setting is not verifiable
+  from the checkout. Commit history alone does not prove whether review occurred.
 - **Review the code, never the person.** Disagreements are settled in the review, then by
   team vote. *(Rule 6)*
 - **Test your own work before requesting review.** A PR that breaks the build is the
@@ -67,37 +68,50 @@ A story is not done until **all seven** hold:
 
 ## Read before writing
 
-1. Read `context/1_overview.md` … `context/6_rules.md` before generating code, running a
-   command, or making an architectural decision.
-2. Read `5_progress.md` first for the current sprint, the blocker and open questions.
-   Work the current sprint — do not jump ahead.
-3. Build only what the **contract objectives** in `1_overview.md` describe. The contract
-   is the source of truth; the code is not.
+1. Read `context/5_progress.md` first, then `1_overview.md`, `2_architecture.md`,
+   `3_patterns.md`, `4_ui_design.md` and this file before editing code or making an
+   architectural decision. Read-only inspection is part of that preparation.
+2. Work the current sprint unless the user's task explicitly directs otherwise.
+   Auditing later features does not approve proposed scope or mark it complete.
+3. The signed contract governs requirements; source, manifests and configuration
+   establish current implementation. The signed document and vote minutes are not in
+   this repository. Preserve the recorded objectives, distinguish proposals, and
+   report implementation gaps rather than changing requirements to match bugs.
 4. Check the Status column in `2_architecture.md` before importing anything. `PLANNED`
    means **it does not exist yet**.
 5. Never violate an invariant in `2_architecture.md`. They map to graded objectives.
 
-## Ask before doing
+## Authorization and decisions
 
-- **Adding any dependency** beyond those marked `PLANNED`.
-- **Installing a UI component library** — the answer is no; `4_ui_design.md` is the system.
+Apply the user's authorization already given for the task. Routine, reversible edits,
+read-only checks and verification within that scope do not need repeated permission.
+Ask when a required decision is unresolved or the following work is not authorized:
+
+- **Adding a dependency.** `PLANNED` describes a roadmap item, not approval or an
+  installed package. Add approved dependencies in their own implementation task.
+- **Changing the UI component approach.** `4_ui_design.md` uses shared local primitives;
+  a component library would be an architecture decision under Team Rule 8.
 - **Adding infrastructure** — Kubernetes, Redis, Kafka, a queue, another service.
 - **Changing Clerk instance configuration.** Never remove the `email` session claim
   (ADR-004), never disable device trust or the password policy, and never turn 2FA back
   off once Sprint 1 enables it. Weakening the security posture is the team's decision,
   and objective 1 is graded on it.
-- **Changing the database schema outside a migration.** Never edit an applied migration.
+- **Changing the database schema.** Flyway is not installed yet. Complete the baseline
+  task before feature schema changes; do not invent an unmanaged workaround or edit an
+  applied migration. Existing H2 scripts and `ddl-auto: update` are documented debt.
 - **Anything in the Open Questions list** in `5_progress.md`.
 - **`git commit`, `git push`, opening a PR, publishing an image, or a release.**
-- **Deleting or rewriting a file you have not read in full.**
-- **Anything touching `.env`** — never read it back, print it, or commit it.
+- Read a file fully before deleting or rewriting it; asking is not a substitute.
+- **Accessing or changing real `.env` files or credentials.** Do not print or commit
+  secrets. Checked-in `.env.example` templates may be read and maintained; public
+  Clerk publishable keys are not secret keys. Avoid printing resolved configuration.
 
 ## Protected paths — do not edit
 
 | Path | Why |
 |---|---|
 | `src/main/resources/static/**` | **Vite build output.** `vite.config.ts` sets `emptyOutDir: true`, so edits here are silently erased on the next build. Change `frontend/src/` instead. |
-| `db/migration/V*.sql` once applied | Flyway checksums them; edits break every existing database. Add a new migration. |
+| `src/main/resources/db/migration/V*.sql` once applied (planned) | Default classpath Flyway location; respect any explicitly configured alternative too. Never edit applied migrations; add a new one. |
 | `mvnw`, `mvnw.cmd`, `.mvn/wrapper/**` | Generated Maven wrapper |
 | `frontend/package-lock.json` | Regenerate with `npm install`, never hand-edit |
 | `target/**`, `frontend/node_modules/**` | Build artifacts |
@@ -105,10 +119,13 @@ A story is not done until **all seven** hold:
 ## Never
 
 - Never put a secret in client code, a log line, a test fixture, or a committed file.
-- Never trust an identity from a request body — use the verified Clerk JWT.
+- Never trust an identity from a request body — use the verified Clerk JWT. Current
+  services use its custom `email` claim; Clerk `sub` keying is the proposed migration.
 - Never return a JPA entity from a controller.
-- Never expose an email address from a public-facing endpoint (invariant 4).
-- Never concatenate SQL (invariant 6).
+- Never expose another user's personal contact details (invariant 4); email-bearing
+  responses are existing gaps, not a pattern to extend.
+- Never interpolate untrusted values or identifiers into SQL. Bind values; select
+  structural clauses only from fixed, trusted code (invariant 6).
 - Never add a `Co-Authored-By` trailer unless `.claude/settings.json` sets
   `attribution.commit`.
 - Never save scratch files to the repo root.
@@ -117,7 +134,14 @@ A story is not done until **all seven** hold:
 
 ## Verification — before marking anything complete
 
-Run what the change touches. Not complete until these pass **and you have seen the output**.
+Run what the change touches and inspect the output. Record failures and limitations;
+an unrelated existing failure must not become an invented passing result. Local
+verification does not replace the seven team Definition of Done requirements.
+
+**Documentation only** — check relative links, referenced paths and commands against
+the checkout; run `git diff --check`; reconcile status, rules and requirements across
+the entry points. Do not rerun application tests merely to change prose. Date runtime
+claims and distinguish historical evidence from checks run in this session.
 
 **Backend**
 ```bash
@@ -131,11 +155,18 @@ cd frontend && npm run lint && npm run build
 
 **Schema, config, Docker or profile** — catches the Sprint 0 class of bug:
 ```bash
+docker compose --env-file .env.example config --quiet
+# After preflight passes, using a configured local environment:
 docker compose up -d --build
 curl -fsS http://localhost:8080/actuator/health    # must be {"status":"UP"}
 docker compose logs app | tail -40                 # no crash, no restart loop
 docker compose down
 ```
+
+Current preflight fails on the stray `url=...` first line of `docker-compose.yml`.
+After correcting that, the missing PostgreSQL legacy schema remains a separate blocker.
+Do not use `down -v` on a data-bearing environment. Health success alone does not prove
+Prometheus can scrape the authenticated metrics endpoint; check the target separately.
 
 **Auth or endpoint** — prove it with a real token, never by inspection:
 ```bash
@@ -143,7 +174,10 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/api/schools      
 curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
      http://localhost:8080/api/schools                                              # 200
 ```
-Mint tokens with the Clerk CLI (`clerk api /sessions/<id>/tokens`). Delete test users.
+Use a short-lived session token from an authorized test account in the matching Clerk
+instance. Keep it out of shell history, logs and shared output. Use `curl -sS` for
+transport diagnostics. Also check ownership and rejected access, not just authentication.
+Clean up only disposable test data you created and are authorized to remove.
 
 **UI** — state which routes you checked and at what width. Per the Definition of Done:
 Chrome, Safari and Firefox; phone width; keyboard-only. If you cannot open a browser,
@@ -165,8 +199,9 @@ say so rather than implying you verified it.
 4. Re-run the verification commands.
 5. Record the cause and fix in `5_progress.md`.
 
-Do not retry a failing command unchanged, and do not work around a denied permission —
-report it and let the team decide.
+Do not repeat a failing command without new evidence or a changed condition. If the
+execution environment requires approval, use its approval mechanism; never bypass a
+denial. Keep unrelated user changes intact.
 
 ## Keep progress current
 
