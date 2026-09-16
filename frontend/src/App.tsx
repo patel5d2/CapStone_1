@@ -11,7 +11,6 @@ import Marketplace from './pages/Marketplace'
 import Messages from './pages/Messages'
 import Community from './pages/Community'
 import Support from './pages/Support'
-import Directory from './pages/Directory'
 import Profile from './pages/Profile'
 
 /** Keeps `lib/api.ts` supplied with a fresh Clerk session token. */
@@ -72,14 +71,8 @@ export default function App() {
               </RequireAuth>
             }
           />
-          <Route
-            path="/directory"
-            element={
-              <RequireAuth>
-                <Directory />
-              </RequireAuth>
-            }
-          />
+          {/* The directory moved inside Community; keep old links working. */}
+          <Route path="/directory" element={<Navigate to="/community?tab=directory" replace />} />
           <Route
             path="/profile"
             element={

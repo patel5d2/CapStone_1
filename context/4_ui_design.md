@@ -11,16 +11,16 @@
 
 | Area | Present in source | Still required |
 |---|---|---|
-| Navigation | Five header links at `md` (768px) and above; five signed-in bottom links below `md` | Four destinations, Directory inside Community, sidebar and rail layout |
+| Navigation | Four header links at `md` (768px) and above; four signed-in bottom links below `md`; Directory is a sub-tab of Community | Sidebar and rail layout |
 | Palette | Shared indigo tokens with dark surface overrides | School lookup and per-school palettes |
 | Preferences | Automatic `prefers-color-scheme` dark mode | User theme override and text-size setting |
 | Feedback | Spinner, empty/error states, toasts, modal and button tabs | Consistent error states and accessibility fixes below |
 | Shared features | Profile route and Clerk user button | Notification centre, campus map and home-feed work in the sprint plan |
 
-The current navigation order is **Marketplace, Community, Support, Messages,
-Directory**. The profile link is separate and hidden below `sm` (640px). Source
-inspection does not establish cross-browser behavior or WCAG conformance; record
-browser, viewport and keyboard checks in [progress](5_progress.md).
+The current navigation order is **Marketplace, Messages, Community, Support**. The
+profile link is separate and hidden below `sm` (640px). Source inspection does not
+establish cross-browser behavior or WCAG conformance; record browser, viewport and
+keyboard checks in [progress](5_progress.md).
 
 ## Framework
 
@@ -33,9 +33,10 @@ browser, viewport and keyboard checks in [progress](5_progress.md).
 ## Target navigation — four tabs
 
 The app has **four tabs**, not five. The student directory is a surface **inside
-Community**, not a peer of it. `AppShell` currently lists five — folding Directory into
-Community and changing the desktop layout are Sprint 2 work. The routes below are
-already present; the target order and responsive shell are not implemented.
+Community**, not a peer of it. `AppShell` now lists these four in this order, and
+Directory is a `Tabs` sub-surface of Community reached at `/community?tab=directory`;
+the retired `/directory` route redirects there. The responsive shell below is still
+Sprint 2 work and is not implemented.
 
 | Tab | Icon | Route |
 |---|---|---|

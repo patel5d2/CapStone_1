@@ -1,6 +1,6 @@
 import { NavLink, Outlet, Link } from 'react-router-dom'
 import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
-import { GraduationCap, Store, MessageCircle, Users, LifeBuoy, Search } from 'lucide-react'
+import { GraduationCap, Store, MessageCircle, Users, LifeBuoy } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 interface NavItem {
@@ -9,14 +9,14 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>
 }
 
-// The same five destinations appear in the desktop header and the mobile
+// The same four destinations appear in the desktop header and the mobile
 // bottom bar, so the web app already has the shape the mobile app will take.
+// The student directory is a surface inside Community, never a peer of it.
 const NAV_ITEMS: NavItem[] = [
   { to: '/marketplace', label: 'Marketplace', icon: Store },
+  { to: '/messages', label: 'Messages', icon: MessageCircle },
   { to: '/community', label: 'Community', icon: Users },
   { to: '/support', label: 'Support', icon: LifeBuoy },
-  { to: '/messages', label: 'Messages', icon: MessageCircle },
-  { to: '/directory', label: 'Directory', icon: Search },
 ]
 
 export function AppShell() {

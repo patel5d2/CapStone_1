@@ -19,7 +19,7 @@ remain incomplete in the current implementation.
 
 The earlier directory-only design is preserved in the
 [archived design document](../docs/design-document.md). The target navigation places
-the directory inside Community; the current shell still has a separate Directory item.
+the directory inside Community, which the shell now does.
 
 ## Schools
 
@@ -50,8 +50,9 @@ implemented. See [architecture](2_architecture.md) for the current identity mode
 
 The design calls for four tabs, with the student directory **inside Community**.
 These are roadmap surfaces, not a claim that every listed feature is complete.
-The current shell has five destinations: Marketplace, Community, Support, Messages
-and Directory. Four-tab consolidation is planned for Sprint 2.
+The shell now has four destinations in this order: Marketplace, Messages, Community
+and Support, with the directory as a sub-tab of Community (S2-1). The target
+responsive shell — sidebar, rail and bottom bar — is still Sprint 2 work.
 
 | Tab | Contains |
 |---|---|

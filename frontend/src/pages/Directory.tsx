@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { api, toQueryString, ApiError } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
 import { useToast } from '../components/ui/Toast'
-import { PageHeader } from '../components/ui/Tabs'
 import { EmptyState, Spinner } from '../components/ui/Feedback'
 import type { Student } from '../types'
 
@@ -61,13 +60,9 @@ export default function Directory() {
   const set = (key: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setFilters({ ...filters, [key]: e.target.value })
 
+  // Rendered as a sub-surface of Community, which owns the page heading.
   return (
     <>
-      <PageHeader
-        title="Student Directory"
-        subtitle="Find students across all six Cincinnati-area schools by name, school, major, or year."
-      />
-
       <div className="card mb-6 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <input className="field" placeholder="First name" value={filters.firstName} onChange={set('firstName')} />

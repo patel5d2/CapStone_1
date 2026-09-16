@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Users, Heart, MessageSquare, Trash2, CalendarDays, Plus, MapPin, Send, Pin } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
@@ -6,9 +7,11 @@ import { useToast } from '../components/ui/Toast'
 import { Modal } from '../components/ui/Modal'
 import { PageHeader, Tabs } from '../components/ui/Tabs'
 import { EmptyState, Spinner } from '../components/ui/Feedback'
+import Directory from './Directory'
 import type { CampusEvent, Comment, CommunityGroup, GroupType, Post } from '../types'
 
-type Section = 'feed' | 'groups' | 'events'
+const SECTIONS = ['feed', 'directory', 'groups', 'events'] as const
+type Section = (typeof SECTIONS)[number]
 
 const GROUP_TYPES: { value: GroupType; label: string; hint: string }[] = [
   { value: 'MAJOR', label: 'Major', hint: 'e.g. Computer Science' },
@@ -18,13 +21,19 @@ const GROUP_TYPES: { value: GroupType; label: string; hint: string }[] = [
 ]
 
 export default function Community() {
-  const [section, setSection] = useState<Section>('feed')
+  // The section lives in the URL so /community?tab=directory is linkable and the
+  // redirect from the retired /directory route lands on the right sub-surface.
+  const [params, setParams] = useSearchParams()
+  const requested = params.get('tab') as Section | null
+  const section: Section = requested && SECTIONS.includes(requested) ? requested : 'feed'
+  const setSection = (next: Section) =>
+    setParams(next === 'feed' ? {} : { tab: next }, { replace: true })
 
   return (
     <>
       <PageHeader
         title="Community"
-        subtitle="Groups, study partners, and events across every Cincinnati-area school."
+        subtitle="The student directory, groups, study partners, and events across every Cincinnati-area school."
       />
       <div className="mb-6">
         <Tabs
@@ -32,6 +41,7 @@ export default function Community() {
           onChange={setSection}
           options={[
             { value: 'feed', label: 'Feed' },
+            { value: 'directory', label: 'Directory' },
             { value: 'groups', label: 'Groups' },
             { value: 'events', label: 'Events' },
           ]}
@@ -39,6 +49,7 @@ export default function Community() {
       </div>
 
       {section === 'feed' && <Feed />}
+      {section === 'directory' && <Directory />}
       {section === 'groups' && <Groups />}
       {section === 'events' && <Events />}
     </>

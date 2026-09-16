@@ -78,6 +78,22 @@ Definition of Done.
 
 ---
 
+## In progress
+
+Started ahead of its scheduled sprint because the user directed the work explicitly.
+Not a scope change: four-tab navigation is already recorded in `1_overview.md` §Target
+navigation and `4_ui_design.md` §Target navigation, and restated in
+`future-specs/1_design-document.md` §3.2.
+
+- [ ] **S2-1 Four-tab consolidation.** `AppShell` drops to four destinations in the
+      order Marketplace, Messages, Community, Support. The student directory becomes a
+      sub-surface inside Community rendered through the `Tabs` primitive, not a peer
+      tab; `/directory` redirects to `/community?tab=directory` so existing links keep
+      working. **In progress — scheduled for Sprint 2.** The target responsive shell
+      (1024px sidebar, 72px rail) is *not* part of this entry and remains Sprint 2 work.
+
+---
+
 ## Contract objectives — scoreboard
 
 The graded criteria. Keep this honest; the final report is written from it.
