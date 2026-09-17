@@ -87,8 +87,15 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
-        <!-- Flyway owns the schema (S0-1). flyway-database-postgresql is a separate
-             artifact from Flyway 10 onward; without it Flyway cannot talk to Postgres. -->
+        <!-- Flyway owns the schema (S0-1). Three artifacts are needed, not one:
+             spring-boot-flyway carries the auto-configuration (Boot 4 split it out of
+             the fat autoconfigure jar), flyway-core is the engine, and
+             flyway-database-postgresql is the Postgres support Flyway 10+ separated
+             out. Drop spring-boot-flyway and the migrations silently never run. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-flyway</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
