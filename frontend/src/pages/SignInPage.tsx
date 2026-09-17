@@ -73,8 +73,13 @@ export default function SignInPage() {
     try {
       const result = await signIn.attemptFirstFactor({ strategy: 'email_code', code: code.trim() })
       if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId })
-        navigate('/marketplace', { replace: true })
+        await setActive({
+          session: result.createdSessionId,
+          // Clerk's taskUrls takes priority over this callback for pending tasks.
+          navigate: async ({ session }) => {
+            if (!session?.currentTask) navigate('/marketplace', { replace: true })
+          },
+        })
       } else {
         // status is 'needs_second_factor' once TOTP is enabled; Clerk's own UI handles
         // that today, so send them there rather than half-implementing it here.

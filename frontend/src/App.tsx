@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { SignOutButton, useAuth, useClerk, useUser } from '@clerk/clerk-react'
+import { SignOutButton, useAuth, useClerk, useSession, useUser } from '@clerk/clerk-react'
 import { GraduationCap, ShieldCheck } from 'lucide-react'
 import { AppShell } from './components/layout/AppShell'
 import { setTokenGetter } from './lib/authToken'
@@ -15,6 +15,7 @@ import Community from './pages/Community'
 import Support from './pages/Support'
 import Profile from './pages/Profile'
 import SetupMfaPage from './pages/SetupMfaPage'
+import { AuthSessionGate } from './components/AuthSessionGate'
 
 /** Keeps `lib/api.ts` supplied with a fresh Clerk session token. */
 function AuthTokenBridge() {
@@ -96,8 +97,12 @@ function TwoFactorRequired() {
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
+  const { isLoaded: sessionLoaded, session } = useSession()
   const { user } = useUser()
-  if (!isLoaded) return <Spinner />
+  if (!isLoaded || !sessionLoaded) return <Spinner />
+  if (session?.currentTask?.key === 'setup-mfa') {
+    return <Navigate to="/session-tasks/setup-mfa" replace />
+  }
   if (!isSignedIn) return <Navigate to="/sign-in" replace />
 
   const email = user?.primaryEmailAddress?.emailAddress
@@ -118,8 +123,8 @@ export default function App() {
             setup-mfa is signed in but not active, and RequireAuth's two-factor gate
             would redirect away from the one page that can clear it. */}
         <Route path="/session-tasks/setup-mfa" element={<SetupMfaPage />} />
-        <Route path="/sign-in/*" element={<SignInPage />} />
-        <Route path="/sign-up/*" element={<SignUpPage />} />
+        <Route path="/sign-in/*" element={<AuthSessionGate><SignInPage /></AuthSessionGate>} />
+        <Route path="/sign-up/*" element={<AuthSessionGate><SignUpPage /></AuthSessionGate>} />
         <Route element={<AppShell />}>
           <Route path="/" element={<Landing />} />
           <Route

@@ -97,10 +97,13 @@ export default function SignUpPage() {
     try {
       const result = await signUp.attemptEmailAddressVerification({ code: code.trim() })
       if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId })
-        // Straight to the profile: the student record still has to be created, and
-        // arriving on an empty marketplace would not tell them that.
-        navigate('/profile', { replace: true })
+        await setActive({
+          session: result.createdSessionId,
+          // Complete any Clerk task before creating the student profile.
+          navigate: async ({ session }) => {
+            if (!session?.currentTask) navigate('/profile', { replace: true })
+          },
+        })
       } else {
         setError('That code was not accepted. Check the email and try again.')
       }
