@@ -146,7 +146,7 @@ export default function Directory() {
                   </p>
                   <p className="flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5 shrink-0" />
-                    <a href={`mailto:${student.email}`} className="truncate hover:text-primary-600">
+                    <a href={`mailto:${student.email}`} className="truncate hover:text-primary-600 dark:hover:text-primary-400">
                       {student.email}
                     </a>
                   </p>
@@ -157,7 +157,7 @@ export default function Directory() {
                         href={student.socialMediaLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="truncate hover:text-primary-600"
+                        className="truncate hover:text-primary-600 dark:hover:text-primary-400"
                       >
                         {student.socialMediaLink}
                       </a>

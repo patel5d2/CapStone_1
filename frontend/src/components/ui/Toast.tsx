@@ -40,7 +40,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           >
             {t.kind === 'success' && <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-success)]" />}
             {t.kind === 'error' && <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-danger)]" />}
-            {t.kind === 'info' && <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />}
+            {t.kind === 'info' && <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary-600 dark:text-primary-400" />}
             <span className="flex-1">{t.message}</span>
             <button onClick={() => dismiss(t.id)} className="text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]">
               <X className="h-4 w-4" />

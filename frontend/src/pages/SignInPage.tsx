@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useSignIn } from '@clerk/clerk-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { GraduationCap, Loader2, MailCheck } from 'lucide-react'
+import { Loader2, MailCheck } from 'lucide-react'
+import { Wordmark } from '../components/ui/Wordmark'
 import { isInstitutionalEmail } from '../lib/institutionalEmail'
 
 /** Clerk errors arrive as a list; the long message is the one written for a human. */
@@ -88,14 +89,7 @@ export default function SignInPage() {
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-12">
-      <Link to="/" className="flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white">
-          <GraduationCap className="h-5 w-5" />
-        </span>
-        <span className="text-base font-extrabold tracking-tight">
-          Campus<span className="text-primary-600">Bridge</span>
-        </span>
-      </Link>
+      <Wordmark />
 
       <div className="card w-full max-w-md p-6">
         {awaitingCode ? (
@@ -120,7 +114,7 @@ export default function SignInPage() {
               aria-label="Verification code"
             />
 
-            {error && <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
 
             <button className="btn-primary w-full" disabled={busy || !code.trim()}>
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Verify and sign in
@@ -159,7 +153,7 @@ export default function SignInPage() {
               />
             </label>
 
-            {error && <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
 
             <button className="btn-primary w-full" disabled={!isLoaded || busy}>
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Email me a code
@@ -167,7 +161,7 @@ export default function SignInPage() {
 
             <p className="text-center text-sm text-[var(--color-ink-muted)]">
               New here?{' '}
-              <Link to="/sign-up" className="font-semibold text-primary-600 hover:underline">
+              <Link to="/sign-up" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
                 Create an account
               </Link>
             </p>

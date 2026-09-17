@@ -1,7 +1,8 @@
 import { NavLink, Outlet, Link } from 'react-router-dom'
-import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
-import { GraduationCap, Store, MessageCircle, Users, LifeBuoy, UserRound } from 'lucide-react'
+import { SignedIn, SignedOut, UserButton, useAuth } from '@clerk/clerk-react'
+import { Store, MessageCircle, Users, LifeBuoy, UserRound } from 'lucide-react'
 import type { ComponentType } from 'react'
+import { Wordmark } from '../ui/Wordmark'
 
 interface NavItem {
   to: string
@@ -18,21 +19,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/community', label: 'Community', icon: Users },
   { to: '/support', label: 'Support', icon: LifeBuoy },
 ]
-
-function Wordmark({ compact }: { compact?: boolean }) {
-  return (
-    <Link to="/" className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white">
-        <GraduationCap className="h-5 w-5" />
-      </span>
-      {!compact && (
-        <span className="text-base font-extrabold tracking-tight whitespace-nowrap">
-          Campus<span className="text-primary-600">Bridge</span>
-        </span>
-      )}
-    </Link>
-  )
-}
 
 /**
  * Sidebar at ≥1024px, icon-only rail between 640 and 1023px. One element rather than
@@ -150,6 +136,11 @@ function BottomBar() {
 }
 
 export function AppShell() {
+  // The offset has to track whether the sidebar is actually rendered. <SignedIn> can
+  // only gate children, not a class on this wrapper, so a signed-out visitor was
+  // getting a 240px indent against empty space.
+  const { isSignedIn } = useAuth()
+
   return (
     <div className="min-h-full">
       <SignedIn>
@@ -158,7 +149,7 @@ export function AppShell() {
       </SignedIn>
 
       {/* The main column sits beside the rail/sidebar rather than under it. */}
-      <div className="sm:pl-18 lg:pl-60">
+      <div className={isSignedIn ? 'sm:pl-18 lg:pl-60' : ''}>
         <SignedIn>
           {/* Mobile only: the sidebar carries the wordmark and account controls at
               every larger width, so repeating them here would be noise. */}

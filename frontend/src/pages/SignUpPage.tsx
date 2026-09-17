@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useSignUp } from '@clerk/clerk-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { GraduationCap, Loader2, MailCheck } from 'lucide-react'
+import { Loader2, MailCheck } from 'lucide-react'
+import { Wordmark } from '../components/ui/Wordmark'
 import { isInstitutionalEmail, suggestUsername } from '../lib/institutionalEmail'
 
 /** Clerk's configured minimum for this instance. */
@@ -112,14 +113,7 @@ export default function SignUpPage() {
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-12">
-      <Link to="/" className="flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white">
-          <GraduationCap className="h-5 w-5" />
-        </span>
-        <span className="text-base font-extrabold tracking-tight">
-          Campus<span className="text-primary-600">Bridge</span>
-        </span>
-      </Link>
+      <Wordmark />
 
       <div className="card w-full max-w-md p-6">
         {awaitingCode ? (
@@ -144,7 +138,7 @@ export default function SignUpPage() {
               aria-label="Verification code"
             />
 
-            {error && <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
 
             <button className="btn-primary w-full" disabled={busy || !code.trim()}>
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Verify and continue
@@ -211,7 +205,7 @@ export default function SignUpPage() {
               </span>
             </label>
 
-            {error && <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
 
             {/* Clerk's bot protection is on for this instance and renders itself here.
                 Without this element sign-up fails with a captcha error. */}
@@ -223,7 +217,7 @@ export default function SignUpPage() {
 
             <p className="text-center text-sm text-[var(--color-ink-muted)]">
               Already have an account?{' '}
-              <Link to="/sign-in" className="font-semibold text-primary-600 hover:underline">
+              <Link to="/sign-in" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
                 Sign in
               </Link>
             </p>

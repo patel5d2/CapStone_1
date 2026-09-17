@@ -475,7 +475,7 @@ function ListingCard({
         </div>
 
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-ink-muted)]">
-          <span className="font-bold text-primary-600">{priceLabel}</span>
+          <span className="font-bold text-primary-600 dark:text-primary-400">{priceLabel}</span>
           <span>·</span>
           <span>{listing.category.replace('_', ' ').toLowerCase()}</span>
           {listing.courseCode && (

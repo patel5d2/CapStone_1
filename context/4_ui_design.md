@@ -13,16 +13,20 @@
 
 | Area | Present in source | Still required |
 |---|---|---|
-| Navigation | Four header links at `md` (768px) and above; four signed-in bottom links below `md`; Directory is a sub-tab of Community | Sidebar and rail layout |
+| Navigation | Sidebar ≥1024px, icon rail 640–1023px, bottom bar <640px; Directory is a sub-tab of Community | Unread/pending count badges |
 | Palette | Pine-green primary, warm stone neutrals, contrast-checked in both modes | School lookup and per-school palettes |
 | Preferences | Automatic `prefers-color-scheme` dark mode | User theme override and text-size setting |
 | Feedback | Spinner, empty/error states, toasts, modal and button tabs | Consistent error states and accessibility fixes below |
 | Shared features | Profile route and Clerk user button | Notification centre, campus map and home-feed work in the sprint plan |
 
-The current navigation order is **Marketplace, Messages, Community, Support**. The
-profile link is separate and hidden below `sm` (640px). Source inspection does not
-establish cross-browser behavior or WCAG conformance; record browser, viewport and
-keyboard checks in [progress](5_progress.md).
+The current navigation order is **Marketplace, Messages, Community, Support**, identical
+in all three containers — one `NAV_ITEMS` array drives them, so they cannot drift.
+Profile is pinned at the bottom of the sidebar beside the Clerk user button.
+
+Rendered and checked at 1440px, 820px and 390px in headless Chromium on 2026-09-16.
+That covers layout only: **no keyboard, screen-reader or cross-browser check has been
+done**, and the signed-in shell was not exercised because it needs a Clerk session.
+Record those in [progress](5_progress.md) when someone does them.
 
 ## Framework
 
@@ -47,17 +51,31 @@ Sprint 2 work and is not implemented.
 | Community | `Users` | `/community` |
 | Support | `LifeBuoy` | `/support` |
 
-**Target responsive shell:**
+**Responsive shell — implemented:**
 
-| Width | Pattern |
-|---|---|
-| **≥ 1024px** | Persistent left sidebar, 240px, icon + label, active item tinted with the school accent. Profile and notifications pinned at the bottom. |
-| **640–1023px** | Collapsed icon-only rail, 72px, labels as tooltips. |
-| **< 640px** | **Bottom tab bar** — thumb-reachable, four items, icon above a 11px label, safe-area inset padding. Top bar keeps only the school badge, search and the user button. |
+| Width | Pattern | Class |
+|---|---|---|
+| **≥ 1024px** | Persistent left sidebar, icon + label, profile pinned at the bottom | `lg:w-60` → 240px |
+| **640–1023px** | Collapsed icon-only rail, labels as native `title` tooltips | `w-18` → 72px |
+| **< 640px** | **Bottom tab bar** — four items, icon above an 11px label, safe-area inset padding, 52px targets. A slim top bar carries the wordmark and user button. | `min-h-13` |
+
+The sidebar and rail are one `<aside>` whose label collapses, not two components, so the
+destinations cannot diverge. Widths come from Tailwind v4's dynamic spacing
+(`--spacing: .25rem`), so `w-18` is exactly 72px and `lg:w-60` exactly 240px — verified
+in the compiled CSS, because a typo there fails silently as a zero-width rail.
+
+Signed-out visitors get no sidebar and no offset; the main column's `sm:pl-18 lg:pl-60`
+is applied only when `useAuth().isSignedIn`. Gating with `<SignedIn>` alone cannot do
+this — it hides children, it cannot drop a class from a wrapper, which left a 240px
+indent against empty space.
+
+*Not yet built:* the notification centre that shares the sidebar's bottom slot, and the
+unread/pending badges below.
 
 Rules that keep navigation obvious:
 
-- **The active tab is unmistakable** — accent fill plus an indicator bar, never colour alone.
+- **The active tab is unmistakable** — accent fill plus an indicator bar, never colour
+  alone. Implemented: a left bar in the sidebar and rail, a top bar in the bottom tab bar.
 - **Destinations and their order stay consistent between breakpoints.** The navigation
   container changes between sidebar, rail and bottom bar.
 - **One level of nesting maximum.** Sub-surfaces (Directory inside Community, Marketplace
@@ -116,6 +134,17 @@ so the green is what an unthemed or signed-out visitor sees.
 | `ink-muted` | `#6a6459` | `#a4a096` |
 | `ink-faint` | `#968f83` | `#767268` |
 | `scrim` | `rgba(28,26,23,.45)` | `rgba(8,10,9,.62)` |
+| `border-strong` | `#948d80` | `#767268` |
+
+**`border` vs `border-strong`.** The hairline `border` is 1.30:1 — right for card and bar
+edges, which are decorative and exempt. A field's edge is not decorative: it is what says
+"this is an input", so WCAG 1.4.11 asks 3:1 for it. `.field` uses `border-strong`;
+everything else keeps the hairline. Do not raise `border` itself, or every card outline
+turns into a box.
+
+**Green in dark mode.** `primary-600` is 2.59:1 on the dark surface. It is fine as a
+*fill* (white on it is 6.41:1) and wrong as text or an icon. Every `text-primary-600`
+needs a `dark:text-primary-400` beside it — nine places in the app did not have one.
 
 `scrim` backs the modal overlay. `Modal` previously hardcoded `bg-slate-900/40`; a token
 keeps it warm with the rest of the theme and honours the "no raw colour utilities" rule
@@ -154,6 +183,8 @@ repeat the whole table for each school palette as it lands.
 | `ink-muted` on `surface-muted` (light / dark) | 5.39:1 / 6.98:1 | 4.5 |
 | `ink-faint` on `surface` (light / dark) | 3.20:1 / 3.47:1 | 3.0 · meta text only |
 | Focus border `primary-500` on `surface` | 4.71:1 | 3.0 |
+| Field resting border `border-strong` on `surface` (light / dark) | 3.29:1 / 3.47:1 | 3.0 · control boundary |
+| Dark-mode green text `primary-400` on dark `surface` | 5.02:1 | 4.5 |
 | Dark active nav — `primary-200` on `primary-900/40` | 9.47:1 | 4.5 |
 | `success` on its bg (light / dark) | 4.69:1 / 7.51:1 | 4.5 |
 | `warning` on its bg (light / dark) | 4.69:1 / 8.62:1 | 4.5 |
@@ -207,6 +238,18 @@ Keep school colour to **accent** surfaces — active nav, primary buttons, links
 rings, badges. Page backgrounds and body text stay neutral, or six themes become six
 different products.
 
+## Cascade trap — read before adding a bare element rule
+
+`index.css` had a bare `a { color: inherit }` **outside any layer**. Unlayered CSS
+outranks every `@layer`, including Tailwind's utilities, so that one rule silently beat
+every text-colour class on every link in the app: `text-white` inside `.btn-primary`
+rendered as inherited dark ink, and the landing hero's call to action rendered white on
+a white button — invisible, and invisible in exactly the way a build, a type-check and a
+lint run all pass. It was caught by screenshotting the page.
+
+It now lives in `@layer base`, where utilities outrank it. **Any element-level rule you
+add goes in `@layer base`.** A rule outside a layer is a rule that quietly wins.
+
 ## Component classes
 
 Defined in `@layer components` in `index.css`. Prefer these over re-styling from scratch —
@@ -244,6 +287,7 @@ separate mechanism for defining custom utilities. See the
 | `EmptyState` | `components/ui/Feedback` | `{ icon, title, description?, action? }` |
 | `ErrorState` | `components/ui/Feedback` | `{ message, onRetry? }` |
 | `Modal` | `components/ui/Modal` | `{ open, onClose, title, description?, children, footer? }` |
+| `Wordmark` | `components/ui/Wordmark` | `{ compact? }` — the tile plus "CampusBridge"; `compact` drops the text for the icon rail |
 | `Tabs` | `components/ui/Tabs` | `{ options: TabOption<T>[], value, onChange }` |
 | `PageHeader` | `components/ui/Tabs` | `{ title, subtitle?, action? }` |
 | `ToastProvider` / `useToast` | `components/ui/Toast` | provider plus `push(message, kind?)`; kind is `success`, `error` or `info` |

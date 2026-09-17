@@ -128,7 +128,7 @@ export default function Profile() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title={isNew ? 'Create your profile' : 'My Profile'}
+        title={isNew ? 'Create your profile' : 'My profile'}
         subtitle={
           isNew
             ? 'One more step — this is what other students see in the directory.'

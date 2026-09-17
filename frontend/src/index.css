@@ -34,6 +34,10 @@
      Modal previously hardcoded bg-slate-900/40, which is the cool grey this palette
      replaced. */
   --color-scrim: rgba(28, 26, 23, 0.45);
+  /* Control boundaries need 3:1 (WCAG 1.4.11 non-text contrast); the hairline `border`
+     is 1.30:1 and is right for card and bar edges, which are decorative. Fields are not
+     decorative — their edge is what says "this is an input" — so they use this. */
+  --color-border-strong: #948d80;
 
   --color-success: #127e43;
   --color-success-bg: #eef7f0;
@@ -59,6 +63,7 @@
     --color-ink-muted: #a4a096;
     --color-ink-faint: #767268;
     --color-scrim: rgba(8, 10, 9, 0.62);
+    --color-border-strong: #767268;
 
     /* The status FOREGROUNDS are overridden here, not just their backgrounds. The
        previous theme kept the light-mode ink on a dark tint, which left dark-mode
@@ -92,8 +97,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  color: inherit;
+/* Anchors inherit their colour by default, but this MUST live in @layer base.
+   Unlayered CSS outranks every @layer, so a bare `a { color: inherit }` silently beat
+   every text-* utility on a link — `text-white` inside .btn-primary and
+   `text-primary-700` on the landing hero button both lost to it, rendering the hero's
+   call to action as white text on a white button. */
+@layer base {
+  a {
+    color: inherit;
+  }
 }
 
 /* Reusable component classes so pages compose a shared look instead of each
@@ -135,7 +147,7 @@ a {
   }
 
   .field {
-    @apply w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]
+    @apply w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface)]
       px-3.5 py-2.5 text-sm text-[var(--color-ink)] outline-none transition-colors
       placeholder:text-[var(--color-ink-faint)] focus:border-primary-500 focus:ring-2
       focus:ring-primary-100 disabled:opacity-50 dark:focus:ring-primary-900/40;
