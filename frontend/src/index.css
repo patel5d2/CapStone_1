@@ -3,50 +3,73 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-900: #312e81;
+  /* Pine green, not indigo. The previous scale was Tailwind's indigo-600 with a cyan
+     accent over cool slate — the default every framework ships and every generated app
+     wears. Green also reads as campus rather than as dashboard, and it is the FALLBACK:
+     school theming (objective 8) overrides this scale per institution.
+     Every pairing below is contrast-checked; the ratios are recorded in 4_ui_design.md. */
+  --color-primary-50: #eef4f0;
+  --color-primary-100: #d7e7de;
+  --color-primary-200: #b0cfc0;
+  --color-primary-400: #5b9a79;
+  --color-primary-500: #3d8060;
+  --color-primary-600: #2c6a4d;
+  --color-primary-700: #21523c;
+  --color-primary-900: #122e22;
 
-  --color-accent-400: #22d3ee;
-  --color-accent-500: #06b6d4;
+  /* Warm ochre. Decorative only — hero glow, highlights — never an action colour. */
+  --color-accent-400: #e3b04b;
+  --color-accent-500: #cf982f;
 
+  /* Warm stone neutrals. Cool slate (#f8fafc/#0f172a) next to a saturated accent is the
+     look we are getting away from; a warm grey reads as paper and makes the green sit
+     like ink on it rather than like a UI kit. */
   --color-surface: #ffffff;
-  --color-surface-muted: #f8fafc;
-  --color-border: #e2e8f0;
-  --color-ink: #0f172a;
-  --color-ink-muted: #64748b;
-  --color-ink-faint: #94a3b8;
+  --color-surface-muted: #f7f5f1;
+  --color-border: #e6e1d8;
+  --color-ink: #1b1a17;
+  --color-ink-muted: #6a6459;
+  --color-ink-faint: #968f83;
+  /* Modal scrim. A token rather than a utility so it warms with the rest of the theme;
+     Modal previously hardcoded bg-slate-900/40, which is the cool grey this palette
+     replaced. */
+  --color-scrim: rgba(28, 26, 23, 0.45);
 
-  --color-success: #16a34a;
-  --color-success-bg: #f0fdf4;
-  --color-warning: #b45309;
-  --color-warning-bg: #fffbeb;
-  --color-danger: #dc2626;
-  --color-danger-bg: #fef2f2;
+  --color-success: #127e43;
+  --color-success-bg: #eef7f0;
+  --color-warning: #9a6216;
+  --color-warning-bg: #fcf5e8;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fdf0ee;
 
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-card-hover: 0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.06);
-  --shadow-float: 0 12px 32px rgba(15, 23, 42, 0.14);
+  /* Shadows tinted with the ink colour rather than slate, so elevation stays warm. */
+  --shadow-card: 0 1px 2px rgba(28, 26, 23, 0.04), 0 1px 3px rgba(28, 26, 23, 0.06);
+  --shadow-card-hover: 0 4px 14px rgba(28, 26, 23, 0.08), 0 2px 6px rgba(28, 26, 23, 0.06);
+  --shadow-float: 0 12px 32px rgba(28, 26, 23, 0.14);
 }
 
 /* Dark mode rides on the same tokens: utilities compile to var(--color-…),
    so overriding the variables here re-themes the whole app. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-surface: #111827;
-    --color-surface-muted: #0b1120;
-    --color-border: #1f2937;
-    --color-ink: #f1f5f9;
-    --color-ink-muted: #94a3b8;
-    --color-ink-faint: #64748b;
-    --color-success-bg: #052e16;
-    --color-warning-bg: #451a03;
-    --color-danger-bg: #450a0a;
+    --color-surface: #1c1f1d;
+    --color-surface-muted: #131614;
+    --color-border: #2c302d;
+    --color-ink: #f1efe9;
+    --color-ink-muted: #a4a096;
+    --color-ink-faint: #767268;
+    --color-scrim: rgba(8, 10, 9, 0.62);
+
+    /* The status FOREGROUNDS are overridden here, not just their backgrounds. The
+       previous theme kept the light-mode ink on a dark tint, which left dark-mode
+       warning at 2.98:1 and danger at 3.34:1 — both below the 4.5:1 this project is
+       graded on. These lighter variants clear it. */
+    --color-success: #6fd69a;
+    --color-success-bg: #10291b;
+    --color-warning: #e8b95f;
+    --color-warning-bg: #2e2109;
+    --color-danger: #f59e94;
+    --color-danger-bg: #2d100d;
   }
 }
 

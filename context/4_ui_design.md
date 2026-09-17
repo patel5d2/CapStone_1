@@ -3,16 +3,18 @@
 > **Implementation audit: 2026-09-16.** Token source of truth:
 > [`frontend/src/index.css`](../frontend/src/index.css). Define new colours in the
 > theme before using them in components; do not scatter hex values through pages.
-> Objective 8 (automatic school theming) and WCAG 2.1 AA remain requirements, not
-> claims that the current UI passes them. Target designs below are still pending
-> where the implementation status says so; scope decisions follow Team Rule 8.
+> Objective 8 (automatic school theming) remains a requirement, not a claim that the
+> current UI meets it. The colour tokens **are** contrast-checked and the ratios are
+> recorded below; that is one WCAG criterion of many, and the keyboard, focus-order and
+> screen-reader gaps listed under Accessibility are still open. Target designs below are
+> pending where the implementation status says so; scope decisions follow Team Rule 8.
 
 ## Implementation status
 
 | Area | Present in source | Still required |
 |---|---|---|
 | Navigation | Four header links at `md` (768px) and above; four signed-in bottom links below `md`; Directory is a sub-tab of Community | Sidebar and rail layout |
-| Palette | Shared indigo tokens with dark surface overrides | School lookup and per-school palettes |
+| Palette | Pine-green primary, warm stone neutrals, contrast-checked in both modes | School lookup and per-school palettes |
 | Preferences | Automatic `prefers-color-scheme` dark mode | User theme override and text-size setting |
 | Feedback | Spinner, empty/error states, toasts, modal and button tabs | Consistent error states and accessibility fixes below |
 | Shared features | Profile route and Clerk user button | Notification centre, campus map and home-feed work in the sprint plan |
@@ -68,43 +70,98 @@ Rules that keep navigation obvious:
 
 ## Implemented design tokens
 
-The following values match `index.css`. They document the palette; they do not
-certify contrast for every foreground/background pairing. School overrides are
-absent today.
+These values match `index.css`. Unlike the previous revision, the ratios below were
+computed, not assumed — see **Contrast ledger**.
+
+### Why this palette
+
+The palette it replaced was `indigo-600` (`#4f46e5`) with a cyan accent over cool slate
+(`#f8fafc` / `#0f172a`). That is the default a framework hands you and the combination
+every generated starter app wears, so it says nothing about this product. Three
+deliberate moves:
+
+- **Pine green, not indigo or violet.** Green reads as campus rather than as dashboard,
+  and it is the one saturated family the generated-app look never uses.
+- **Warm stone neutrals, not cool slate.** A warm grey reads as paper; the green then
+  sits on it like ink rather than like a UI kit on a screen.
+- **Ochre accent, not cyan.** Decorative only — hero glow, highlights. It is never an
+  action colour, so it never competes with the primary.
+
+This is the **fallback** palette. Objective 8 overrides the `primary-*` scale per school,
+so the green is what an unthemed or signed-out visitor sees.
 
 ### Base palette (fallback — used before sign-in and for any unthemed school)
 
 | Token | Value |
 |---|---|
-| `primary-50` | `#eef2ff` |
-| `primary-100` | `#e0e7ff` |
-| `primary-200` | `#c7d2fe` |
-| `primary-400` | `#818cf8` |
-| `primary-500` | `#6366f1` |
-| `primary-600` | `#4f46e5` ← default action |
-| `primary-700` | `#4338ca` ← hover |
-| `primary-900` | `#312e81` |
-| `accent-400` | `#22d3ee` |
-| `accent-500` | `#06b6d4` |
+| `primary-50` | `#eef4f0` |
+| `primary-100` | `#d7e7de` |
+| `primary-200` | `#b0cfc0` |
+| `primary-400` | `#5b9a79` ← link on dark |
+| `primary-500` | `#3d8060` ← focus border |
+| `primary-600` | `#2c6a4d` ← default action |
+| `primary-700` | `#21523c` ← hover |
+| `primary-900` | `#122e22` |
+| `accent-400` | `#e3b04b` ← decorative only |
+| `accent-500` | `#cf982f` ← decorative only |
 
 ### Surface & ink (light and system dark mode)
 
 | Token | Light | Dark |
 |---|---|---|
-| `surface` | `#ffffff` | `#111827` |
-| `surface-muted` | `#f8fafc` | `#0b1120` |
-| `border` | `#e2e8f0` | `#1f2937` |
-| `ink` | `#0f172a` | `#f1f5f9` |
-| `ink-muted` | `#64748b` | `#94a3b8` |
-| `ink-faint` | `#94a3b8` | `#64748b` |
+| `surface` | `#ffffff` | `#1c1f1d` |
+| `surface-muted` | `#f7f5f1` | `#131614` |
+| `border` | `#e6e1d8` | `#2c302d` |
+| `ink` | `#1b1a17` | `#f1efe9` |
+| `ink-muted` | `#6a6459` | `#a4a096` |
+| `ink-faint` | `#968f83` | `#767268` |
+| `scrim` | `rgba(28,26,23,.45)` | `rgba(8,10,9,.62)` |
+
+`scrim` backs the modal overlay. `Modal` previously hardcoded `bg-slate-900/40`; a token
+keeps it warm with the rest of the theme and honours the "no raw colour utilities" rule
+below.
 
 ### Status
 
-| Token | Value | Background |
+Status **foregrounds now change with the mode**, not only their backgrounds. The previous
+theme kept light-mode ink on a dark tint, which put dark-mode warning at 2.98:1 and
+danger at 3.34:1 — both under the 4.5:1 this project is graded on.
+
+| Token | Light | Light bg | Dark | Dark bg |
+|---|---|---|---|---|
+| `success` | `#127e43` | `#eef7f0` | `#6fd69a` | `#10291b` |
+| `warning` | `#9a6216` | `#fcf5e8` | `#e8b95f` | `#2e2109` |
+| `danger` | `#b3261e` | `#fdf0ee` | `#f59e94` | `#2d100d` |
+
+**Known trade-off:** a green primary sits near the green success colour. They differ in
+lightness and saturation, and the "status is never colour alone" rule below already
+requires a text label on every badge, which is what carries the meaning. Worth a second
+look if a school theme is ever itself green.
+
+### Contrast ledger
+
+Computed against WCAG 2.1 relative luminance. Re-run these whenever a token moves, and
+repeat the whole table for each school palette as it lands.
+
+| Pairing | Ratio | Needs |
 |---|---|---|
-| `success` | `#16a34a` | `success-bg` `#f0fdf4` / dark `#052e16` |
-| `warning` | `#b45309` | `warning-bg` `#fffbeb` / dark `#451a03` |
-| `danger` | `#dc2626` | `danger-bg` `#fef2f2` / dark `#450a0a` |
+| `btn-primary` — white on `primary-600` | 6.41:1 | 4.5 |
+| `btn-secondary` / `badge-primary` — `primary-700` on `primary-50` | 8.06:1 | 4.5 |
+| Link `primary-600` on `surface` | 6.41:1 | 4.5 |
+| Link `primary-600` on `surface-muted` | 5.89:1 | 4.5 |
+| Landing hero — `primary-100` on `primary-700` | 7.01:1 | 4.5 |
+| Body `ink` on `surface` (light / dark) | 17.40:1 / 14.46:1 | 4.5 |
+| `ink-muted` on `surface-muted` (light / dark) | 5.39:1 / 6.98:1 | 4.5 |
+| `ink-faint` on `surface` (light / dark) | 3.20:1 / 3.47:1 | 3.0 · meta text only |
+| Focus border `primary-500` on `surface` | 4.71:1 | 3.0 |
+| Dark active nav — `primary-200` on `primary-900/40` | 9.47:1 | 4.5 |
+| `success` on its bg (light / dark) | 4.69:1 / 7.51:1 | 4.5 |
+| `warning` on its bg (light / dark) | 4.69:1 / 8.62:1 | 4.5 |
+| `danger` on its bg (light / dark) | 5.88:1 / 8.56:1 | 4.5 |
+
+`ink-faint` is the one token held to 3:1 rather than 4.5:1: it is used for timestamps and
+secondary meta, never for body copy. The value it replaced (`#94a3b8`) was **2.56:1** on
+white and failed even that.
 
 ### Typography, radius, shadow, spacing
 
@@ -131,7 +188,7 @@ no `data-school` rules and no frontend code sets that attribute.
 1. On login, resolve the signed-in student's school.
 2. Stamp `data-school="<slug>"` on `<html>`.
 3. A CSS block per school overrides the `primary-*` scale.
-4. No school, or an unknown one → the base indigo palette above.
+4. No school, or an unknown one → the base pine-green palette above.
 
 Proposed selectors follow `:root[data-school="uc"]`. Planned slugs for the six named
 schools: `uc`, `xavier`, `nku`, `miami`, `cincystate`, `msj`. The database currently
@@ -158,7 +215,7 @@ this is what stops each page inventing its own look.
 | Class | Use |
 |---|---|
 | `.btn` | base button layout when a component supplies its own colour treatment |
-| `.btn-primary` | primary action, currently filled with the indigo accent |
+| `.btn-primary` | primary action, filled with `primary-600` |
 | `.btn-secondary` | secondary, tinted `primary-50` |
 | `.btn-ghost` | tertiary, bordered and transparent |
 | `.btn-danger` | destructive |
@@ -182,7 +239,7 @@ separate mechanism for defining custom utilities. See the
 
 | Component | Import | Props |
 |---|---|---|
-| `AppShell` | `components/layout/AppShell` | route layout with the current five-destination nav; renders an `Outlet` |
+| `AppShell` | `components/layout/AppShell` | route layout with the four-destination nav; renders an `Outlet` |
 | `Spinner` | `components/ui/Feedback` | `{ label? }` |
 | `EmptyState` | `components/ui/Feedback` | `{ icon, title, description?, action? }` |
 | `ErrorState` | `components/ui/Feedback` | `{ message, onRetry? }` |
@@ -228,8 +285,9 @@ These are acceptance requirements. The current primitives have known gaps:
   images get `alt=""`.
 - **Visible focus indicators.** `.field` ships `focus:ring-2 focus:ring-primary-100`.
   Never `outline-none` without a visible replacement.
-- **Contrast ≥ 4.5:1** body text, **3:1** large text and UI boundaries — verified in
-  **every school theme** and in dark mode.
+- **Contrast ≥ 4.5:1** body text, **3:1** large text and UI boundaries. The base palette
+  is verified in both modes — see the contrast ledger. **No school theme is verified**,
+  because none exists yet; each one repeats that table before it ships.
 - **Semantic elements.** `<button>` and `<a>` for interaction, never a clickable `<div>`.
   Icon-only controls need `aria-label`; `Modal` needs a real `title`.
 - **Status is never colour alone** — pair a badge colour with its text.
