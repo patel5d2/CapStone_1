@@ -14,6 +14,7 @@ import Messages from './pages/Messages'
 import Community from './pages/Community'
 import Support from './pages/Support'
 import Profile from './pages/Profile'
+import SetupMfaPage from './pages/SetupMfaPage'
 
 /** Keeps `lib/api.ts` supplied with a fresh Clerk session token. */
 function AuthTokenBridge() {
@@ -113,6 +114,10 @@ export default function App() {
     <>
       <AuthTokenBridge />
       <Routes>
+        {/* Outside AppShell and outside RequireAuth on purpose: a session pending on
+            setup-mfa is signed in but not active, and RequireAuth's two-factor gate
+            would redirect away from the one page that can clear it. */}
+        <Route path="/session-tasks/setup-mfa" element={<SetupMfaPage />} />
         <Route path="/sign-in/*" element={<SignInPage />} />
         <Route path="/sign-up/*" element={<SignUpPage />} />
         <Route element={<AppShell />}>

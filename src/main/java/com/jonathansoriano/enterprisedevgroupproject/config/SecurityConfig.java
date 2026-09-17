@@ -46,7 +46,7 @@ public class SecurityConfig {
                         // Client-side routes: Spring forwards these to index.html
                         // (see SpaForwardingConfig) so a refresh or deep link still loads the app.
                         .requestMatchers("/marketplace", "/messages", "/community", "/support", "/directory",
-                                "/profile", "/sign-in/**", "/sign-up/**").permitAll()
+                                "/profile", "/sign-in/**", "/sign-up/**", "/session-tasks/**").permitAll()
                         // Liveness only, so the container healthcheck and orchestrators can see
                         // whether the app is up. Everything else under /actuator — metrics,
                         // prometheus, env, info — stays authenticated: those describe the system

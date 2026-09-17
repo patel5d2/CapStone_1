@@ -31,5 +31,8 @@ public class SpaForwardingConfig implements WebMvcConfigurer {
         registry.addViewController("/sign-in/**").setViewName("forward:/index.html");
         registry.addViewController("/sign-up").setViewName("forward:/index.html");
         registry.addViewController("/sign-up/**").setViewName("forward:/index.html");
+        // Clerk session tasks (setup-mfa today) are hosted by the SPA via ClerkProvider's
+        // taskUrls, so Clerk navigates the browser straight to this path.
+        registry.addViewController("/session-tasks/**").setViewName("forward:/index.html");
     }
 }
