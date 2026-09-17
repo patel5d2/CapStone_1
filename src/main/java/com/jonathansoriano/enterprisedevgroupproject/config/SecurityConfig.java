@@ -60,8 +60,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").hasRole(STUDENT)
                         // Actuator's remaining endpoints describe the system, not student
                         // data, and are scraped by Prometheus rather than by a student, so
-                        // they stay on plain authentication. How Prometheus authenticates
-                        // is S0-10 and still undecided.
+                        // they stay on plain authentication. When monitoring is enabled,
+                        // MonitoringSecurityConfig handles only the Prometheus scrape
+                        // route first, using a separate service credential.
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

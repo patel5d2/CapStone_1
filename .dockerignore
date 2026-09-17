@@ -14,3 +14,12 @@ Dockerfile
 frontend/node_modules
 frontend/dist
 src/main/resources/static
+
+# A local Clerk setting must not silently override reproducible build arguments.
+# Runtime credentials never belong in a Docker build context.
+.env
+.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!frontend/.env.example

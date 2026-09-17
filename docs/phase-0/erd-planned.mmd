@@ -1,0 +1,75 @@
+erDiagram
+    %% Conceptual proposal only. None of these new columns or relationships exist in V1.
+    %% The six new table names come from context/2_architecture.md.
+    %% offer, seller_review, notification, and meetup_spot require scope approval.
+    university {
+        bigint id PK "existing"
+        varchar name "existing"
+        varchar theme_slug "proposed addition"
+    }
+    student {
+        bigint id PK "existing surrogate ID retained"
+        varchar clerk_user_id UK "proposed immutable identity"
+        bigint university_id FK "existing school relationship"
+        varchar email "private account data"
+        integer graduation_year "proposed addition"
+        varchar bio "proposed addition"
+        varchar photo_url "proposed addition"
+    }
+    school_domain {
+        varchar domain PK "normalized exact institutional domain"
+        bigint university_id FK "supported institution"
+    }
+    profile_privacy {
+        bigint student_id PK,FK "one row per profile"
+        boolean show_major "proposed field policy"
+        boolean show_graduation_year "proposed field policy"
+        boolean show_bio "proposed field policy"
+        boolean show_photo "proposed field policy"
+    }
+    listing {
+        bigint id PK "existing"
+        bigint seller_student_id FK "proposed replacement for seller_email"
+        bigint school_id FK "existing nullable relationship"
+        varchar condition "required addition; values need review"
+        varchar pickup_location "required addition"
+    }
+    offer {
+        bigint id PK "scope proposal"
+        bigint listing_id FK "proposed"
+        bigint buyer_student_id FK "proposed"
+        numeric amount "proposed"
+        varchar status "proposed lifecycle"
+    }
+    seller_review {
+        bigint id PK "scope proposal"
+        bigint listing_id FK "transaction eligibility unresolved"
+        bigint reviewer_student_id FK "proposed"
+        bigint seller_student_id FK "proposed"
+        integer rating "proposed"
+    }
+    notification {
+        bigint id PK "scope proposal"
+        bigint recipient_student_id FK "proposed"
+        varchar kind "proposed"
+        timestamptz read_at "optional"
+    }
+    meetup_spot {
+        bigint id PK "scope proposal"
+        bigint university_id FK "proposed"
+        varchar name "proposed"
+        float latitude "proposed"
+        float longitude "proposed"
+    }
+    university ||..o{ student : "existing university_id"
+    university ||..o{ school_domain : "proposed domain mapping"
+    student ||..o| profile_privacy : "proposed privacy policy"
+    student ||..o{ listing : "proposed ownership FK"
+    university |o..o{ listing : "existing school_id"
+    listing ||..o{ offer : "scope proposal"
+    student ||..o{ offer : "proposed buyer"
+    listing ||..o{ seller_review : "scope proposal"
+    student ||..o{ seller_review : "proposed reviewer"
+    student ||..o{ seller_review : "proposed seller"
+    student ||..o{ notification : "scope proposal"
+    university ||..o{ meetup_spot : "scope proposal"

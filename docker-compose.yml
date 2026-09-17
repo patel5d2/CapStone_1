@@ -7,13 +7,13 @@ services:
     environment:
       POSTGRES_USER: ${DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DEV_DATABASE_NAME}
+      POSTGRES_DB: ${DATABASE_NAME:-${DEV_DATABASE_NAME}}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME} -d ${DEV_DATABASE_NAME}" ]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,6 +29,9 @@ services:
   app:
     build:
       context: .
+      args:
+        VITE_CLERK_PUBLISHABLE_KEY: "${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA}"
+        VITE_REQUIRE_TWO_FACTOR: "${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:-false}"
     image: ghcr.io/patel5d2/capstone_1:local
     container_name: enterprisedevgroupproject
     ports:
@@ -41,6 +44,12 @@ services:
       DATABASE_USERNAME: "${DATABASE_USERNAME}"
       DATABASE_PASSWORD: "${DATABASE_PASSWORD}"
       DEV_DATABASE_NAME: "${DEV_DATABASE_NAME}"
+      PROD_DATABASE_NAME: "${PROD_DATABASE_NAME}"
+      CLERK_ISSUER: "${CLERK_ISSUER:-https://mighty-escargot-6562.clerk.accounts.dev}"
+      CLERK_JWKS_URI: "${CLERK_JWKS_URI:-https://mighty-escargot-6562.clerk.accounts.dev/.well-known/jwks.json}"
+      CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR: "${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:-false}"
+      CAMPUSBRIDGE_MONITORING_ENABLED: "true"
+      METRICS_PASSWORD: "${METRICS_PASSWORD:?Set METRICS_PASSWORD for the Prometheus service account}"
     depends_on:
       db:
         condition: service_healthy
@@ -60,7 +69,9 @@ services:
     image: prom/prometheus:v3.2.1
     container_name: enterprise-prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
+    secrets:
+      - metrics_password
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -77,7 +88,7 @@ services:
     image: grafana/grafana:11.5.2
     container_name: enterprise-grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: "${GF_SECURITY_ADMIN_USER}"
       GF_SECURITY_ADMIN_PASSWORD: "${GF_SECURITY_ADMIN_PASSWORD}"
@@ -100,3 +111,7 @@ networks:
     driver: bridge
   monitoring:
     driver: bridge
+
+secrets:
+  metrics_password:
+    environment: METRICS_PASSWORD

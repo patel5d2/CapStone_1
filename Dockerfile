@@ -13,6 +13,8 @@ COPY frontend/ ./
 # meant to be public; override per environment with --build-arg.
 ARG VITE_CLERK_PUBLISHABLE_KEY=pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_REQUIRE_TWO_FACTOR=false
+ENV VITE_REQUIRE_TWO_FACTOR=$VITE_REQUIRE_TWO_FACTOR
 # vite.config.ts writes the bundle to ../src/main/resources/static, which
 # resolves to /src/main/resources/static inside this stage.
 RUN npm run build
@@ -20,7 +22,7 @@ RUN npm run build
 # ============================================================
 # Stage 1b: Build
 # ============================================================
-FROM eclipse-temurin:25-jdk-alpine AS build
+FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
 
 # Fix vulnerabilities by updating Alpine packages
@@ -50,7 +52,7 @@ RUN --mount=type=cache,target=/root/.m2/repository \
 # ============================================================
 # Stage 2: Runtime
 # ============================================================
-FROM eclipse-temurin:25-jre-alpine AS runtime
+FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 
 # Fix vulnerabilities
@@ -75,4 +77,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # Allow JVM tuning via JAVA_OPTS at runtime (e.g., -e JAVA_OPTS="-Xmx512m")
 ENV JAVA_OPTS=""
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

@@ -19,6 +19,7 @@ import com.jonathansoriano.enterprisedevgroupproject.support.SupportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -27,12 +28,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Exercises each feature area against a real (in-memory) database rather than
+ * Exercises each feature area against PostgreSQL 16 and the Flyway schema rather than
  * mocks. The toggles in particular — unfavorite, unlike, leave, unblock — run
  * Spring Data derived delete queries, which fail at runtime without an active
  * transaction, so a mocked test would not catch a regression there.
  */
 @SpringBootTest
+@Import(PostgresTestConfiguration.class)
 class FeatureFlowsIntegrationTest {
 
     private static final String SELLER = "seller@mail.uc.edu";
@@ -67,6 +69,17 @@ class FeatureFlowsIntegrationTest {
         assertThat(listingService.search(null, null, null, null, "MATH 1061", null, BUYER))
                 .extracting(ListingResponse::getId)
                 .contains(created.getId());
+
+        // PostgreSQL must also handle unfiltered and case-insensitive text searches.
+        // H2 previously hid Hibernate's binary binding for a null LOWER parameter.
+        assertThat(listingService.search(null, null, null, null, null, null, BUYER))
+                .extracting(ListingResponse::getId).contains(created.getId());
+        assertThat(listingService.search(null, null, null, null, null, "cAlCuLuS", BUYER))
+                .extracting(ListingResponse::getId).contains(created.getId());
+        assertThat(listingService.search(null, null, null, null, "math 1061", "light NOTES", BUYER))
+                .extracting(ListingResponse::getId).contains(created.getId());
+        assertThat(listingService.search(null, null, null, null, null, "phase-zero-no-match", BUYER))
+                .extracting(ListingResponse::getId).doesNotContain(created.getId());
 
         // Editing is restricted to the seller
         ListingRequest edit = ListingRequest.builder()
@@ -142,6 +155,10 @@ class FeatureFlowsIntegrationTest {
         assertThat(groupService.search(null, null, null, BUYER))
                 .filteredOn(g -> g.getId().equals(group.getId()))
                 .allMatch(g -> g.isJoined() && g.getMemberCount() == 2);
+        assertThat(groupService.search(null, null, "cs 2021", BUYER))
+                .extracting("id").contains(group.getId());
+        assertThat(groupService.search(null, null, "phase-zero-no-match", BUYER))
+                .extracting("id").doesNotContain(group.getId());
 
         // Derived delete query: fails without a transaction
         groupService.leave(group.getId(), BUYER);

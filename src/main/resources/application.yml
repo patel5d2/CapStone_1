@@ -56,7 +56,11 @@ campusbridge:
     # Off: the team wants an emailed sign-in code, which Clerk treats as a FIRST
     # factor, not a second one — it can never satisfy this check. Objective 1 still
     # needs a real second factor (TOTP) on top; see decision 015 and Open Question 2.
-    require-two-factor: false
+    require-two-factor: ${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:false}
+
+  monitoring:
+    enabled: ${CAMPUSBRIDGE_MONITORING_ENABLED:false}
+    password: ${METRICS_PASSWORD:}
 
 # ── Actuator & Prometheus ──
 management:
@@ -70,3 +74,7 @@ management:
       # so details (database, disk, connection pool) are shown only to callers
       # with a valid Clerk token. Anonymous callers see just {"status":"UP"}.
       show-details: when_authorized
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

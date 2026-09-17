@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.repository;
 
+import com.jonathansoriano.enterprisedevgroupproject.PostgresTestConfiguration;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.UserRequest;
@@ -13,9 +14,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
@@ -27,6 +31,8 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@Import(PostgresTestConfiguration.class)
+@Transactional
 @ExtendWith(SpringExtension.class)
 class StudentRepositoryTest {
 
@@ -34,6 +40,8 @@ class StudentRepositoryTest {
     StudentRepository studentRepository;
     @Autowired
     UserRepository userRepository;
+    @Autowired
+    JdbcTemplate jdbc;
 
 
     @Test
@@ -44,13 +52,13 @@ class StudentRepositoryTest {
 
         //Act
         List<StudentDto> actualList = studentRepository.find(request);
-        //Assert (33 Total students in the h2 db, so I'm expecting 33 items in the list)
+        // The real V3 migration seeds 33 demo students.
         assertEquals(33, actualList.size());
     }
 
     @Test
     void find_NotFound(){
-        //Arrange (Create a request of a non-existing student in the h2 db)
+        //Arrange (Create a request of a non-existing student in the database)
         StudentRequest request = StudentRequest.builder()
                 .firstName("Toyota")
                 .lastName("Supra")
@@ -245,7 +253,7 @@ class StudentRepositoryTest {
         String validEmail = "sarah.johnson@mail.uc.edu";
 
         StudentAccountDetailsDto expectedStudentAccountDetailsDto = StudentAccountDetailsDto.builder()
-                .id(1L)
+                .id(studentId(validEmail))
                 .firstName("Sarah")
                 .lastName("Johnson")
                 .residentCity("Cincinnati")
@@ -308,7 +316,7 @@ class StudentRepositoryTest {
         String validEmail = "michael.chen@mail.uc.edu";
 
         StudentUpdateDto expectedStudentUpdateDto = StudentUpdateDto.builder()
-                .id(2L)
+                .id(studentId(validEmail))
                 .firstName("Michael")
                 .lastName("Chen")
                 .residentCity("Mason")
@@ -348,7 +356,7 @@ class StudentRepositoryTest {
     void updateStudent_NonNullFields_Successful(){
         //Arrange
         StudentUpdateDto studentUpdateDto = StudentUpdateDto.builder()
-                .id(1L)
+                .id(studentId("sarah.johnson@mail.uc.edu"))
                 .firstName("Sarah")
                 .lastName("Johnson")
                 .residentCity("Cincinnati")
@@ -373,7 +381,7 @@ class StudentRepositoryTest {
     void updateStudent_ValidNullField_Successful(){
         //Arrange (Social Media Link is the only column that can be null, the rest of the fields are NOT NULL)
         StudentUpdateDto student = StudentUpdateDto.builder()
-                .id(3L)
+                .id(studentId("emily.rodriguez@mail.uc.edu"))
                 .firstName("Emily")
                 .lastName("Rodriguez")
                 .residentCity("Blue Ash")
@@ -398,7 +406,7 @@ class StudentRepositoryTest {
     void updateStudent_requiredFieldsNullUnsuccessful(){
         //Arrange
         StudentUpdateDto invalidStudent = StudentUpdateDto.builder()
-                .id(1L)
+                .id(studentId("sarah.johnson@mail.uc.edu"))
                 .firstName(null)
                 .lastName(null)
                 .residentCity(null)
@@ -414,7 +422,7 @@ class StudentRepositoryTest {
         //Act & Assert
 
         //When you execute an update where a column is defined as NOT NULL in your database schema,
-        // but your SQL provides a null value, the database (e.g., MySQL, PostgreSQL, H2) will reject the operation.
+        // but your SQL provides a null value, PostgreSQL rejects the operation.
         assertThrows(DataIntegrityViolationException.class, ()-> studentRepository.updateStudent(invalidStudent));
 
     }
@@ -443,6 +451,11 @@ class StudentRepositoryTest {
 
         //Assert
         assertEquals(expectedStudentResult, actualStudentResult);
+    }
+
+    private Long studentId(String email) {
+        // V3 joins schools by name; SQL does not promise an insertion/identity order.
+        return jdbc.queryForObject("SELECT id FROM student WHERE email = ?", Long.class, email);
     }
 
 }

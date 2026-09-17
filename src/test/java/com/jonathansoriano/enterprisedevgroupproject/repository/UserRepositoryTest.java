@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.repository;
 
+import com.jonathansoriano.enterprisedevgroupproject.PostgresTestConfiguration;
 import com.jonathansoriano.enterprisedevgroupproject.domain.UserRequest;
 import com.jonathansoriano.enterprisedevgroupproject.dto.StudentUpdateDto;
 import com.jonathansoriano.enterprisedevgroupproject.dto.UserDto;
@@ -7,18 +8,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
+@Import(PostgresTestConfiguration.class)
+@Transactional
 @ExtendWith(SpringExtension.class)
 class UserRepositoryTest {
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void findByEmail_success() {
@@ -89,7 +97,7 @@ class UserRepositoryTest {
     void updateUser_NonNullFields_Successful(){
         //Arrange
         UserDto UserDto = com.jonathansoriano.enterprisedevgroupproject.dto.UserDto.builder()
-                .id(1L)
+                .id(userId("sarah.johnson@mail.uc.edu"))
                 .role("USER")
                 .email("sarah.johnson@mail.uc.edu")
                 .password("$2a$10$cT37ge3YHk2NxIjDvUpns.CucoBA8cQ.DzJXoqcIVJ6nQUZpB9SVa")
@@ -109,7 +117,7 @@ class UserRepositoryTest {
     void updateUser_requiredFieldsNullUnsuccessful(){
         //Arrange
         UserDto invalidUser = UserDto.builder()
-                .id(1L)
+                .id(userId("sarah.johnson@mail.uc.edu"))
                 .role(null)
                 .email(null)
                 .password(null)
@@ -119,7 +127,7 @@ class UserRepositoryTest {
         //Act & Assert
 
         //When you execute an update where a column is defined as NOT NULL in your database schema,
-        // but your SQL provides a null value, the database (e.g., MySQL, PostgreSQL, H2) will reject the operation.
+        // but your SQL provides a null value, PostgreSQL rejects the operation.
         assertThrows(DataIntegrityViolationException.class, ()-> userRepository.updateUser(invalidUser));
 
     }
@@ -142,5 +150,10 @@ class UserRepositoryTest {
 
         //Assert
         assertEquals(expectedUserResult, actualUserResult);
+    }
+
+    private Long userId(String email) {
+        // V3's INSERT ... SELECT does not guarantee the generated identity order.
+        return jdbc.queryForObject("SELECT id FROM app_user WHERE email = ?", Long.class, email);
     }
 }
