@@ -102,7 +102,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 2 | ≥6 schools, no admin setup needed | ⚠️ 8 seeded, no domain mapping | Sprint 1 |
 | 3 | Listing < 2 min on mobile, 5 photos | ❌ no image upload; missing `condition`, `pickup_location` | Sprints 1, 3 |
 | 4 | Search < 1s at 10,000 listings | ❌ unbounded results, no explicit search indexes or recorded load-test evidence | Sprint 4 |
-| 5 | Partial-match directory across schools | ⚠️ implemented with backend tests; browser/demo acceptance not recorded here | Implementation present |
+| 5 | Partial-match directory across schools | ⚠️ verified against Postgres 2026-09-16 — `LIKE '%son%'` returned 6 students across 5 schools; browser/demo acceptance still not recorded | Implementation present |
 | 6 | Messaging < 2s, no contacts shared | ⚠️ 5s active-chat polling; multiple DTOs expose personal emails | Sprint 6 |
 | 7 | Post/reply/report on both feed types | ⚠️ post/reply/like exist; no post-report endpoint or separate school/major feeds | Sprint 8 |
 | 8 | School theming automatic on login | ❌ one palette only | Sprint 2 |
@@ -231,12 +231,12 @@ Raise at the next weekly meeting. Do not guess these in code.
 7. **Spring break dates** — confirm and adjust Sprints 9/10.
 8. **Who owns this file on merge?** Five people updating one tracker across branches will
    conflict constantly. Agree a convention now.
-9. **Seed the 33 demo students into Postgres?** They lived in `h2-data.sql`, which is now
-   test-only, so a real database starts with an **empty directory** — objective 5's
-   partial-match search has nothing to match. Either add a `V3__seed_students.sql` for
-   demos, or accept an empty directory until real accounts exist. Fabricated people in a
-   persistent database is a decision the team should make deliberately, not a side effect
-   of a migration.
+9. ~~**Seed the 33 demo students into Postgres?**~~ **Resolved 2026-09-16:** seeded via
+   `V3__seed_demo_students.sql` so objective 5 is demonstrable. They are fabricated
+   people in a persistent database — **remove them with a later migration before the
+   platform carries real accounts**, and never by editing V3, which has been applied.
+   Unlike the h2-data.sql original, the seed stores no password hashes: Clerk owns
+   credentials (decision 013).
 
 ---
 
@@ -259,3 +259,7 @@ Raise at the next weekly meeting. Do not guess these in code.
   so over-length input is a field-level 400. **Every unhandled exception in this app
   becomes an opaque 500** — when debugging, read the stack trace the handler logs rather
   than the response body.
+- **Profile save confirmed working end to end on Postgres (2026-09-16).** A real profile
+  (`student.id = 1`) was created through the browser against the Flyway-built schema,
+  Clerk session and all — the first evidence the save path works outside a test. It
+  survived a later migration, so persistence across restarts holds too.
