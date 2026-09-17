@@ -210,7 +210,17 @@ the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one
 - The default session token carries a custom `email` claim via `session.claims`.
   **Removing that claim breaks every endpoint.**
 - **Two-factor authentication is currently OFF** (`second_factor_strategies: []`) and
-  there is **no institutional-domain allowlist**. Both are required by objective 1.
+  Clerk does **not** restrict sign-up by domain. Both are required by objective 1 and
+  both are dashboard work that no code change here can do.
+- The application enforces the email half independently of that dashboard state:
+  `InstitutionalAccessPolicy` refuses any token whose address is not on a `.edu` domain,
+  and `SecurityConfig` applies it to `/api/**` and `/student/**`. The 2FA half is
+  **switched on** (`campusbridge.auth.require-two-factor` and `VITE_REQUIRE_TWO_FACTOR`,
+  both `true` since 2026-09-16) — but Clerk has no second-factor strategy enabled, so no
+  token can satisfy it and the API refuses every account until the dashboard is
+  configured. The agreed factor is **TOTP plus backup codes**
+  (decision 015); the code reads `fva` and `user.twoFactorEnabled` and never names a
+  strategy, so swapping factors is a dashboard change only.
 - Managed with the `clerk` CLI (`clerk link`, `clerk env pull`, `clerk doctor`).
 
 **Cloudinary / S3** *(planned)* — images; signed uploads, never a client-side secret.

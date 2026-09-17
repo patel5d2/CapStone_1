@@ -1,2 +1,14 @@
 {"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/resources/db/migration/V1__baseline.sql","success":true,"timestamp":1789604236611,"sessionId":null}
 {"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/resources/db/migration/V2__seed_schools.sql","success":true,"timestamp":1789604244658,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/resources/db/migration/V4__school_domain.sql","success":true,"timestamp":1789609401561,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/java/com/jonathansoriano/enterprisedevgroupproject/school/SchoolDomainRepository.java","success":true,"timestamp":1789609411183,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/java/com/jonathansoriano/enterprisedevgroupproject/security/InstitutionalAccessPolicy.java","success":true,"timestamp":1789609467286,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/java/com/jonathansoriano/enterprisedevgroupproject/security/ClerkJwtAuthenticationConverter.java","success":true,"timestamp":1789609479735,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/test/java/com/jonathansoriano/enterprisedevgroupproject/security/InstitutionalAccessPolicyTest.java","success":true,"timestamp":1789609533692,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/java/com/jonathansoriano/enterprisedevgroupproject/security/InstitutionalAccessPolicy.java","success":true,"timestamp":1789609680649,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/java/com/jonathansoriano/enterprisedevgroupproject/security/InstitutionalAccessDeniedHandler.java","success":true,"timestamp":1789609698552,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/test/java/com/jonathansoriano/enterprisedevgroupproject/security/InstitutionalAccessEnforcementTest.java","success":true,"timestamp":1789609927351,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/test/java/com/jonathansoriano/enterprisedevgroupproject/security/ClerkJwtAuthenticationConverterTest.java","success":true,"timestamp":1789609986693,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/frontend/src/lib/institutionalEmail.ts","success":true,"timestamp":1789610934905,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/frontend/src/pages/SignUpPage.tsx","success":true,"timestamp":1789610966603,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/CapStone_1/frontend/src/pages/SignInPage.tsx","success":true,"timestamp":1789612443271,"sessionId":null}

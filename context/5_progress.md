@@ -98,7 +98,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 
 | # | Objective | Status | Lands in |
 |---|---|---|---|
-| 1 | Institutional email + 2FA, 100% validated | ❌ no application enforcement; prior Clerk snapshot reported 2FA/allowlist off, live settings unverified | Sprint 1 |
+| 1 | Institutional email + 2FA, 100% validated | ⚠️ sign-in is email OTP (one factor, not two — see session notes); **email domain enforced in the application** — any non-`.edu` token is refused 403 on every `/api/**` and `/student/**` route, with a message telling the student to use a school address. **2FA is not enforced**: the check exists behind `campusbridge.auth.require-two-factor` (default off) because Clerk still reports `second_factor_strategies: []`, and the `fva` claim it reads is unverified against a live token. Clerk-side sign-up restriction and 2FA remain dashboard work | Sprint 1 |
 | 2 | ≥6 schools, no admin setup needed | ⚠️ 8 seeded, no domain mapping | Sprint 1 |
 | 3 | Listing < 2 min on mobile, 5 photos | ❌ no image upload; missing `condition`, `pickup_location` | Sprints 1, 3 |
 | 4 | Search < 1s at 10,000 listings | ❌ unbounded results, no explicit search indexes or recorded load-test evidence | Sprint 4 |
@@ -187,6 +187,22 @@ JAR job omits the frontend build, unlike the container build.
 
 ## Architecture decision log
 
+> **015 (new, Proposed):** second factor is **TOTP plus backup codes**, enabled in Clerk
+> as optional first and required only once the team has enrolled. SMS was rejected on
+> cost (Clerk bills per message and the project has no budget line); email OTP is not
+> offered by Clerk as a second factor and would not be an independent channel if it were.
+> The application code is strategy-agnostic — it reads Clerk's `fva` claim and
+> `user.twoFactorEnabled`, neither of which names a factor — so changing this later is a
+> dashboard change, not a code change. Needs a Rule 8 vote.
+>
+> **014 (new, Proposed):** institutional access is `.edu`, any `.edu`, rather than an
+> allowlist of the eight seeded schools. A per-school list would need a data change
+> every time the school list moved and would lock out a student whose registrar issues
+> a domain nobody here listed; objective 1 asks for a verified institutional email, not
+> a verified *listed* school. The trade is that any `.edu` in the world is accepted,
+> including schools outside the Cincinnati metro. Needs a Rule 8 vote.
+
+
 Per **Team Rule 8**, architecture decisions are made by majority vote and recorded in the
 meeting minutes. Entries marked *Proposed* have **not** been voted on.
 Existing *Accepted* labels below are retained from earlier records; their meeting
@@ -217,8 +233,22 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 Raise at the next weekly meeting. Do not guess these in code.
 
 1. **Image storage — Cloudinary or S3?** The plan says "or". Blocks Sprint 1.
-2. **Which 2FA factor?** SMS costs money per message; TOTP is free. Objective 1 needs a
-   decision before Sprint 1.
+2. ~~**Which 2FA factor?**~~ **Resolved 2026-09-16: TOTP (authenticator app) plus backup
+   codes.** Free, so no budget line, and the backup codes stop a lost phone becoming a
+   locked-out student. Email OTP was considered and **is not available**: checked against
+   the live instance, `email_address` reports `second_factors: []`, and Clerk offers only
+   `authenticator_app`, `phone_number` and `backup_code` as second factors. Email is
+   already the first-factor channel here, so a code sent there would not be an
+   independent second factor.
+
+   **The application side is ready and waiting on this.** Enablement order matters:
+   (1) enable the strategy in the Clerk dashboard, leaving it optional;
+   (2) enrol every team account;
+   (3) confirm a real token carries the `fva` claim — the claim shape is from Clerk's
+   documentation and has not been seen on a token from this instance;
+   (4) set `campusbridge.auth.require-two-factor=true` **and**
+   `VITE_REQUIRE_TWO_FACTOR=true` together. **Steps 1–3 are still outstanding; step 4 was
+   done first on 2026-09-16**, which is why the API currently refuses everyone.
 3. **Where does TLS terminate?** The contract requires TLS; local runs are plain HTTP.
    Needs a deployment answer before Sprint 12.
 4. **Six schools or eight?** The contract says "at least six", the plan names six, the
@@ -259,6 +289,31 @@ Raise at the next weekly meeting. Do not guess these in code.
   so over-length input is a field-level 400. **Every unhandled exception in this app
   becomes an opaque 500** — when debugging, read the stack trace the handler logs rather
   than the response body.
+- **Sign-in is an emailed one-time code, and that is NOT two-factor (2026-09-16).** The
+  team wants a verification code emailed on every sign-in. Clerk classes `email_code` as
+  a **first** factor — it is already enabled on the instance
+  (`email_address.first_factors: ["email_code"]`) — so it *replaces* the password rather
+  than adding to it. Both the code and the account live in the same mailbox, so one
+  compromised mailbox is still one compromise: this is one factor, differently chosen.
+  **Objective 1's "2FA enabled" is not satisfied by it** and still needs TOTP layered on
+  top. `campusbridge.auth.require-two-factor` was briefly set true and is now **false**
+  again: an email-code session can never carry the `fva` second-factor claim, so leaving
+  it on refused every account. The startup log states which mode is live — read it before
+  debugging a wall of 403s.
+- **The 2FA enrolment gate (2026-09-16).** `RequireAuth` shows
+  a "Add two-step verification" screen, with a button opening Clerk's account UI, to any
+  student who has a school address but no second factor. It is behind
+  `VITE_REQUIRE_TWO_FACTOR` and Vite tree-shakes it out of the bundle while that is
+  false, so verifying it means building with the flag on. The dashboard change is made by
+  hand rather than through the Backend API. Note that the "enabled as optional first"
+  decision was overtaken by the instruction to enforce immediately.
+- **Institutional email enforcement is server-side, not a client check (2026-09-16).**
+  `ClerkJwtAuthenticationConverter` grants `ROLE_STUDENT` only for a `.edu` token and
+  `SecurityConfig` requires it on `/api/**` and `/student/**`, so a new endpoint inherits
+  the rule instead of needing its own check. The SPA gate in `RequireAuth` only decides
+  what the student is *shown*; it enforces nothing and must be kept in step with
+  `InstitutionalAccessPolicy`. **A non-`.edu` account cannot use the app** — including
+  the `gmail.com` profile at `student.id = 1` in the dev database.
 - **Profile save confirmed working end to end on Postgres (2026-09-16).** A real profile
   (`student.id = 1`) was created through the browser against the Flyway-built schema,
   Clerk session and all — the first evidence the save path works outside a test. It

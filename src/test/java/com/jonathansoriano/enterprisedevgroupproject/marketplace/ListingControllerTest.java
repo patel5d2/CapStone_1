@@ -7,6 +7,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.jonathansoriano.enterprisedevgroupproject.security.ClerkJwtAuthenticationConverter;
+import com.jonathansoriano.enterprisedevgroupproject.security.InstitutionalAccessDeniedHandler;
+import com.jonathansoriano.enterprisedevgroupproject.security.InstitutionalAccessPolicy;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -28,7 +31,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @ExtendWith(SpringExtension.class)
 @WebMvcTest(controllers = ListingController.class)
-@Import(SecurityConfig.class)
+// SecurityConfig now depends on the objective 1 access rule, and a @WebMvcTest slice
+// does not pick up @Component beans on its own. Filters are still off below: these
+// tests are about the controllers, and the rule has its own test.
+@Import({SecurityConfig.class, InstitutionalAccessPolicy.class,
+        ClerkJwtAuthenticationConverter.class, InstitutionalAccessDeniedHandler.class})
 @AutoConfigureMockMvc(addFilters = false)
 class ListingControllerTest {
 
