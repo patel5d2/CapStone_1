@@ -61,9 +61,9 @@ map directly to graded contract objectives.
 | Web | `spring-boot-starter-webmvc` | BUILT |
 | Persistence | Spring Data JPA / Hibernate | BUILT |
 | Legacy persistence | `NamedParameterJdbcTemplate` + `util/SqlUtils` | PARTIAL — **delete**, see ADR-011 |
-| Migrations | **Flyway**, `ddl-auto: validate` | PLANNED — **Sprint 0, blocking** |
-| Database | PostgreSQL **16** | PARTIAL — app crash-loops against it, see below |
-| Dev/test database | H2 in-memory | BUILT — **remove**, replace with Testcontainers |
+| Migrations | **Flyway**, `ddl-auto: validate` | BUILT — S0-1; `db/migration/V1__baseline.sql` |
+| Database | PostgreSQL **16** | BUILT — every profile, including the default |
+| Dev/test database | H2 in-memory | **Tests only** — `src/test/resources/`; Testcontainers is S0-2 |
 | Auth | Clerk + `spring-boot-starter-oauth2-resource-server` | BUILT |
 | Clerk webhook sync | `user.created` → student row | PLANNED — Sprint 1 |
 | Real-time messaging | **WebSocket (STOMP)** | PLANNED — Sprint 6, objective 6 |
@@ -106,27 +106,24 @@ map directly to graded contract objectives.
 **Do not add:** Kubernetes, Redis, Kafka, GraphQL, a service mesh, or a separate
 frontend host. None address a measured bottleneck. Native mobile is a stretch goal only.
 
-## ⚠ Blocking defect — Sprint 0
+## Schema ownership — resolved in S0-1
 
-**The app crash-loops on PostgreSQL.** `docker compose up` does not yield a working
-application; neither does the published GHCR image. Only the default H2 profile runs.
+**Flyway is the only thing that creates or changes tables.** Verified 16 Sep 2026: a
+clean Postgres 16 database, `./mvnw spring-boot:run`, V1 and V2 applied, `ddl-auto:
+validate` accepted the result, and a restart reported *"Schema is up to date. No
+migration necessary."*
 
-Reproduced 16 Sep 2026 against a clean Postgres 16, `SPRING_PROFILES_ACTIVE=dev`:
+The defect this replaced: Hibernate created its 17 entity tables, but `university`,
+`student` and `app_user` are plain JDBC — not `@Entity` — so `ddl-auto` never created
+them, `db/init/*.sql` was never mounted to `/docker-entrypoint-initdb.d/`, and both
+Postgres profiles set `spring.sql.init.mode: never`. Nothing created those three tables
+on Postgres, so `SupportResourceSeeder` hit `relation "university" does not exist` at
+startup and every `/student` call returned 500.
 
-```
-Started EnterpriseDevGroupProjectApplication in 4.334 seconds
-org.springframework.jdbc.BadSqlGrammarException: bad SQL grammar
-  [SELECT id, name FROM university ORDER BY name]
-  at SupportResourceSeeder.run(SupportResourceSeeder.java:47)
-Caused by: PSQLException: ERROR: relation "university" does not exist
-Application run failed → Commencing graceful shutdown
-```
-
-Hibernate created its 17 tables; `university`, `student` and `app_user` were absent.
-`db/init/*.sql` is never mounted to `/docker-entrypoint-initdb.d/`, and both Postgres
-profiles set `spring.sql.init.mode: never`. CI builds the container but never starts it,
-so nothing caught it. **Objective 11 (99% availability) is unachievable until this is
-fixed.**
+Three competing schema sources (`h2-schema.sql`, `db/init/`, `ddl-auto: update`) are now
+one. `h2-schema.sql` and `h2-data.sql` moved to `src/test/resources/` and feed the H2
+test database only; `db/init/` is deleted. **Still open for objective 11:** CI does not
+start the container it builds (S0-3), and monitoring wiring is incomplete (S0-10).
 
 ## Identity model
 

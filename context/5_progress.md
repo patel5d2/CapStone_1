@@ -12,35 +12,28 @@
 
 ---
 
-## 🔴 Blocking — must clear in Sprint 0
+## 🟡 Blocking — partially cleared
 
-**Two startup blockers:** the current Compose file does not parse, and PostgreSQL
-schema initialization remains incomplete. `docker compose --env-file .env.example
-config --quiet` failed during this documentation audit with:
+**Both startup blockers are fixed.** `docker compose --env-file .env.example config
+--quiet` now passes (the stray `url=...` first line is gone, S0-9), and PostgreSQL
+schema initialization is owned by Flyway (S0-1).
 
-```text
-yaml: line 2, column 9: mapping values are not allowed in this context
-```
-
-The first line of `docker-compose.yml` contains a stray `url=...` value. Fixing its
-syntax alone will not fix the database failure below. The default H2 profile is the
-documented development path; the published image and live deployment were not checked
-in this audit. **Objective 11 requires working startup and monitoring.**
-
-Earlier recorded reproduction, 2026-09-16 (clean Postgres 16,
-`SPRING_PROFILES_ACTIVE=dev`; not re-run in this documentation audit):
+Verified 2026-09-16 on this machine: clean Postgres 16 via `docker compose up -d db`,
+then `./mvnw spring-boot:run` on the default profile —
 
 ```
-Started EnterpriseDevGroupProjectApplication in 4.334 seconds
-BadSqlGrammarException: [SELECT id, name FROM university ORDER BY name]
-  at SupportResourceSeeder.run(SupportResourceSeeder.java:47)
-Caused by: PSQLException: ERROR: relation "university" does not exist
-Application run failed → graceful shutdown
+Flyway: Successfully validated 2 migrations
+Migrating schema "public" to version 1 - baseline
+Migrating schema "public" to version 2 - seed schools
+Started EnterpriseDevGroupProjectApplication   (ddl-auto: validate passed)
+restart → Schema "public" is up to date. No migration necessary.
 ```
 
-Cause: `db/init/*.sql` is never mounted to `/docker-entrypoint-initdb.d/`, and both
-Postgres profiles set `spring.sql.init.mode: never`. CI builds the container but never
-starts it, so nothing caught it.
+`./mvnw clean test` — 63/63 green. `GET /` serves the SPA (200).
+
+**Objective 11 is not met yet.** Working startup is necessary, not sufficient: CI still
+does not start the container it builds (S0-3) and monitoring wiring is incomplete
+(S0-10). Neither the published image nor a deployed environment was exercised here.
 
 ---
 
@@ -51,15 +44,20 @@ Definition of Done.
 
 - [x] Definition of Done agreed — recorded in `6_rules.md`
 - [x] Context folder written and reconciled with the signed contract
-- [ ] **S0-1 Flyway baseline.** Add `spring-boot-starter-flyway` and
-      `org.flywaydb:flyway-database-postgresql`; use
-      `src/main/resources/db/migration/V1__baseline.sql` covering all 20
-      tables (17 JPA + `university`, `student`, `app_user`); `ddl-auto: validate`;
-      delete `h2-schema.sql`, `h2-data.sql`, `db/init/`; seed schools in
-      `V2__seed_schools.sql`. Validate fresh and existing database upgrade paths before
-      removing old initialization sources. **Addresses the database blocker.**
-- [ ] **S0-2 Drop H2.** Remove the dependency and console config; default profile points
-      at Postgres; Testcontainers so tests run on Postgres 16.
+- [x] **S0-1 Flyway baseline.** `V1__baseline.sql` covers all 20 tables (17 JPA +
+      `university`, `student`, `app_user`), `V2__seed_schools.sql` seeds the 8 schools,
+      `ddl-auto: validate`. `db/init/` deleted; `h2-schema.sql` and `h2-data.sql` moved
+      to `src/test/resources/` rather than deleted, so the 63 tests keep running until
+      S0-2 brings Testcontainers. Note for whoever reads the original story text: the
+      dependency is **`org.springframework.boot:spring-boot-flyway`** plus
+      `flyway-core` and `flyway-database-postgresql` — there is no
+      `spring-boot-starter-flyway`, and Boot 4 moved the auto-configuration into its own
+      module. With only `flyway-core` on the classpath the migrations silently never run
+      and Hibernate fails validation with `missing table [anonymous_request]`.
+- [ ] **S0-2 Drop H2.** Remove the dependency and console config; Testcontainers so tests
+      run on Postgres 16. *(Default profile now points at Postgres — done as part of
+      S0-1. H2 remains a test-scope dependency and `spring-boot-h2console` is still in
+      `pom.xml`.)*
 - [ ] **S0-3 CI starts the container it builds.** `docker compose up -d`, poll
       `/actuator/health`, fail the job otherwise. Makes Team Rule 7 enforceable.
 - [ ] **S0-4 Wireframes** for the four tabs at mobile and desktop widths
@@ -67,8 +65,8 @@ Definition of Done.
 - [ ] **S0-6 Backlog** in GitHub Projects, stories sized for Sprints 1–5
 - [ ] **S0-7 Pin Java 21** — pom 21 / CI 21 / Dockerfile Temurin 25 disagree
 - [ ] **S0-8 Enable branch protection** on `main` (Team Rule 5)
-- [ ] **S0-9 Correct Compose syntax.** Remove the stray non-YAML first line in a config
-      fix and pass `docker compose --env-file .env.example config --quiet` before startup.
+- [x] **S0-9 Correct Compose syntax.** Stray non-YAML first line removed;
+      `docker compose --env-file .env.example config --quiet` passes.
 - [ ] **S0-10 Complete monitoring wiring.** Decide how Prometheus authenticates to the
       protected metrics endpoint, add actual dashboards, and configure/verify latency
       histogram data. Health alone is not uptime evidence.
@@ -110,7 +108,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 8 | School theming automatic on login | ❌ one palette only | Sprint 2 |
 | 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
 | 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
-| 11 | 99% availability | ❌ Compose parse failure, Postgres schema blocker, monitoring incomplete | Sprint 0 |
+| 11 | 99% availability | ⚠️ Compose parses, Postgres schema owned by Flyway, app verified up locally; CI still never starts the container, monitoring incomplete, no deployed uptime evidence | Sprint 0 |
 
 ---
 
@@ -205,8 +203,8 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 005 | Ownership keyed on email | Expedient: legacy tables already keyed on email | **Current implementation; replacement proposed in 012** |
 | 006 | Clerk modal over inline `mountSignIn` | Inline SignIn cannot render new-device verification and redirects to the hosted portal | **Accepted** — since superseded by `@clerk/clerk-react` |
 | 007 | `jwk-set-uri` **and** `issuer-uri` | Lazy key loading so the app boots when Clerk is briefly unreachable, while still validating `iss` | **Accepted** |
-| 008 | PostgreSQL in every environment | H2-in-test / Postgres-in-prod hid the crash-loop; dialect parity beats in-memory speed | **Proposed** — Sprint 0 |
-| 009 | Flyway over `ddl-auto` | `update` never drops or narrows, so prod drifts silently; collapses 3 schema sources into 1 | **Proposed** — Sprint 0 |
+| 008 | PostgreSQL in every environment | H2-in-test / Postgres-in-prod hid the crash-loop; dialect parity beats in-memory speed | **Proposed** — implemented in S0-1 for the application; tests still run on H2. Merged code is not a team vote (Rule 8) |
+| 009 | Flyway over `ddl-auto` | `update` never drops or narrows, so prod drifts silently; collapses 3 schema sources into 1 | **Proposed** — implemented in S0-1. Still needs a recorded vote (Rule 8) |
 | 010 | No Kubernetes / Redis / Kafka / GraphQL | None address a measured bottleneck; the real defects are pagination and indexes | **Proposed** |
 | 011 | Legacy JDBC folded into JPA | Two persistence styles double the review surface and the injection surface | **Proposed** |
 | 012 | **Key identity on the Clerk user ID**, synced by `user.created` webhook | Clerk emails are mutable; email keys orphan rows across 16 entity columns. Supersedes 005 | **Proposed** — in the sprint plan, Sprint 1 |
@@ -233,6 +231,12 @@ Raise at the next weekly meeting. Do not guess these in code.
 7. **Spring break dates** — confirm and adjust Sprints 9/10.
 8. **Who owns this file on merge?** Five people updating one tracker across branches will
    conflict constantly. Agree a convention now.
+9. **Seed the 33 demo students into Postgres?** They lived in `h2-data.sql`, which is now
+   test-only, so a real database starts with an **empty directory** — objective 5's
+   partial-match search has nothing to match. Either add a `V3__seed_students.sql` for
+   demos, or accept an empty directory until real accounts exist. Fabricated people in a
+   persistent database is a decision the team should make deliberately, not a side effect
+   of a migration.
 
 ---
 
@@ -246,3 +250,12 @@ Raise at the next weekly meeting. Do not guess these in code.
   9–12 built) and **behind on foundations** (Tasks 7–8: database, verified registration).
   Follow the sprint plan; the contract timeline is the version the instructors hold.
 - `README.md` was rewritten at the same time; it previously described a directory-only app.
+- **Profile save returned 500 for a second reason**, independent of the schema blocker:
+  `first_name`/`last_name` were `varchar(20)` and `resident_city` `varchar(40)`, while
+  `StudentSignupRequest` and `EditStudentDetailsRequest` carried only `@NotBlank`. Any
+  ordinary long surname became a `DataIntegrityViolationException`, which the catch-all
+  in `ExceptionTranslator` turns into "Something went wrong…". The baseline widens those
+  columns to 100 and both request objects now carry `@Size` bounds matching the schema,
+  so over-length input is a field-level 400. **Every unhandled exception in this app
+  becomes an opaque 500** — when debugging, read the stack trace the handler logs rather
+  than the response body.

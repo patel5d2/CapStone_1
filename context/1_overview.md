@@ -17,8 +17,11 @@ directory, messaging and feeds give students reasons to return between purchases
 This is the intended product; school verification, moderation and other requirements
 remain incomplete in the current implementation.
 
-The earlier directory-only design is preserved in the
-[archived design document](../docs/design-document.md). The target navigation places
+The earlier directory-only design is no longer in the checkout: `docs/design-document.md`
+was deleted in `25327b6`, and the file that replaced it
+([context/future-specs/1_design-document.md](future-specs/1_design-document.md)) describes
+the current marketplace design, not the directory-only one. Recover the original from
+`git show 25327b6^:docs/design-document.md` if it is needed. The target navigation places
 the directory inside Community, which the shell now does.
 
 ## Schools
