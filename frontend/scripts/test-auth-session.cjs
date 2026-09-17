@@ -46,6 +46,69 @@ function findForm(node) {
   return [node.props?.children].flat().map(findForm).find(Boolean)
 }
 
+function findElement(node, type) {
+  if (!node || typeof node !== 'object') return undefined
+  if (node.type === type) return node
+  return [node.props?.children].flat().map((child) => findElement(child, type)).find(Boolean)
+}
+
+for (const status of ['needs_second_factor', 'needs_new_password']) {
+  test(`SignInPage: email verification continues into Clerk for ${status}`, async () => {
+    const states = []
+    let index = 0
+    let activations = 0
+    let pathname = '/sign-in'
+    const signIn = {
+      status: 'needs_first_factor',
+      attemptFirstFactor: async () => { signIn.status = status; return signIn },
+    }
+    const { default: Page } = load('pages/SignInPage.tsx', {
+      react: {
+        useState: (initial) => {
+          const slot = index++
+          if (!(slot in states)) states[slot] = slot === 2 ? true : initial
+          return [states[slot], (value) => { states[slot] = value }]
+        },
+      },
+      '@clerk/clerk-react': {
+        SignIn: 'ClerkSignIn',
+        useSignIn: () => ({
+          isLoaded: true,
+          signIn,
+          setActive: async () => { activations++ },
+        }),
+      },
+      'react-router-dom': {
+        Navigate: 'Navigate',
+        useLocation: () => ({ pathname }),
+        useNavigate: () => () => assert.fail('Incomplete sign-in must not navigate to the app'),
+      },
+    })
+    await findForm(Page()).props.onSubmit({ preventDefault() {} })
+    index = 0
+    const redirect = Page()
+    const expectedPath = status === 'needs_second_factor' ? '/sign-in/factor-two' : '/sign-in/reset-password'
+    assert.equal(redirect.type, 'Navigate')
+    assert.equal(redirect.props.to, expectedPath)
+    pathname = redirect.props.to
+    index = 0
+    const continuation = findElement(Page(), 'ClerkSignIn')
+    assert.ok(continuation, 'Required verification must render instead of a contact-support error')
+    assert.equal(continuation.props.forceRedirectUrl, '/marketplace')
+    assert.equal(activations, 0, 'Never activate an incomplete sign-in')
+    // Reload with no component state must still resume the unfinished Clerk attempt.
+    states.length = 0
+    index = 0
+    pathname = '/sign-in'
+    assert.equal(Page().props.to, expectedPath)
+    // Clerk's start-over action must be able to return to its identifier form.
+    signIn.status = 'needs_identifier'
+    pathname = '/sign-in/'
+    index = 0
+    assert.ok(findElement(Page(), 'ClerkSignIn'))
+  })
+}
+
 for (const [page, hook, method, destination] of [
   ['SignInPage', 'useSignIn', 'attemptFirstFactor', '/marketplace'],
   ['SignUpPage', 'useSignUp', 'attemptEmailAddressVerification', '/profile'],
@@ -71,7 +134,7 @@ for (const [page, hook, method, destination] of [
             },
           }),
         },
-        'react-router-dom': { useNavigate: () => (url) => calls.push(url) },
+        'react-router-dom': { useLocation: () => ({ pathname: '/sign-in' }), useNavigate: () => (url) => calls.push(url) },
       })
       await findForm(pageModule.default()).props.onSubmit({ preventDefault() {} })
       assert.deepEqual(calls, [pending ? '/session-tasks/setup-mfa' : destination])

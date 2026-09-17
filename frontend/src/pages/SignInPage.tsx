@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { useSignIn } from '@clerk/clerk-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { SignIn, useSignIn } from '@clerk/clerk-react'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Loader2, MailCheck } from 'lucide-react'
 import { Wordmark } from '../components/ui/Wordmark'
 import { isInstitutionalEmail } from '../lib/institutionalEmail'
@@ -22,12 +22,14 @@ function messageOf(error: unknown, fallback: string) {
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [awaitingCode, setAwaitingCode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [continueWithClerk, setContinueWithClerk] = useState(false)
 
   const sendCode = async (e: FormEvent) => {
     e.preventDefault()
@@ -81,15 +83,30 @@ export default function SignInPage() {
           },
         })
       } else {
-        // status is 'needs_second_factor' once TOTP is enabled; Clerk's own UI handles
-        // that today, so send them there rather than half-implementing it here.
-        setError('This account needs another verification step. Contact the CampusBridge team.')
+        // Keep the same Clerk sign-in attempt and let its UI finish verification
+        // (MFA, account recovery, or a required password reset).
+        setContinueWithClerk(true)
       }
     } catch (err) {
       setError(messageOf(err, 'That code was not accepted.'))
     } finally {
       setBusy(false)
     }
+  }
+
+  // Resume an unfinished attempt after a reload as well as after email verification.
+  const step = isLoaded && signIn.status === 'needs_second_factor' ? 'factor-two'
+    : isLoaded && signIn.status === 'needs_new_password' ? 'reset-password' : null
+  if (continueWithClerk || step !== null || pathname.startsWith('/sign-in/')) {
+    if (step && (pathname === '/sign-in' || pathname === '/sign-in/')) {
+      return <Navigate to={`/sign-in/${step}`} replace />
+    }
+    return (
+      <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-12">
+        <Wordmark />
+        <SignIn routing="path" path="/sign-in" forceRedirectUrl="/marketplace" signUpUrl="/sign-up" />
+      </div>
+    )
   }
 
   return (
