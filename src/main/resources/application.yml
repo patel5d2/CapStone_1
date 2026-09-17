@@ -6,30 +6,31 @@ spring:
   application:
     name: EnterpriseDevGroupProject
 
+  # PostgreSQL in every environment. The previous H2-in-dev / Postgres-in-prod split
+  # hid dialect differences until deployment; see decision 008 in context/5_progress.md.
+  # Start the database with `docker compose up -d db`.
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:testdb
-    username: sa
-    password: ''
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DEV_DATABASE_NAME:enterprise_dev}
+    # Defaults mirror the committed .env.example so `docker compose up -d db` then
+    # `./mvnw spring-boot:run` works with no setup. These are local throwaway
+    # credentials, never production ones: application-prod.yml defines no defaults,
+    # so a real deployment fails fast unless the environment supplies them.
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:changeme}
 
-  sql:
-    init:
-      mode: always #- ensures SQL files are executed every time the application starts
-      schema-locations: classpath:h2-schema.sql
-      data-locations: classpath:h2-data.sql
+  # Flyway is the only thing that creates or changes tables (decision 009).
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
-  # university/student/app_user are managed by hand (see h2-schema.sql / db/init) and
-  # are plain JDBC, not JPA entities, so Hibernate never sees them. ddl-auto=update
-  # only ever creates/alters tables for the newer @Entity classes (marketplace,
-  # messages, community, support) and leaves everything else untouched.
+  # validate, not update: Hibernate checks that the entities match the schema Flyway
+  # built and refuses to start if they drifted, instead of silently altering tables.
+  # university/student/app_user are plain JDBC, not @Entity, so Hibernate ignores
+  # them either way — which is exactly why ddl-auto could never have created them.
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
 
   # ── Clerk authentication ──

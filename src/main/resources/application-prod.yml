@@ -1,15 +1,8 @@
+# Production. Every value comes from the environment; nothing is defaulted here,
+# so a missing variable fails fast at startup rather than silently pointing the
+# application at the wrong database.
 spring:
   datasource:
-    driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${PROD_DATABASE_NAME}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
-
-  sql:
-    init:
-      mode: never # set to 'always' if you're using schema/data files in dev
-
-  # The in-memory H2 console has no place in production.
-  h2:
-    console:
-      enabled: false

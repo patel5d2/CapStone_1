@@ -12,12 +12,15 @@ import lombok.NoArgsConstructor;
 @Builder
 public class EditStudentDetailsRequest {
     @NotBlank(message = "First name field is required")
+    @Size(max = 100, message = "First name must be 100 characters or fewer")
     private String firstName;
 
     @NotBlank(message = "Last name field is required")
+    @Size(max = 100, message = "Last name must be 100 characters or fewer")
     private String lastName;
 
     @NotBlank(message = "Resident City field is required")
+    @Size(max = 100, message = "City must be 100 characters or fewer")
     private String residentCity;
 
     @NotBlank(message = "Resident State field is required")
@@ -29,12 +32,15 @@ public class EditStudentDetailsRequest {
     private Integer universityId;
 
     @NotBlank(message = "Grade field is required")
+    @Size(max = 20, message = "Grade must be 20 characters or fewer")
     private String grade;
 
     @NotBlank(message = "Major field is required")
+    @Size(max = 255, message = "Major must be 255 characters or fewer")
     private String major;
 
     @NotBlank(message = "Email field is required")
+    @Size(max = 255, message = "Email must be 255 characters or fewer")
     @Email(message = "Please provide a valid email address")
     @Pattern(
             regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
@@ -42,5 +48,6 @@ public class EditStudentDetailsRequest {
     )
     private String email;
 
+    @Size(max = 255, message = "Link must be 255 characters or fewer")
     private String socialMediaLink;
 }

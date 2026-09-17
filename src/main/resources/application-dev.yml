@@ -1,15 +1,8 @@
+# Shared development database. The base application.yml already points at Postgres;
+# this profile exists so a team database can be targeted without editing it.
+# Flyway owns the schema — there is no spring.sql.init here on purpose.
 spring:
   datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${DEV_DATABASE_NAME}
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DEV_DATABASE_NAME:enterprise_dev}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
-
-  sql:
-    init:
-      mode: never # set to 'always' if you're using schema/data files in dev
-
-  # The in-memory H2 console has no place against a real Postgres instance.
-  h2:
-    console:
-      enabled: false
