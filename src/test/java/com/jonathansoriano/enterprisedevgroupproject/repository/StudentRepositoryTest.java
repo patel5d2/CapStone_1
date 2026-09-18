@@ -224,7 +224,7 @@ class StudentRepositoryTest {
                 .build();
         int expectRowsAffected = 1;
         //Act
-        int actualRowsAffected = studentRepository.insertNewStudent(request);
+        int actualRowsAffected = studentRepository.insertNewStudent(request, "user_repositoryTest");
         //Assert
         assertEquals(expectRowsAffected, actualRowsAffected);
     }
@@ -244,7 +244,7 @@ class StudentRepositoryTest {
                 .socialMediaLink(null)
                 .build();
         //Act and Assert
-        assertThrows(RuntimeException.class, ()-> studentRepository.insertNewStudent(request));
+        assertThrows(RuntimeException.class, ()-> studentRepository.insertNewStudent(request, "user_repositoryTest"));
     }
 
     @Test

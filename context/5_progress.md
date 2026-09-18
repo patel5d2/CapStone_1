@@ -108,6 +108,42 @@ Definition of Done.
 
 ---
 
+## Sprint 1 — Foundation (Sep 28 – Oct 9), started early
+
+Started ahead of the scheduled sprint because the user directed the work explicitly.
+Sprint 0's remaining items (S0-6, S0-8) are unaffected.
+
+- [x] **S1-01 Institutional eligibility and school mapping evidence** — the research
+      half. [`docs/phase-1/school-domains.md`](../docs/phase-1/school-domains.md) records
+      six institutions with student email domains cited to their own IT/registrar pages
+      (UC `mail.uc.edu`, NKU `mymail.nku.edu`, Xavier `xavier.edu`, Miami `miamioh.edu`,
+      Cincinnati State `cincinnatistate.edu`, Thomas More `thomasmore.edu`), the
+      allowlist / any-`.edu` / hybrid trade-off for ADR-014, and the unsupported and
+      ambiguous domain behaviour S1-03 needs. **Mount St. Joseph's student domain is not
+      confirmed** and **Cincinnati Christian University closed in 2019**.
+      **Not done:** the Rule 8 vote, and the two confirmation calls (MSJ ISS, UCIT).
+      The story is not closeable until the minutes are attached.
+- [x] **S1-02 Stable identity foundation (ADR-012).** `V4__add_student_clerk_user_id.sql`
+      adds a nullable, unique `student.clerk_user_id`; `StudentRepository` carries it
+      through the id-version select and the insert, and deliberately **not** through the
+      update or the directory/profile select. `CurrentUser.subjectOf(Jwt)` reads the
+      verified `sub`; `StudentIdentityService.ownerEmailFor(Jwt)` resolves subject-first
+      and hands back the address stored on the bound row, so an address change in Clerk
+      keeps ownership while the 16 email-keyed columns wait for S1-10/11/12. A second
+      Clerk account presenting a bound row's address gets 409, and **nothing binds on a
+      read** — the seeded demo people sit on plausible addresses, so binding by email
+      match would hand a real student a fabricated profile.
+      Verified 2026-09-18: `./mvnw --batch-mode verify` **108 tests, 0 failures**;
+      Flyway-managed V3→V4 upgrade of a populated throwaway Postgres 16 left all 34 rows
+      intact and unassigned, with `ddl-auto: validate` green on the upgraded schema.
+      **Not verified:** anything against a real Clerk token — the tests build `Jwt`
+      values directly. Audit, backfill rules and evidence:
+      [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md).
+      **The scoreboard does not move:** objectives 1, 6 and 10 need the ownership
+      cutover, not just the column.
+
+---
+
 ## Landed early (Sprint 2 work, done in Sprint 0)
 
 Started ahead of its scheduled sprint because the user directed the work explicitly.
@@ -277,7 +313,7 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 009 | Flyway over `ddl-auto` | `update` never drops or narrows, so prod drifts silently; collapses 3 schema sources into 1 | **Proposed** — implemented in S0-1. Still needs a recorded vote (Rule 8) |
 | 010 | No Kubernetes / Redis / Kafka / GraphQL | None address a measured bottleneck; the real defects are pagination and indexes | **Proposed** |
 | 011 | Legacy JDBC folded into JPA | Two persistence styles double the review surface and the injection surface | **Proposed** |
-| 012 | **Key identity on the Clerk user ID**, synced by `user.created` webhook | Clerk emails are mutable; email keys orphan rows across 16 entity columns. Supersedes 005 | **Proposed** — in the sprint plan, Sprint 1 |
+| 012 | **Key identity on the Clerk user ID**, synced by `user.created` webhook | Clerk emails are mutable; email keys orphan rows across 16 entity columns. Supersedes 005 | **Reported carried, minutes not in the checkout** — implemented 2026-09-18 in S1-02 (`V4`, `StudentIdentityService`) on the team's confirmation that #49 passed. Attach the minutes to close Rule 8. Audit and backfill rules: [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) |
 | 013 | Adaptive password hashing discharged by Clerk | The contract requires adaptive hashes; Clerk owns credential storage, so CampusBridge stores none. Recorded so a reader looking for bcrypt understands its absence | **Proposed** |
 
 ---
@@ -331,6 +367,17 @@ Raise at the next weekly meeting. Do not guess these in code.
    platform carries real accounts**, and never by editing V3, which has been applied.
    Unlike the h2-data.sql original, the seed stores no password hashes: Clerk owns
    credentials (decision 013).
+
+10. **What happens to `app_user`?** ADR-012 puts the stable Clerk subject on `student`,
+    but `app_user` is a second identity table with its own unique email, written one row
+    per student by `insertNewStudent`. Keying only `student` leaves an address change
+    still splitting a person across two tables. Retire it (nothing reads `password`),
+    key it on the subject too, or record the gap deliberately. Raised 2026-09-18 from the
+    S1-02 audit ([`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) §5).
+    **Direction given 2026-09-18: leave it and document the gap**, so `V4` touches only
+    `student` and an address change still splits `app_user` from `student`. That is a
+    deliberate, recorded gap for the admin story to close — it still needs a Rule 8
+    record, and it is not evidence that the split is harmless.
 
 ---
 

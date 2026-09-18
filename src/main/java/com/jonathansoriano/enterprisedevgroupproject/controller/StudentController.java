@@ -5,6 +5,8 @@ import com.jonathansoriano.enterprisedevgroupproject.domain.StudentRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.model.Student;
 import com.jonathansoriano.enterprisedevgroupproject.model.StudentAccountDetails;
+import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
+import com.jonathansoriano.enterprisedevgroupproject.service.StudentIdentityService;
 import com.jonathansoriano.enterprisedevgroupproject.service.StudentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -12,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -22,10 +23,12 @@ import java.util.List;
 @RequestMapping("/student")
 public class StudentController {
     private final StudentService service;
+    private final StudentIdentityService identity;
 
     // Constructor Dependency Injection instead of Autowiring Service class
-    public StudentController(StudentService service) {
+    public StudentController(StudentService service, StudentIdentityService identity) {
         this.service = service;
+        this.identity = identity;
     }
 
     /**
@@ -73,7 +76,9 @@ public class StudentController {
      */
     @GetMapping("/profile")
     public ResponseEntity<StudentAccountDetails> getProfile(@AuthenticationPrincipal Jwt clerkSession) {
-        String currentUserName = emailOf(clerkSession);
+        // Resolved from the Clerk subject first, so a student who changed their address
+        // still reaches their own profile (ADR-012).
+        String currentUserName = identity.ownerEmailFor(clerkSession);
 
         StudentAccountDetails studentAccountDetails = service.findByEmail(currentUserName);
         return ResponseEntity.ok(studentAccountDetails);
@@ -88,7 +93,7 @@ public class StudentController {
      */
     @PutMapping("/profile")
     public ResponseEntity<String> updateStudent(@AuthenticationPrincipal Jwt clerkSession, @Valid @RequestBody EditStudentDetailsRequest studentDetails) {
-        String successfulAccountUpdate = service.updateStudent(emailOf(clerkSession), studentDetails);
+        String successfulAccountUpdate = service.updateStudent(identity.ownerEmailFor(clerkSession), studentDetails);
 
         return new ResponseEntity<>(successfulAccountUpdate, HttpStatus.OK);
     }
@@ -112,31 +117,15 @@ public class StudentController {
 
         // The body's email is advisory only. Trusting it would let any signed-in user
         // create or claim a profile under somebody else's address.
-        student.setEmail(emailOf(clerkSession));
+        student.setEmail(CurrentUser.emailOf(clerkSession));
 
-        String successfulInsertionMessage = service.insertNewStudent(student);
+        // The new row is bound to the Clerk subject that created it. This is the only
+        // place a subject is ever written, and it comes from the verified token.
+        String successfulInsertionMessage =
+                service.insertNewStudent(student, CurrentUser.subjectOf(clerkSession));
 
         return new ResponseEntity<>(successfulInsertionMessage, HttpStatus.CREATED);
 
-    }
-
-    /**
-     * Reads the verified email address out of a Clerk session token. The claim is
-     * populated by the instance's session token customization
-     * ({@code session.claims.email}); a token without it cannot be tied to a
-     * directory record, so the request is rejected rather than guessed at.
-     *
-     * @param clerkSession the caller's verified Clerk session token
-     * @return the caller's email address
-     */
-    private static String emailOf(Jwt clerkSession) {
-        String email = clerkSession == null ? null : clerkSession.getClaimAsString("email");
-
-        if (email == null || email.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
-                    "Clerk session token is missing the 'email' claim");
-        }
-        return email;
     }
 
 }

@@ -31,6 +31,9 @@ import static org.mockito.Mockito.when;
 //We don't use @ExtendWith(SpringExtension.class) anymore?
 @ExtendWith(MockitoExtension.class)
 class StudentServiceTest {
+
+    /** Stands in for the "sub" claim of a verified Clerk session token. */
+    private static final String CLERK_SUBJECT = "user_2abcDEF";
     @Mock
     StudentRepository studentRepository;
     @Mock
@@ -134,11 +137,12 @@ class StudentServiceTest {
 
         // Mocking up the expected behavior for when the repository.insertNewStudent(...) gets called and when the repository.insertNewUser(...) gets called
         when(userRepository.findByEmail(studentSignupRequest.getEmail())).thenReturn(Optional.ofNullable(userDto));
-        when(studentRepository.insertNewStudent(studentSignupRequest)).thenReturn(expectedResponseFromStudentRepository);
+        when(studentRepository.findStudentByClerkUserId(CLERK_SUBJECT)).thenReturn(Optional.empty());
+        when(studentRepository.insertNewStudent(studentSignupRequest, CLERK_SUBJECT)).thenReturn(expectedResponseFromStudentRepository);
         when(userRepository.insertNewUser(any())).thenReturn(expectedResponseFromUserRepository);
 
         //Act
-        String actualReturnValueFromInsertNewStudent = service.insertNewStudent(studentSignupRequest);
+        String actualReturnValueFromInsertNewStudent = service.insertNewStudent(studentSignupRequest, CLERK_SUBJECT);
         //Assert
         assertEquals("Student Signup Successful!", actualReturnValueFromInsertNewStudent);
     }
@@ -165,10 +169,11 @@ class StudentServiceTest {
                 .password("passw0rd!")
                 .build();
 
+        when(studentRepository.findStudentByClerkUserId(CLERK_SUBJECT)).thenReturn(Optional.empty());
         when(userRepository.findByEmail(studentSignupRequest.getEmail())).thenReturn(Optional.of(userDto));
 
         //Act & Assert
-        assertThrows(EmailAlreadyExistsException.class, ()-> service.insertNewStudent(studentSignupRequest));
+        assertThrows(EmailAlreadyExistsException.class, ()-> service.insertNewStudent(studentSignupRequest, CLERK_SUBJECT));
     }
 
     @Test

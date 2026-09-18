@@ -20,5 +20,9 @@ public class StudentUpdateDto {
     private String grade;
     private String major;
     private String email;
+    // The Clerk subject that owns this row (ADR-012), or null while nobody has proved
+    // they do. Read-only here: updateStudent never writes it, and nothing serialises
+    // this DTO to a client.
+    private String clerkUserId;
     private String socialMediaLink;
 }

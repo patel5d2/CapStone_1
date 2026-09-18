@@ -94,7 +94,15 @@ public class StudentService {
      *                          implemented in the future.
      */
     @Transactional
-    public String insertNewStudent(StudentSignupRequest student) {
+    public String insertNewStudent(StudentSignupRequest student, String clerkUserId) {
+        // One directory row per Clerk account (ADR-012). Checked before the email check
+        // because a student who changed their address in Clerk would otherwise pass it
+        // and then hit the clerk_user_id unique constraint as an opaque 500.
+        if (studentRepository.findStudentByClerkUserId(clerkUserId).isPresent()) {
+            throw new EmailAlreadyExistsException(
+                    "This account already has a profile. Edit it instead of creating another.");
+        }
+
         UserDto userDto = userRepository.findByEmail(student.getEmail()).orElse(null);
 
         if (userDto != null) {
@@ -109,8 +117,10 @@ public class StudentService {
         // Step 2: Insert the user record into the app_user table first
         int userInsertionResult = userRepository.insertNewUser(userRequest);
 
-        // Step 3: Insert the student profile into the student table
-        int studentInsertionResult = studentRepository.insertNewStudent(student);
+        // Step 3: Insert the student profile into the student table, bound to the Clerk
+        // subject that created it. This is the only path that writes clerk_user_id, and
+        // it writes it from the verified token — never from the request body.
+        int studentInsertionResult = studentRepository.insertNewStudent(student, clerkUserId);
 
         return "Student Signup Successful!";
     }

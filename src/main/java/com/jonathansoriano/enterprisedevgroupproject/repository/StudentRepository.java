@@ -50,6 +50,7 @@ public class StudentRepository {
               s.grade AS grade,
               s.major AS major,
               s.email AS email,
+              s.clerk_user_id AS clerkUserId,
               s.social_media_link AS socialMediaLink
             FROM student s
             WHERE 1 = 1
@@ -64,14 +65,18 @@ public class StudentRepository {
 
     public static final String AND_EMAIL = "AND s.email = :email";
 
+    public static final String AND_CLERK_USER_ID = "AND s.clerk_user_id = :clerkUserId";
+
 
 
 
     public static final String INSERT_NEW_STUDENT = """
-            INSERT INTO student (first_name, last_name, resident_city, resident_state, university_id, grade, major,email, social_media_link)
-            VALUES (:firstName, :lastName, :residentCity, :residentState, :universityId, :grade, :major, :email, :socialMediaLink)
+            INSERT INTO student (first_name, last_name, resident_city, resident_state, university_id, grade, major,email, clerk_user_id, social_media_link)
+            VALUES (:firstName, :lastName, :residentCity, :residentState, :universityId, :grade, :major, :email, :clerkUserId, :socialMediaLink)
             """;
 
+    // clerk_user_id is absent on purpose: a profile edit changes what the row says, never
+    // whose row it is. Identity moves only through an insert or the S1-04 webhook.
     public static final String UPDATE_STUDENT_INFO = """
             UPDATE student
             SET first_name = :firstName, last_name = :lastName, resident_city = :residentCity, resident_state = :residentState, university_id = :universityId, grade = :grade, major = :major,email = :email, social_media_link = :socialMediaLink
@@ -195,6 +200,35 @@ public class StudentRepository {
     }
 
     /**
+     * Finds the student row bound to a Clerk subject, which is the identity ADR-012 keys
+     * on. A hit here outranks any email lookup: when a student changes their address in
+     * Clerk, the token's email stops matching the stored one while this still resolves
+     * to the same row.
+     *
+     * @param clerkUserId the {@code sub} of the caller's verified Clerk session token
+     * @return the student bound to that subject, or empty when no row is bound to it —
+     *         which is the normal state for every legacy row until its owner proves it
+     */
+    public Optional<StudentUpdateDto> findStudentByClerkUserId(String clerkUserId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("clerkUserId", clerkUserId);
+
+        StringBuilder sql = new StringBuilder(SELECT_VERSION_UNIVERSITY_ID)
+                .append(SqlUtils.andAddCondition(AND_CLERK_USER_ID, clerkUserId));
+
+        try {
+            StudentUpdateDto student = jdbcTemplate.queryForObject(
+                    sql.toString(),
+                    params,
+                    new BeanPropertyRowMapper<>(StudentUpdateDto.class, true)
+            );
+            return Optional.ofNullable(student);
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Inserts a new student record into the database, specifically inserts a new
      * student into the student table, using the details provided in the
      * {@link StudentSignupRequest} object and returns the number of rows affected
@@ -209,7 +243,7 @@ public class StudentRepository {
      *         operation. A value greater
      *         than 0 indicates that the operation was successful
      */
-    public int insertNewStudent(StudentSignupRequest student) {
+    public int insertNewStudent(StudentSignupRequest student, String clerkUserId) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("firstName", student.getFirstName())
                 .addValue("lastName", student.getLastName())
@@ -219,6 +253,8 @@ public class StudentRepository {
                 .addValue("grade", student.getGrade())
                 .addValue("major", student.getMajor())
                 .addValue("email", student.getEmail())
+                // From the verified token, never the request body: this is the row's owner.
+                .addValue("clerkUserId", clerkUserId)
                 .addValue("socialMediaLink", student.getSocialMediaLink());
         try {
             return jdbcTemplate.update(INSERT_NEW_STUDENT, params);// update() returns an "int" to indicate how many

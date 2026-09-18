@@ -3,6 +3,7 @@ package com.jonathansoriano.enterprisedevgroupproject.controller;
 import com.jonathansoriano.enterprisedevgroupproject.config.SecurityConfig;
 import com.jonathansoriano.enterprisedevgroupproject.exception.SearchNotFoundException;
 import com.jonathansoriano.enterprisedevgroupproject.model.Student;
+import com.jonathansoriano.enterprisedevgroupproject.service.StudentIdentityService;
 import com.jonathansoriano.enterprisedevgroupproject.service.StudentService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,11 @@ class StudentControllerTest {
 
     @MockitoBean
     private StudentService service;
+    // ADR-012: the controller resolves the caller through this instead of reading the
+    // email claim directly. Its own behaviour is covered against a real database in
+    // StudentIdentityServiceTest; here it only has to hand back an address.
+    @MockitoBean
+    private StudentIdentityService identity;
     @Autowired
     private MockMvc mockMvc;
 
@@ -67,6 +73,8 @@ class StudentControllerTest {
                 .build();
 
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(clerkSession));
+
+        when(identity.ownerEmailFor(any())).thenReturn(SIGNED_IN_EMAIL);
     }
 
     @AfterEach
@@ -125,7 +133,7 @@ class StudentControllerTest {
                             }
                             """;
         String expectedMessage = "Student Signup Successful!";
-        when(service.insertNewStudent(any())).thenReturn(expectedMessage);
+        when(service.insertNewStudent(any(), any())).thenReturn(expectedMessage);
         //Act and Assert (using andExpect() method)
         mockMvc.perform(post("/student")
                         .contentType(MediaType.APPLICATION_JSON)
