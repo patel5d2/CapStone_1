@@ -1,4 +1,4 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, UserButton, useAuth } from '@clerk/clerk-react'
 import { Store, MessageCircle, Users, LifeBuoy, UserRound } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -136,6 +136,8 @@ function BottomBar() {
 }
 
 export function AppShell() {
+  // Used by the mobile account menu below; the sidebar uses NavLink directly.
+  const navigate = useNavigate()
   // The offset has to track whether the sidebar is actually rendered. <SignedIn> can
   // only gate children, not a class on this wrapper, so a signed-out visitor was
   // getting a 240px indent against empty space.
@@ -155,7 +157,20 @@ export function AppShell() {
               every larger width, so repeating them here would be noise. */}
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]/85 px-4 backdrop-blur-lg sm:hidden">
             <Wordmark />
-            <UserButton afterSignOutUrl="/" />
+            {/* Below 640px the sidebar is hidden, so this menu was the only account
+                surface and it carried Clerk's items alone — leaving no way to reach
+                /profile at phone width at all. The sidebar's visible "My profile" link
+                covers every wider width, so the entry is added here rather than
+                duplicated into both. */}
+            <UserButton afterSignOutUrl="/">
+              <UserButton.MenuItems>
+                <UserButton.Action
+                  label="My CampusBridge profile"
+                  labelIcon={<UserRound className="h-4 w-4" />}
+                  onClick={() => navigate('/profile')}
+                />
+              </UserButton.MenuItems>
+            </UserButton>
           </header>
         </SignedIn>
 

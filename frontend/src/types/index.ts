@@ -21,7 +21,16 @@ export interface Student {
   socialMediaLink: string | null
 }
 
-export interface StudentAccountDetails extends Student {}
+/**
+ * The caller's own profile (GET /student/profile) — the "separate authorized response"
+ * the privacy work keeps distinct from the directory row. It omits `id`, which the server
+ * does not return here, and adds the fields only the owner sees on their own record.
+ */
+export interface StudentAccountDetails extends Omit<Student, 'id'> {
+  graduationYear: number | null
+  bio: string | null
+  photoUrl: string | null
+}
 
 export interface StudentSignupRequest {
   firstName: string

@@ -262,6 +262,32 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       **Deliberately decision-neutral.** It removes nothing and exposes no contact data;
       the id is needed whichever way #52 decides. The address removal, the
       `profile_privacy` table and chat-by-id still wait on the vote and on S1-11.
+- [ ] **S1-08 Profile completion flow** — **partly delivered; two of its three AC1
+      capabilities have no backend.** Built (2026-09-18): the S1-06 fields (graduation
+      year, bio with a live counter) on the existing `Profile` page; **field-level
+      validation** replacing the toast-only checks, mirroring `ProfileFieldBounds` as UX
+      while the server stays the thing that rejects; a retryable `ErrorState` on load
+      failure instead of an empty form that reads as a new profile; a save failure that
+      **stays on the page** with a "Try again" next to it; and an explicit "Saved" status
+      that clears the moment a field is edited. All through the existing primitives, all
+      HTTP through `lib/api.ts`, no dependency added.
+      **Fixed a control that lied:** the school `<select>` stayed editable on an existing
+      profile, but S1-06 made the server ignore a school sent on update. It is now
+      read-only once the profile exists, with the reason shown.
+      **Fixed an AC3 gap:** `/profile` was **unreachable at 375px**. The link lives in the
+      sidebar, which is hidden below 640px, and the mobile header carried only Clerk's own
+      menu. Added "My CampusBridge profile" to that menu via `UserButton.Action`.
+      **Not built, because the backend does not exist:** photo upload needs S1-05
+      (blocked on D-IMAGES; a URL box was considered and rejected — it would invite exactly
+      the remote-image IP-harvesting the privacy audit flags) and **field visibility
+      controls** need S1-07's `profile_privacy`, which is stopped on D-DIRECTORY and whose
+      field list is still "proposed", not reviewed. Toggles that persist nothing would be
+      a control that lies, which is the thing S1-07's own guardrail names.
+      Verified 2026-09-18: `npm run lint` clean, `npm run build` clean,
+      `./mvnw --batch-mode verify` **136 tests, 0 failures**.
+      **Not verified:** the flow has not been opened in a browser — 375px, keyboard-only,
+      Chrome/Safari/Firefox are all outstanding, and they are three of the seven
+      Definition-of-Done checks. **Objective 3 does not move.**
 
 ---
 
@@ -554,6 +580,14 @@ Raise at the next weekly meeting. Do not guess these in code.
     can exist — is a bigger schema decision that touches the directory, its search and
     objective 5, and it is not this story's to take. Raised 2026-09-18
     ([`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) §8).
+
+12. **Validation errors reach the client as a Java map's `toString()`.**
+    `ExceptionTranslator` builds `"Property validation error(s):" + errors.toString()`, so
+    a student sees `{bio=Bio must be 1000 characters or fewer}` and a client cannot map a
+    message to a field without parsing that blob. S1-08 mirrors the bounds client-side to
+    avoid it, which keeps the two in step by hand. A structured `fieldErrors` map
+    alongside the existing message would fix it for every consumer. Found 2026-09-18
+    during S1-08; needs its own issue.
 
 ---
 
