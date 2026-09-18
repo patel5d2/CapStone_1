@@ -143,6 +143,29 @@ class ListingControllerTest {
     }
 
     @Test
+    void create_ValidationFailure_ReportsEachFieldSeparately() throws Exception {
+        // The response has to say WHICH field, in a form a client can act on. It used to
+        // carry a Java map's toString() inside the message, so a student read
+        // "{title=Title is required}" and the composer could not mark the offending input.
+        String invalidJson = """
+                {
+                  "listingType": "SELL",
+                  "photoUrls": ["http://tracker.test/pixel.gif"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/marketplace/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.title").value("Title is required"))
+                .andExpect(jsonPath("$.fieldErrors.category").value("Category is required"))
+                .andExpect(jsonPath("$.fieldErrors['photoUrls[0]']").value("Each photo must be an https:// web address"))
+                // ...and the human-readable message is a sentence, not a map literal.
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("{"))));
+    }
+
+    @Test
     void create_RejectsAPhotoUrlThatIsNotHttps_Http400() throws Exception {
         // The reason this bound exists: an arbitrary address is served to every viewer of
         // the listing, so it can be used to collect their IP addresses.

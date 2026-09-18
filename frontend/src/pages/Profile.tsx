@@ -23,6 +23,19 @@ const GRADUATION_YEAR_MAX = 2100
 
 type FieldErrors = Partial<Record<keyof ProfileForm, string>>
 
+/**
+ * Server field names onto form field names. They already agree, so this only keeps the
+ * ones this form actually renders — a message for a field that is not on screen would
+ * otherwise be silently dropped, so it falls through to the banner instead.
+ */
+function toFormErrors(serverErrors: Record<string, string>): FieldErrors {
+  const mapped: FieldErrors = {}
+  for (const [field, message] of Object.entries(serverErrors)) {
+    if (field in EMPTY) mapped[field as keyof ProfileForm] = message
+  }
+  return mapped
+}
+
 /** Field-level checks, so a problem is shown on the field rather than as a toast. */
 function validate(form: ProfileForm): FieldErrors {
   const errors: FieldErrors = {}
@@ -167,9 +180,18 @@ export default function Profile() {
       }
       setSaved(true)
     } catch (e) {
-      // Kept on the page, not only in a toast: a save that failed while the student was
-      // reading something else must still be visible, with the way to try again.
-      setSaveError(e instanceof Error ? e.message : 'Could not save your profile')
+      // The server is the thing that actually decides. When it names fields, show its
+      // messages on those fields rather than as one banner the student has to map back
+      // themselves — the checks above are only a shortcut that saves a round trip.
+      const serverFields = e instanceof ApiError ? e.fieldErrors : undefined
+      if (serverFields && Object.keys(serverFields).length > 0) {
+        setFieldErrors(toFormErrors(serverFields))
+        push('Check the highlighted fields', 'error')
+      } else {
+        // Kept on the page, not only in a toast: a save that failed while the student was
+        // reading something else must still be visible, with the way to try again.
+        setSaveError(e instanceof Error ? e.message : 'Could not save your profile')
+      }
     } finally {
       setSaving(false)
     }

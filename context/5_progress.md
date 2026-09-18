@@ -288,6 +288,18 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       **Not verified:** the flow has not been opened in a browser — 375px, keyboard-only,
       Chrome/Safari/Firefox are all outstanding, and they are three of the seven
       Definition-of-Done checks. **Objective 3 does not move.**
+- [x] **Field-level validation responses** (2026-09-18, resolves Open Question 12).
+      Backend: `ExceptionWrapper.fieldErrors`, populated by the
+      `MethodArgumentNotValidException` handler from a sorted map, with a readable
+      sentence left in `message`. Frontend: `ApiError` carries `fieldErrors` and the
+      profile form shows the **server's** message on the offending field, falling back to
+      the banner only when the failure names no field this form renders — so the
+      client-side bounds are now a shortcut that saves a round trip rather than the only
+      thing standing between a student and a `{key=value}` blob.
+      Verified 2026-09-18: `./mvnw --batch-mode verify` **137 tests, 0 failures** (1 new,
+      pinning the response shape — `fieldErrors.title`, `fieldErrors.category`,
+      `fieldErrors['photoUrls[0]']`, and `message` asserted to contain no `{`);
+      `npm run lint` and `npm run build` clean.
 
 ---
 
@@ -581,13 +593,18 @@ Raise at the next weekly meeting. Do not guess these in code.
     objective 5, and it is not this story's to take. Raised 2026-09-18
     ([`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) §8).
 
-12. **Validation errors reach the client as a Java map's `toString()`.**
-    `ExceptionTranslator` builds `"Property validation error(s):" + errors.toString()`, so
-    a student sees `{bio=Bio must be 1000 characters or fewer}` and a client cannot map a
-    message to a field without parsing that blob. S1-08 mirrors the bounds client-side to
-    avoid it, which keeps the two in step by hand. A structured `fieldErrors` map
-    alongside the existing message would fix it for every consumer. Found 2026-09-18
-    during S1-08; needs its own issue.
+12. ~~**Validation errors reach the client as a Java map's `toString()`.**~~
+    **Resolved 2026-09-18.** `ExceptionWrapper` now carries a `fieldErrors` map beside the
+    message, so a client can mark the offending input instead of parsing
+    `{bio=Bio must be 1000 characters or fewer}` out of a sentence. The message is a
+    readable sentence for anything that only logs it, and it is **sorted**, so the same
+    invalid request now produces the same response — a `HashMap` was ordering the reported
+    problems arbitrarily between identical calls. `fieldErrors` is null for every
+    non-validation error, so no other response shape changed.
+    **Also fixed while in there:** the handler cast every error to `FieldError`
+    unconditionally, so a class-level constraint would have thrown a
+    `ClassCastException` — which the catch-all serves as an opaque 500, the exact failure
+    mode this area keeps producing. Non-field errors now fall through to the message.
 
 ---
 

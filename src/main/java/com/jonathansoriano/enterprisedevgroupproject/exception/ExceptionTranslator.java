@@ -12,8 +12,13 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 // This class acts as a global exception handler for the entire application.
 // It intercepts exceptions thrown from controllers/services and maps them to structured HTTP responses.
@@ -53,19 +58,34 @@ public class ExceptionTranslator {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ExceptionWrapper> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex, HttpServletRequest request) {
 
-        Map<String, String> errors = new HashMap<>();
+        // Sorted, so the same invalid request always produces the same response: a HashMap
+        // ordered these arbitrarily, which made the message untestable and the order of
+        // reported problems shift between identical calls.
+        Map<String, String> fieldErrors = new TreeMap<>();
+        List<String> otherErrors = new ArrayList<>();
 
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError)error).getField();
-            String errorMessage = error.getDefaultMessage();
-
-            errors.put(fieldName, errorMessage);
+        ex.getBindingResult().getAllErrors().forEach(error -> {
+            // Not every error is a FieldError — a class-level constraint produces an
+            // ObjectError, and the unchecked cast this used to do turned one into a
+            // ClassCastException, which the catch-all then served as an opaque 500.
+            if (error instanceof FieldError fieldError) {
+                fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
+            } else {
+                otherErrors.add(error.getDefaultMessage());
+            }
         });
-        String errorMessage = errors.toString();
+
+        // A sentence a person can read, rather than a Java map's toString(). The
+        // machine-readable form travels beside it in fieldErrors.
+        String message = Stream.concat(fieldErrors.values().stream(), otherErrors.stream())
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(" "));
 
         log.warn("Property validation error(s) at {}: ", request.getRequestURI(), ex);
 
-        ExceptionWrapper wrapper = new ExceptionWrapper(HttpStatus.BAD_REQUEST.value(), "Property validation error(s):" + errorMessage, request.getRequestURI());
+        ExceptionWrapper wrapper = new ExceptionWrapper(HttpStatus.BAD_REQUEST.value(),
+                message.isBlank() ? "Some fields need attention." : message,
+                request.getRequestURI(), fieldErrors);
 
         return new ResponseEntity<>(wrapper, HttpStatus.BAD_REQUEST);
     }
