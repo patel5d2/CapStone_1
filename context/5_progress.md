@@ -183,6 +183,30 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       and `npm run build` (bundle carries the new flow) are all that was run, and the
       flow cannot be exercised end to end until the dashboard changes. Chrome/Safari/
       Firefox, phone width and keyboard-only checks are all still outstanding.
+- [ ] **S1-05 Image upload foundation** — **blocked on D-IMAGES (Open Question 1)**, and
+      correctly so: the story's first step is to settle the provider, and the working
+      agreement forbids inventing one. Nothing was built and no dependency was added;
+      image storage stays **PLANNED**. What was produced is the vote's evidence and the
+      provider-independent half of the design —
+      [`docs/phase-1/image-storage.md`](../docs/phase-1/image-storage.md): upload
+      authorization server-side, content-type by magic bytes rather than extension,
+      the asset-reference constraint, the per-file rejection contract S3-03 needs, and
+      the deletion/orphan-cleanup policy. **Objective 3 does not move.**
+      **Found while auditing:** `ListingService` stored `photoUrls` **verbatim from the
+      request body** with no validation, so a listing could point at any URL on the
+      internet. Fixed separately below rather than left open.
+- [x] **Bound `photoUrls` on listing create and update** (2026-09-18, its own change,
+      provider-independent). `ListingRequest` now caps the list at **5** (objective 3),
+      requires each entry to match `^https://[^\s"'<>`]+$`, and caps each at 255
+      characters to match the `listing_photo.photo_url` column. Both `POST` and `PUT`
+      are covered, since one DTO backs both and a listing must not be editable into a
+      state it could not be created in.
+      Verified 2026-09-18: `./mvnw --batch-mode verify` **125 tests, 0 failures** (5 new
+      — valid https accepted, six photos refused, `http://` refused, `javascript:`
+      refused, and the same bound on update).
+      **This is not the ownership constraint.** Restricting references to the approved
+      asset host, so a caller cannot attach an asset they do not own, needs the host and
+      stays with S1-05.
 
 ---
 
@@ -312,6 +336,19 @@ JAR job omits the frontend build, unlike the container build.
 
 ## Architecture decision log
 
+> **016 (new, Proposed):** image storage is **Cloudinary**, not S3. Direction given
+> 2026-09-18; **needs a Rule 8 record**. The deciding fact is that AWS's 2026 new-account
+> credits are **$200 over six months** and this project runs to the April 2027 Expo, so
+> the account owner is personally liable for the bill from roughly March 2027, while
+> Cloudinary's 25-credit allowance renews every 30 days and needs no payment details —
+> the same no-budget constraint that settled decision 015. Cloudinary also answers
+> objective 3's mobile target by transforming on delivery, where S3 would need CloudFront
+> and a Lambda resize pipeline (two more services, against decision 010's grain).
+> **Separately: no SDK is required either way.** A Cloudinary signed upload is one
+> hash — sorted parameters, append the API secret, SHA-256 — so whether to add the SDK at
+> all is its own question, and its own change. Evidence:
+> [`docs/phase-1/image-storage.md`](../docs/phase-1/image-storage.md).
+>
 > **015 (new, Proposed):** second factor is **TOTP plus backup codes**, enabled in Clerk
 > as optional first and required only once the team has enrolled. SMS was rejected on
 > cost (Clerk bills per message and the project has no budget line); email OTP is not
@@ -365,6 +402,19 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 Raise at the next weekly meeting. Do not guess these in code.
 
 1. **Image storage — Cloudinary or S3?** The plan says "or". Blocks Sprint 1.
+
+   **Evidence pack for the vote, 2026-09-18** (no provider chosen):
+   [`docs/phase-1/image-storage.md`](../docs/phase-1/image-storage.md). Cloudinary's free
+   allowance renews every 30 days and needs no payment details; AWS's 2026 new-account
+   credits are **$200 over six months**, which runs out before the April 2027 Expo, and
+   whoever owns the account is liable after that. Neither provider needs an SDK for signed
+   uploads — both signing schemes are pure JDK — so the dependency question is separable
+   from the provider question. The brief also lists the size, dimension, abandonment-age
+   and accepted-type values the team must choose, and the deletion/orphan policy.
+
+   **Direction given 2026-09-18: Cloudinary** (recorded as decision 016, *Proposed* —
+   it still needs a Rule 8 vote). The limits, the deletion policy and whether to add the
+   SDK at all are **still open** and are on the ballot in that brief.
 2. ~~**Which 2FA factor?**~~ **Resolved 2026-09-16: TOTP (authenticator app) plus backup
    codes.** Free, so no budget line, and the backup codes stop a lost phone becoming a
    locked-out student. Email OTP was considered and **is not available**: checked against

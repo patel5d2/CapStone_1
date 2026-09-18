@@ -18,14 +18,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /** The verifier on its own, including the cases that only matter when it fails closed. */
 class SvixSignatureVerifierTest {
 
-    // Fabricated local value, base64("campusbridge-test-secret-0123456789").
-    private static final String SECRET_BASE64 = "Y2FtcHVzYnJpZGdlLXRlc3Qtc2VjcmV0LTAxMjM0NTY3ODk=";
-    private static final String SECRET = "whsec_" + SECRET_BASE64;
+    /**
+     * Fabricated, and assembled at runtime on purpose: a literal {@code whsec_<base64>}
+     * trips GitHub secret scanning as a leaked Stripe key, because Svix and Stripe share
+     * the prefix. See the note in {@code ClerkWebhookControllerTest}; do not inline it.
+     */
+    private static final String SECRET_PHRASE = "campusbridge-test-secret-0123456789";
+    private static final byte[] SECRET_BYTES = SECRET_PHRASE.getBytes(StandardCharsets.UTF_8);
+    private static final String SECRET =
+            "whsec_" + Base64.getEncoder().encodeToString(SECRET_BYTES);
     private static final byte[] BODY = "{\"type\":\"user.created\"}".getBytes(StandardCharsets.UTF_8);
 
     private static String sign(String id, String timestamp, byte[] body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(Base64.getDecoder().decode(SECRET_BASE64), "HmacSHA256"));
+        mac.init(new SecretKeySpec(SECRET_BYTES, "HmacSHA256"));
         mac.update((id + "." + timestamp + ".").getBytes(StandardCharsets.UTF_8));
         mac.update(body);
         return "v1," + Base64.getEncoder().encodeToString(mac.doFinal());

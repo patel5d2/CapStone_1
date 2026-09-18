@@ -103,6 +103,101 @@ class ListingControllerTest {
     }
 
     @Test
+    void create_AcceptsHttpsPhotoUrls() throws Exception {
+        ListingResponse created = ListingResponse.builder().id(5L).title("Mini Fridge").build();
+        when(listingService.create(any(), any())).thenReturn(created);
+
+        String requestJson = """
+                {
+                  "title": "Mini Fridge",
+                  "category": "FURNITURE",
+                  "listingType": "SELL",
+                  "photoUrls": ["https://example.test/a.jpg", "https://example.test/b.jpg"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/marketplace/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void create_RejectsMoreThanFivePhotos_Http400() throws Exception {
+        // Objective 3 caps a listing at five photos.
+        String requestJson = """
+                {
+                  "title": "Mini Fridge",
+                  "category": "FURNITURE",
+                  "listingType": "SELL",
+                  "photoUrls": ["https://example.test/1.jpg", "https://example.test/2.jpg",
+                                "https://example.test/3.jpg", "https://example.test/4.jpg",
+                                "https://example.test/5.jpg", "https://example.test/6.jpg"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/marketplace/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void create_RejectsAPhotoUrlThatIsNotHttps_Http400() throws Exception {
+        // The reason this bound exists: an arbitrary address is served to every viewer of
+        // the listing, so it can be used to collect their IP addresses.
+        String requestJson = """
+                {
+                  "title": "Mini Fridge",
+                  "category": "FURNITURE",
+                  "listingType": "SELL",
+                  "photoUrls": ["http://tracker.test/pixel.gif?listing=1"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/marketplace/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void create_RejectsANonUrlPhotoValue_Http400() throws Exception {
+        String requestJson = """
+                {
+                  "title": "Mini Fridge",
+                  "category": "FURNITURE",
+                  "listingType": "SELL",
+                  "photoUrls": ["javascript:alert(1)"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/marketplace/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void update_RejectsAnUnboundedPhotoUrl_Http400() throws Exception {
+        // The same DTO backs update, so the bound has to hold on both paths — a listing
+        // that passed validation at creation must not be editable into a bad state.
+        String requestJson = """
+                {
+                  "title": "Mini Fridge",
+                  "category": "FURNITURE",
+                  "listingType": "SELL",
+                  "photoUrls": ["http://tracker.test/pixel.gif"]
+                }
+                """;
+
+        mockMvc.perform(put("/api/marketplace/listings/5")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void create_MissingRequiredField_Http400() throws Exception {
         String invalidJson = """
                 {
