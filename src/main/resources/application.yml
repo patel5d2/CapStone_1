@@ -58,6 +58,12 @@ campusbridge:
     # needs a real second factor (TOTP) on top; see decision 015 and Open Question 2.
     require-two-factor: ${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:false}
 
+  clerk:
+    # Signing secret of the Clerk dashboard webhook endpoint ("whsec_..."). Empty by
+    # default and never committed (Team Rule 9, invariant 8): with no value the webhook
+    # route refuses every delivery rather than trusting an unverifiable one.
+    webhook-secret: ${CLERK_WEBHOOK_SECRET:}
+
   monitoring:
     enabled: ${CAMPUSBRIDGE_MONITORING_ENABLED:false}
     password: ${METRICS_PASSWORD:}

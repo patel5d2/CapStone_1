@@ -48,6 +48,9 @@ services:
       CLERK_ISSUER: "${CLERK_ISSUER:-https://mighty-escargot-6562.clerk.accounts.dev}"
       CLERK_JWKS_URI: "${CLERK_JWKS_URI:-https://mighty-escargot-6562.clerk.accounts.dev/.well-known/jwks.json}"
       CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR: "${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:-false}"
+      # Empty unless the environment supplies it; the webhook then refuses deliveries
+      # rather than the app failing to start.
+      CLERK_WEBHOOK_SECRET: "${CLERK_WEBHOOK_SECRET:-}"
       CAMPUSBRIDGE_MONITORING_ENABLED: "true"
       METRICS_PASSWORD: "${METRICS_PASSWORD:?Set METRICS_PASSWORD for the Prometheus service account}"
     depends_on:

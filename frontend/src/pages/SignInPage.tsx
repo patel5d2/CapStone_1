@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { SignIn, useSignIn } from '@clerk/clerk-react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { Loader2, MailCheck } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Wordmark } from '../components/ui/Wordmark'
 import { isInstitutionalEmail } from '../lib/institutionalEmail'
 
@@ -12,12 +12,22 @@ function messageOf(error: unknown, fallback: string) {
 }
 
 /**
- * Sign-in is an emailed one-time code, every time — no password step.
+ * Sign-in is school email + password, with the second factor handled by Clerk.
  *
- * Clerk treats `email_code` as a FIRST factor, so this replaces the password rather
- * than adding to it. It is not two-factor authentication: both the code and the account
- * live in the same mailbox, so anyone with the mailbox has everything. Objective 1 still
- * needs a genuine second factor (TOTP) layered on top of this.
+ * ⚠️ **This does not work until the Clerk dashboard enables password as a first factor.**
+ * Checked against the live instance on 2026-09-18: `password.enabled` and
+ * `password.required` are both true — a password is collected at sign-up — but
+ * `password.used_for_first_factor` is **false**, so the password cannot be used to sign
+ * in. Until someone flips that, `signIn.create` reports no password factor and this page
+ * says so rather than showing a field that can never work. Do not merge ahead of the
+ * dashboard change: it replaces the `email_code` flow that is currently the only way in.
+ *
+ * The second factor is not implemented here and does not need to be. When Clerk answers
+ * `needs_second_factor`, the attempt is handed to Clerk's own `<SignIn />`, which prompts
+ * for the authenticator code or a backup code (decision 015). Email is deliberately not
+ * an option: Clerk does not offer it as a second factor
+ * (`email_address.second_factors: []`), and a code sent to the mailbox that already
+ * receives account mail would not be an independent factor anyway.
  */
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn()
@@ -25,18 +35,17 @@ export default function SignInPage() {
   const { pathname } = useLocation()
 
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [awaitingCode, setAwaitingCode] = useState(false)
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [continueWithClerk, setContinueWithClerk] = useState(false)
 
-  const sendCode = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!isLoaded || busy) return
 
-    // Checked before Clerk is touched, so a personal address never even triggers an
-    // email. The API would refuse the account anyway; this says so while it still helps.
+    // Checked before Clerk is touched. The API would refuse the account anyway; this
+    // says so while it is still useful.
     if (!isInstitutionalEmail(email)) {
       setError(
         'Use your school email address — one ending in .edu. Personal addresses such as Gmail or Outlook cannot be used.',
@@ -49,31 +58,15 @@ export default function SignInPage() {
     try {
       const attempt = await signIn.create({ identifier: email.trim() })
 
-      const factor = attempt.supportedFirstFactors?.find((f) => f.strategy === 'email_code')
-      if (!factor || !('emailAddressId' in factor)) {
-        // Someone turned the email-code strategy off in the Clerk dashboard. Say that,
-        // rather than showing a code box that can never be filled.
-        setError('Email sign-in codes are not enabled for this app. Contact the CampusBridge team.')
+      if (!attempt.supportedFirstFactors?.some((f) => f.strategy === 'password')) {
+        // Password is not enabled as a first factor on the Clerk instance. Say that,
+        // rather than rejecting a password the instance was never going to check.
+        setError('Password sign-in is not enabled for this app yet. Contact the CampusBridge team.')
         return
       }
 
-      await signIn.prepareFirstFactor({ strategy: 'email_code', emailAddressId: factor.emailAddressId })
-      setAwaitingCode(true)
-    } catch (err) {
-      setError(messageOf(err, 'Could not send a code. Check the address and try again.'))
-    } finally {
-      setBusy(false)
-    }
-  }
+      const result = await signIn.attemptFirstFactor({ strategy: 'password', password })
 
-  const submitCode = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!isLoaded || busy) return
-
-    setBusy(true)
-    setError(null)
-    try {
-      const result = await signIn.attemptFirstFactor({ strategy: 'email_code', code: code.trim() })
       if (result.status === 'complete') {
         await setActive({
           session: result.createdSessionId,
@@ -83,18 +76,18 @@ export default function SignInPage() {
           },
         })
       } else {
-        // Keep the same Clerk sign-in attempt and let its UI finish verification
-        // (MFA, account recovery, or a required password reset).
+        // needs_second_factor, account recovery, or a required password reset. Keep the
+        // same Clerk attempt and let Clerk's UI finish it.
         setContinueWithClerk(true)
       }
     } catch (err) {
-      setError(messageOf(err, 'That code was not accepted.'))
+      setError(messageOf(err, 'That email and password did not match an account.'))
     } finally {
       setBusy(false)
     }
   }
 
-  // Resume an unfinished attempt after a reload as well as after email verification.
+  // Resume an unfinished attempt after a reload as well as after the first factor.
   const step = isLoaded && signIn.status === 'needs_second_factor' ? 'factor-two'
     : isLoaded && signIn.status === 'needs_new_password' ? 'reset-password' : null
   if (continueWithClerk || step !== null || pathname.startsWith('/sign-in/')) {
@@ -114,81 +107,63 @@ export default function SignInPage() {
       <Wordmark />
 
       <div className="card w-full max-w-md p-6">
-        {awaitingCode ? (
-          <form onSubmit={submitCode} className="space-y-4">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
-                <MailCheck className="h-5 w-5" />
-              </span>
-              <h1 className="text-xl font-extrabold tracking-tight">Enter your verification code</h1>
-              <p className="text-sm text-[var(--color-ink-muted)]">
-                We sent a code to <span className="font-semibold break-all">{email.trim()}</span>.
-              </p>
-            </div>
-
-            <input
-              className="field text-center text-lg tracking-[0.3em]"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="000000"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              aria-label="Verification code"
-            />
-
-            {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
-
-            <button className="btn-primary w-full" disabled={busy || !code.trim()}>
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Verify and sign in
-            </button>
-            <button
-              type="button"
-              className="btn-ghost btn-sm w-full"
-              onClick={() => {
-                setAwaitingCode(false)
-                setCode('')
-                setError(null)
-              }}
-            >
-              Use a different email
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={sendCode} className="space-y-4">
-            <div className="text-center">
-              <h1 className="text-xl font-extrabold tracking-tight">Sign in to CampusBridge</h1>
-              <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-                We email you a verification code each time — there is no password to remember.
-              </p>
-            </div>
-
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold">School email</span>
-              <input
-                className="field"
-                type="email"
-                autoComplete="email"
-                placeholder="you@yourschool.edu"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </label>
-
-            {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
-
-            <button className="btn-primary w-full" disabled={!isLoaded || busy}>
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Email me a code
-            </button>
-
-            <p className="text-center text-sm text-[var(--color-ink-muted)]">
-              New here?{' '}
-              <Link to="/sign-up" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
-                Create an account
-              </Link>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="text-center">
+            <h1 className="text-xl font-extrabold tracking-tight">Sign in to CampusBridge</h1>
+            <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
+              Use your school email and password. If your account has two-step
+              verification, we ask for your code next.
             </p>
-          </form>
-        )}
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold">School email</span>
+            <input
+              className="field"
+              type="email"
+              autoComplete="email"
+              placeholder="you@yourschool.edu"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold">Password</span>
+            <input
+              className="field"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+
+          {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
+
+          <button className="btn-primary w-full" disabled={!isLoaded || busy || !password}>
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Sign in
+          </button>
+
+          {/* The emailed-code sign-in is gone, so this is the only way back in after a
+              forgotten password. Clerk's own UI owns the reset. */}
+          <button
+            type="button"
+            className="btn-ghost btn-sm w-full"
+            onClick={() => setContinueWithClerk(true)}
+          >
+            Forgot your password?
+          </button>
+
+          <p className="text-center text-sm text-[var(--color-ink-muted)]">
+            New here?{' '}
+            <Link to="/sign-up" className="font-semibold text-primary-600 hover:underline dark:text-primary-400">
+              Create an account
+            </Link>
+          </p>
+        </form>
       </div>
     </div>
   )

@@ -238,3 +238,117 @@ Three options, none of them chosen here:
 - `StudentRepository.findByEmail` uses `queryForObject`, which throws on a second match —
   so the `student.email` unique constraint is load-bearing for correctness, not just
   hygiene. Worth keeping in mind when the email path is finally removed.
+
+---
+
+## 8. S1-04 — the Clerk webhook (added 2026-09-18)
+
+### What it does not do, and why
+
+**The webhook does not create the student row.** The story asks for that; it is not
+possible without inventing data, so the gap is recorded rather than filled:
+
+- `student` has seven NOT NULL columns a Clerk user event does not carry —
+  `resident_city`, `resident_state`, `grade`, `major`, `university_id`, and both names
+  (Clerk permits either to be null). Creating the row from an event means making up five
+  values for a real person.
+- `university_id` needs the domain-to-school mapping from **S1-03, which does not exist**
+  and is itself blocked on the unvoted **D-SCHOOLS**. Choosing a school here is precisely
+  what that issue forbids.
+
+So a delivery records the **identity** — the verified Clerk subject and the address it
+signed up with — in `clerk_identity`, and the directory row is still created by
+`POST /student`, which has bound `clerk_user_id` since S1-02. **When S1-03 lands, the
+mapping slots into `ClerkWebhookController` at the point the identity is recorded; nothing
+else has to move.** Until then, "≥6 schools with no admin setup" (objective 2) is not
+advanced by this story.
+
+### Event ordering
+
+Clerk does not guarantee delivery order and retries until it sees a 2xx, so ordering is
+enforced in the upsert rather than in the handler. `clerk_identity.last_event_at` holds
+the `svix-timestamp` of the delivery that last wrote the row, and the upsert advances a
+row only `WHERE clerk_identity.last_event_at < EXCLUDED.last_event_at`:
+
+- a **retry** carries the same timestamp, so it changes nothing and returns 204;
+- an **older event arriving late** cannot roll an address back;
+- a **newer event** wins regardless of arrival order.
+
+The signed `svix-timestamp` is used as the event's position in time, not a timestamp from
+the payload: payload fields are not covered by the signature, so a forwarded body could
+otherwise claim any age it liked.
+
+### The pending-profile state
+
+Three orderings are all normal and none of them is an error:
+
+| Order | What exists | Result |
+|---|---|---|
+| Webhook first, then `POST /student` | identity, then directory row | Both bound to the same subject. Nothing reads `clerk_identity` on the profile path, so it neither helps nor blocks. |
+| `POST /student` first, webhook later | directory row, then identity | The row was already bound at creation (S1-02). The later delivery records the identity beside it. |
+| Webhook never arrives (secret unset, endpoint down) | directory row only | Sign-in and profile completion work unchanged. Identity sync is an addition, not a dependency. |
+
+**Nothing downstream waits on `clerk_identity`.** That is deliberate: a student must not be
+blocked from finishing their profile because a delivery is late, retrying, or refused for
+a configuration reason they cannot see.
+
+### Supported updates
+
+`user.created` and `user.updated` both upsert the identity — they carry the same shape, and
+treating them identically is what makes a missed `user.created` self-heal on the next
+update. Every other event type is answered 204 without a write, so Clerk stops retrying
+something this application will never act on.
+
+**`student.email` is deliberately not rewritten when Clerk reports a new address.** It
+looks like the obvious thing to do and it would break ownership: the 16 email-keyed columns
+still hold the *old* address, so rewriting `student.email` would orphan exactly the data
+ADR-012 exists to protect. `ownerEmailFor` (§4) already makes a rename safe by resolving on
+the subject and returning the stored address. The rewrite becomes correct only once
+S1-10/11/12 have cut those columns over.
+
+### Authentication
+
+The only unauthenticated `/api` route in the application, so the Svix signature over the
+raw body *is* the authentication:
+
+- signed content is `<svix-id>.<svix-timestamp>.<raw body>`, HMAC-SHA256 under the endpoint
+  secret, base64; the header may carry several space-separated `v1,<sig>` entries during a
+  secret rotation and any match passes;
+- verified **before** the body is parsed and before any database access;
+- compared with `MessageDigest.isEqual` — a byte-by-byte compare leaks how much of a forged
+  signature was right;
+- deliveries older or newer than five minutes are refused, bounding the replay window;
+- **fails closed**: with no `CLERK_WEBHOOK_SECRET`, or an unreadable one, every delivery is
+  refused 401 and the reason is logged once at startup. The application still boots.
+
+Implemented on the JDK's `javax.crypto` — the scheme is one HMAC and a constant-time
+compare, and S1-04 may not add a dependency. `CLERK_WEBHOOK_SECRET` is in `.env.example`
+and `docker-compose.yml` **as an empty name only**; the real value lives in the Clerk
+dashboard (Team Rule 9).
+
+### Verification (2026-09-18)
+
+`./mvnw --batch-mode verify` — **120 tests, 0 failures**, of which 12 are new:
+5 in `SvixSignatureVerifierTest`, 7 in `ClerkWebhookControllerTest` (which runs with the
+real security filter chain against a disposable PostgreSQL 16, so it also proves the chain
+lets an unauthenticated delivery through to the controller).
+
+Live, against the built jar on `localhost:8080` with a throwaway database — the checks the
+story names, run over real HTTP rather than MockMvc:
+
+| Delivery | Result |
+|---|---|
+| Genuine `user.created` | **204**, one `clerk_identity` row |
+| The same delivery retried | **204**, still **one** row |
+| Tampered body, genuine signature for the original | **401**, nothing written |
+| No signature headers | **401**, nothing written |
+
+Invariant 8 checked against the application log afterwards: **0 occurrences** of the
+address and **0** of the signature. What it logs is the subject and the delivery id
+(`Clerk user.created for subject user_live (delivery msg_live): identity recorded`, then
+`already applied, ignored` on the retry).
+
+**Not verified:** no delivery from Clerk itself. The signatures were generated with the
+Svix scheme from a fabricated local secret, so what is proven is the scheme as documented,
+not this project's Clerk endpoint — which has not been created, since that is dashboard
+work with a real secret.

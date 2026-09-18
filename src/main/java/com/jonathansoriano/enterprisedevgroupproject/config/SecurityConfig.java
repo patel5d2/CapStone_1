@@ -4,6 +4,7 @@ import com.jonathansoriano.enterprisedevgroupproject.security.ClerkJwtAuthentica
 import com.jonathansoriano.enterprisedevgroupproject.security.InstitutionalAccessDeniedHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -57,6 +58,14 @@ public class SecurityConfig {
                         // ROLE_STUDENT is granted by ClerkJwtAuthenticationConverter only
                         // when the token's email sits on a .edu domain.
                         .requestMatchers("/student/**").hasRole(STUDENT)
+                        // Clerk's webhook is the one /api route with no session behind it:
+                        // a webhook carries no bearer token, so it authenticates by Svix
+                        // signature over the raw body instead (ClerkWebhookController).
+                        // permitAll here means "no token required", not "unauthenticated" —
+                        // an unsigned or tampered delivery is refused 401 by the controller
+                        // before the payload is parsed. Listed before /api/** so the more
+                        // specific rule wins.
+                        .requestMatchers(HttpMethod.POST, "/api/webhooks/clerk").permitAll()
                         .requestMatchers("/api/**").hasRole(STUDENT)
                         // Actuator's remaining endpoints describe the system, not student
                         // data, and are scraped by Prometheus rather than by a student, so

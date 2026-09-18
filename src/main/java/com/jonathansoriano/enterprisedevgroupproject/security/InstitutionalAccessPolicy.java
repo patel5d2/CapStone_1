@@ -52,12 +52,17 @@ public class InstitutionalAccessPolicy {
     static final String FACTOR_VERIFICATION_AGE_CLAIM = "fva";
 
     /**
-     * Off by default, and deliberately so. The Clerk instance currently has
-     * {@code second_factor_strategies: []}, so no token can assert a second factor
-     * yet — switching this on before the dashboard is configured locks out every
-     * account including the team's. Turn it on once 2FA is enabled in Clerk and a
-     * minted token has been checked for the {@code fva} claim. Open Question 2 (SMS
-     * or TOTP) decides the factor, not this flag.
+     * Off by default, and deliberately so.
+     *
+     * <p>Re-checked against the live instance on 2026-09-18: second factors are now
+     * enabled — {@code authenticator_app: ["totp"]}, {@code phone_number: ["phone_code"]}
+     * and {@code backup_code} — which corrects the earlier note here that the instance
+     * had none. Two things still stand in the way of switching this on:
+     * {@code sign_in.second_factor.required} is {@code false}, so accounts that have not
+     * enrolled carry no second factor, and the {@code fva} claim has still not been seen
+     * on a token from this instance. Turning it on before the team has enrolled refuses
+     * every one of those accounts. Decision 015 chooses the factor (TOTP plus backup
+     * codes), not this flag.
      */
     private final boolean requireTwoFactor;
 

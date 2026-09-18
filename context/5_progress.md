@@ -141,6 +141,48 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md).
       **The scoreboard does not move:** objectives 1, 6 and 10 need the ownership
       cutover, not just the column.
+- [x] **S1-04 Clerk identity webhook** — signature verification, idempotency and the
+      identity record. `POST /api/webhooks/clerk` (the only unauthenticated `/api` route)
+      verifies the Svix HMAC over the **raw** body before parsing or touching the
+      database, on the JDK's `javax.crypto` — no new dependency. Constant-time compare,
+      five-minute replay window, **fails closed** when `CLERK_WEBHOOK_SECRET` is unset.
+      `V5__add_clerk_identity.sql` adds `clerk_identity`; the upsert advances a row only
+      for a newer `svix-timestamp`, so a Clerk retry is a no-op and a late older event
+      cannot roll an address back.
+      Verified 2026-09-18: `./mvnw --batch-mode verify` **120 tests, 0 failures** (12
+      new); live against the jar over real HTTP — genuine delivery 204 with one row,
+      retry 204 with still one row, tampered body 401 writing nothing, missing headers
+      401. Log checked: **no address and no signature** (invariant 8).
+      `docker compose --env-file .env.example config --quiet` passes.
+      **Partly blocked, and the gap is documented rather than filled:** the webhook does
+      **not** create the student row. `student` has seven NOT NULL columns a Clerk event
+      does not carry, and `university_id` needs the **S1-03 mapping, which does not exist**
+      and is blocked on the unvoted D-SCHOOLS. Inventing a school is what that issue
+      forbids, so the webhook records the identity and `POST /student` still creates the
+      directory row. Ordering, the pending-profile state and supported updates:
+      [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) §8.
+      **Not verified:** no delivery from Clerk itself — the endpoint and its real secret
+      are dashboard work. **Objective 2 does not move.**
+- [ ] **Sign-in: school email + password, then the second factor** — code written
+      2026-09-18, **held pending a Clerk dashboard change**. `SignInPage` now takes an
+      email and a password and hands the attempt to Clerk's `<SignIn>` when Clerk answers
+      `needs_second_factor`, so TOTP or a backup code finishes it (decision 015). A
+      "Forgot your password?" route into Clerk's reset UI replaces the emailed-code
+      escape hatch it removes.
+      **Do not merge before the dashboard flip.** Verified against the live instance
+      2026-09-18: `password.enabled` and `password.required` are both `true` — a password
+      is already collected at sign-up — but **`password.used_for_first_factor` is `false`**,
+      so it cannot be used to sign in. Until that is turned on, this page tells the
+      student password sign-in is not enabled rather than showing a field that cannot
+      work, and merging it would remove the only working way in.
+      **Not possible as asked:** an emailed OTP as the *second* factor. Clerk does not
+      offer one (`email_address.second_factors: []`), and a code arriving in the mailbox
+      that already receives account mail would not be an independent factor. SMS is
+      available but decision 015 rejected it on cost.
+      **Not verified:** the page has not been opened in a browser — `npm run lint` (clean)
+      and `npm run build` (bundle carries the new flow) are all that was run, and the
+      flow cannot be exercised end to end until the dashboard changes. Chrome/Safari/
+      Firefox, phone width and keyboard-only checks are all still outstanding.
 
 ---
 
@@ -181,7 +223,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 
 | # | Objective | Status | Lands in |
 |---|---|---|---|
-| 1 | Institutional email + 2FA, 100% validated | ⚠️ sign-in is email OTP (one factor, not two — see session notes); **email domain enforced in the application** — any non-`.edu` token is refused 403 on every `/api/**` and `/student/**` route, with a message telling the student to use a school address. **2FA is not enforced**: the check exists behind `campusbridge.auth.require-two-factor` (default off) because Clerk still reports `second_factor_strategies: []`, and the `fva` claim it reads is unverified against a live token. Clerk-side sign-up restriction and 2FA remain dashboard work | Sprint 1 |
+| 1 | Institutional email + 2FA, 100% validated | ⚠️ sign-in is email OTP (one factor, not two — see session notes); **email domain enforced in the application** — any non-`.edu` token is refused 403 on every `/api/**` and `/student/**` route, with a message telling the student to use a school address. **2FA is not enforced**: the check exists behind `campusbridge.auth.require-two-factor` (default off) and the `fva` claim it reads is unverified against a live token. **Correction 2026-09-18:** the earlier note here that Clerk reports `second_factor_strategies: []` is out of date — TOTP, SMS and backup codes are now enabled on the instance; what is still missing is enrolment (`sign_in.second_factor.required` is `false`). Clerk-side sign-up restriction and enrolment remain dashboard work | Sprint 1 |
 | 2 | ≥6 schools, no admin setup needed | ⚠️ 8 seeded, no domain mapping | Sprint 1 |
 | 3 | Listing < 2 min on mobile, 5 photos | ❌ no image upload; missing `condition`, `pickup_location` | Sprints 1, 3 |
 | 4 | Search < 1s at 10,000 listings | ❌ unbounded results, no explicit search indexes or recorded load-test evidence | Sprint 4 |
@@ -337,8 +379,16 @@ Raise at the next weekly meeting. Do not guess these in code.
    (3) confirm a real token carries the `fva` claim — the claim shape is from Clerk's
    documentation and has not been seen on a token from this instance;
    (4) set `campusbridge.auth.require-two-factor=true` **and**
-   `VITE_REQUIRE_TWO_FACTOR=true` together. **Steps 1–3 are still outstanding; step 4 was
-   done first on 2026-09-16**, which is why the API currently refuses everyone.
+   `VITE_REQUIRE_TWO_FACTOR=true` together. ~~**Steps 1–3 are still outstanding; step 4 was
+   done first on 2026-09-16**~~
+
+   **Re-verified 2026-09-18** against the instance's public `/v1/environment`:
+   **step (1) is done** — `authenticator_app: ["totp"]`, `backup_code` and
+   `phone_number: ["phone_code"]` are all enabled as second factors, correcting the
+   `second_factors: []` reading recorded on 2026-09-16. **Steps (2) and (3) are still
+   outstanding**: `sign_in.second_factor.required` is `false`, so nobody is enrolled and
+   no token has yet carried an `fva` claim. Email remains unavailable as a second factor
+   (`email_address.second_factors: []`), so decision 015 stands unchanged.
 3. **Where does TLS terminate?** The contract requires TLS; local runs are plain HTTP.
    Needs a deployment answer before Sprint 12.
 4. **Six schools or eight?** The contract says "at least six", the plan names six, the
@@ -378,6 +428,14 @@ Raise at the next weekly meeting. Do not guess these in code.
     `student` and an address change still splits `app_user` from `student`. That is a
     deliberate, recorded gap for the admin story to close — it still needs a Rule 8
     record, and it is not evidence that the split is harmless.
+
+11. **Is `clerk_identity` the right home for the pending-profile state, or should the
+    webhook create a partial `student` row?** S1-04 records the verified Clerk subject and
+    address in its own table because `student` has seven NOT NULL columns a Clerk event
+    cannot fill. The alternative — relaxing those columns so a half-built directory row
+    can exist — is a bigger schema decision that touches the directory, its search and
+    objective 5, and it is not this story's to take. Raised 2026-09-18
+    ([`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) §8).
 
 ---
 
