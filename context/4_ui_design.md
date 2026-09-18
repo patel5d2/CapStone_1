@@ -41,8 +41,13 @@ Record those in [progress](5_progress.md) when someone does them.
 The app has **four tabs**, not five. The student directory is a surface **inside
 Community**, not a peer of it. `AppShell` now lists these four in this order, and
 Directory is a `Tabs` sub-surface of Community reached at `/community?tab=directory`;
-the retired `/directory` route redirects there. The responsive shell below is still
-Sprint 2 work and is not implemented.
+the retired `/directory` route redirects there. The responsive shell below is present
+in `AppShell`; full acceptance remains Sprint 2 work.
+
+**S0-4 review artifacts (2026-09-17):** [wireframe board](../docs/phase-0/wireframes/index.html)
+and [annotated specification](../docs/phase-0/wireframes.md), with all four tabs at
+375px and 1440px plus directory/chat detail frames. These target designs distinguish
+current UI from implementation work and do not establish approval or app acceptance.
 
 | Tab | Icon | Route |
 |---|---|---|

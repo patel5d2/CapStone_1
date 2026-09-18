@@ -287,6 +287,12 @@ not configured, and Dependabot currently omits the npm ecosystem.
 
 ## Design documentation
 
+**Four-tab wireframes (S0-4):** [review board](docs/phase-0/wireframes/index.html) ·
+[annotated specification and SVG/PNG downloads](docs/phase-0/wireframes.md).
+Marketplace, Messages, Community and Support at 375px mobile and 1440px desktop,
+with directory and mobile-chat detail views. Artifacts are ready for team review;
+story acceptance and the sprint demo remain pending.
+
 Storyboard:
 
 ![Create Account Screen](screen-1.png)
@@ -295,8 +301,9 @@ Storyboard:
 
 Class diagram: ![UML Diagram](classUMLDiagram.png)
 
-> The storyboard and class diagram predate the marketplace pivot and cover the student
-> directory only. Refreshing both for the four-tab app is Sprint 0 work (S0-4, S0-5).
+> The storyboard and class diagram above predate the marketplace pivot and cover the
+> student directory only. Use the S0-4 wireframes above for the four-tab target UI and
+> the [S0-5 ERD artifact](docs/phase-0/erd.md) for current and planned data models.
 
 ### Directory requirements (Fall 2026 deliverable)
 

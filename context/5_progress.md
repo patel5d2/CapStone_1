@@ -60,7 +60,13 @@ Definition of Done.
       `pom.xml`.)*
 - [ ] **S0-3 CI starts the container it builds.** `docker compose up -d`, poll
       `/actuator/health`, fail the job otherwise. Makes Team Rule 7 enforceable.
-- [ ] **S0-4 Wireframes** for the four tabs at mobile and desktop widths
+- [ ] **S0-4 Wireframes** for the four tabs at mobile and desktop widths —
+      **artifacts complete, team acceptance pending (2026-09-17).**
+      [Review board](../docs/phase-0/wireframes/index.html) and
+      [specification](../docs/phase-0/wireframes.md): eight primary frames at 375px
+      and 1440px, plus directory and mobile-chat details; editable SVGs and PNGs.
+      Local rendering/layout checks passed. Review, PR/merge, CI, cross-browser,
+      keyboard acceptance and sprint demo remain required by the Definition of Done.
 - [ ] **S0-5 ERD** covering current and planned tables
 - [ ] **S0-6 Backlog** in GitHub Projects, stories sized for Sprints 1–5
 - [ ] **S0-7 Pin Java 21** — pom 21 / CI 21 / Dockerfile Temurin 25 disagree

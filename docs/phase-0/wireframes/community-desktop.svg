@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+<title id="title">Community — community-desktop wireframe</title>
+<desc id="desc">CampusBridge target layout. Fictional sample content. Static wireframe; controls are illustrative.</desc>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#252525} .muted{fill:#555} .white{fill:#fff}</style>
+<rect x="0" y="0" width="1440" height="900" rx="0" fill="#fafafa" stroke="none" stroke-width="1"/>
+<rect x="0" y="0" width="240" height="900" rx="0" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="24" y="48" font-size="23" font-weight="700" text-anchor="start" class="">CampusBridge</text>
+<text x="24" y="76" font-size="11" font-weight="400" text-anchor="start" class="muted">YOUR CAMPUS, CONNECTED</text>
+<rect x="16" y="120" width="208" height="48" rx="5" fill="#fff" stroke="none" stroke-width="1"/>
+<rect x="32" y="134" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="150" font-size="16" font-weight="400" text-anchor="start" class="">Marketplace</text>
+<rect x="16" y="184" width="208" height="48" rx="5" fill="#fff" stroke="none" stroke-width="1"/>
+<rect x="32" y="198" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="214" font-size="16" font-weight="400" text-anchor="start" class="">Messages</text>
+<rect x="16" y="248" width="208" height="48" rx="5" fill="#e5e5e5" stroke="none" stroke-width="1"/>
+<rect x="16" y="248" width="4" height="48" rx="0" fill="#252525" stroke="none" stroke-width="1"/>
+<rect x="32" y="262" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="278" font-size="16" font-weight="700" text-anchor="start" class="">Community</text>
+<rect x="16" y="312" width="208" height="48" rx="5" fill="#fff" stroke="none" stroke-width="1"/>
+<rect x="32" y="326" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="342" font-size="16" font-weight="400" text-anchor="start" class="">Support</text>
+<rect x="24" y="816" width="192" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="120.0" y="842.9" font-size="14" font-weight="400" text-anchor="middle" class="">My profile / Sign out</text>
+<text x="280" y="60" font-size="32" font-weight="700" text-anchor="start" class="">Community</text>
+<text x="280" y="89" font-size="16" font-weight="400" text-anchor="start" class="muted">Connect with your school and your major.</text>
+<text x="1396" y="54" font-size="14" font-weight="400" text-anchor="end" class="">Sample student · UC</text>
+<rect x="280.0" y="120" width="166.0" height="44" rx="4" fill="#333" stroke="#999" stroke-width="1"/>
+<text x="363.0" y="146.9" font-size="14" font-weight="700" text-anchor="middle" class="white">Feed</text>
+<rect x="450.0" y="120" width="166.0" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="533.0" y="146.9" font-size="14" font-weight="400" text-anchor="middle" class="">Directory</text>
+<rect x="620.0" y="120" width="166.0" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="703.0" y="146.9" font-size="14" font-weight="400" text-anchor="middle" class="">Groups</text>
+<rect x="790.0" y="120" width="166.0" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="873.0" y="146.9" font-size="14" font-weight="400" text-anchor="middle" class="">Events</text>
+<rect x="280" y="180" width="680" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="292" y="208" font-size="14" font-weight="400" text-anchor="start" class="muted">Feed: My school / My major</text>
+<rect x="280" y="240" width="680" height="44" rx="4" fill="#333" stroke="#999" stroke-width="1"/>
+<text x="620.0" y="266.9" font-size="14" font-weight="700" text-anchor="middle" class="white">+ Write a post</text>
+<rect x="280" y="300" width="680" height="164" rx="5" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="296" y="328" font-size="18" font-weight="700" text-anchor="start" class="">Taylor M. · UC</text>
+<text x="296" y="354" font-size="12" font-weight="400" text-anchor="start" class="muted">2 hours ago · School feed</text>
+<text x="296" y="384" font-size="16" font-weight="400" text-anchor="start" class="">Anyone taking Calculus II this term?</text>
+<text x="296" y="406" font-size="16" font-weight="400" text-anchor="start" class="">I would love to meet classmates.</text>
+<rect x="292" y="415" width="85" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="334.5" y="441.2" font-size="12" font-weight="400" text-anchor="middle" class="">Like · 4</text>
+<rect x="383" y="415" width="122" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="444.0" y="441.2" font-size="12" font-weight="400" text-anchor="middle" class="">Reply · 2</text>
+<rect x="866" y="415" width="82" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="907.0" y="441.2" font-size="12" font-weight="400" text-anchor="middle" class="">Report</text>
+<rect x="280" y="480" width="680" height="164" rx="5" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="296" y="508" font-size="18" font-weight="700" text-anchor="start" class="">Jamie L. · Computer Science</text>
+<text x="296" y="534" font-size="12" font-weight="400" text-anchor="start" class="muted">Yesterday · Major feed</text>
+<text x="296" y="564" font-size="16" font-weight="400" text-anchor="start" class="">Welcome to the major feed.</text>
+<text x="296" y="586" font-size="16" font-weight="400" text-anchor="start" class="">What are you working on this week?</text>
+<rect x="292" y="595" width="85" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="334.5" y="621.2" font-size="12" font-weight="400" text-anchor="middle" class="">Like · 4</text>
+<rect x="383" y="595" width="122" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="444.0" y="621.2" font-size="12" font-weight="400" text-anchor="middle" class="">Reply · 2</text>
+<rect x="866" y="595" width="82" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="907.0" y="621.2" font-size="12" font-weight="400" text-anchor="middle" class="">Report</text>
+<rect x="996" y="120" width="400" height="246" rx="5" fill="#f0f0f0" stroke="#999" stroke-width="1"/>
+<text x="1020" y="158" font-size="22" font-weight="700" text-anchor="start" class="">Find your people</text>
+<text x="1020" y="194" font-size="16" font-weight="400" text-anchor="start" class="">Search the student directory by name,</text>
+<text x="1020" y="222" font-size="16" font-weight="400" text-anchor="start" class="">major or graduation year across schools.</text>
+<rect x="1020" y="280" width="352" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="1196.0" y="306.9" font-size="14" font-weight="400" text-anchor="middle" class="">Open Directory</text>
+<rect x="996" y="390" width="400" height="214" rx="5" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="1020" y="429" font-size="20" font-weight="700" text-anchor="start" class="">Community guidelines</text>
+<text x="1020" y="468" font-size="15" font-weight="400" text-anchor="start" class="">Respect classmates and protect privacy.</text>
+<text x="1020" y="496" font-size="15" font-weight="400" text-anchor="start" class="">Report harmful posts for review.</text>
+<text x="1020" y="540" font-size="13" font-weight="400" text-anchor="start" class="muted">School and major feeds are target behavior.</text>
+</svg>
