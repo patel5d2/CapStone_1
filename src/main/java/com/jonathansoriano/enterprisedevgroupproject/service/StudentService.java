@@ -172,10 +172,23 @@ public class StudentService {
         studentUpdateDto.setLastName(studentDetails.getLastName());
         studentUpdateDto.setResidentCity(studentDetails.getResidentCity());
         studentUpdateDto.setResidentState(studentDetails.getResidentState());
-        studentUpdateDto.setUniversityId(studentDetails.getUniversityId());
         studentUpdateDto.setGrade(studentDetails.getGrade());
         studentUpdateDto.setMajor(studentDetails.getMajor());
         studentUpdateDto.setSocialMediaLink(studentDetails.getSocialMediaLink());
+        studentUpdateDto.setGraduationYear(studentDetails.getGraduationYear());
+        studentUpdateDto.setBio(studentDetails.getBio());
+        studentUpdateDto.setPhotoUrl(studentDetails.getPhotoUrl());
+
+        // universityId and email are NOT copied from the request. Both identify the
+        // account rather than describe it: the school decides which directory, theme and
+        // school-scoped surfaces a student belongs to (objectives 2, 5 and 8), and the
+        // email is the key the row hangs off. Copying the body's universityId here let any
+        // signed-in student move themselves to another school by editing their own
+        // profile. The stored values are kept instead, so a value sent in the body is
+        // overwritten server-side before it reaches the database.
+        //
+        // This keeps the school as it is; it does not yet DERIVE it. Deriving the school
+        // from the verified email domain is S1-03, which is blocked on D-SCHOOLS.
 
         return studentUpdateDto;
     }

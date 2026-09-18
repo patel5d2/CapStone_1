@@ -25,4 +25,7 @@ public class StudentUpdateDto {
     // this DTO to a client.
     private String clerkUserId;
     private String socialMediaLink;
+    private Integer graduationYear;
+    private String bio;
+    private String photoUrl;
 }

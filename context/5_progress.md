@@ -207,6 +207,31 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       **This is not the ownership constraint.** Restricting references to the approved
       asset host, so a caller cannot attach an asset they do not own, needs the host and
       stays with S1-05.
+- [x] **S1-06 Profile API fields and validation** (2026-09-18).
+      `V6__add_student_profile_fields.sql` adds `graduation_year integer`,
+      `bio varchar(1000)` and `photo_url varchar(255)`, all nullable, with the names and
+      types from the S0-5 planned ERD. Every bound is mirrored on both request objects
+      through one `ProfileFieldBounds` holder, so the two cannot drift: an over-length
+      value is a field-level 400 naming the field instead of a
+      `DataIntegrityViolationException` that the catch-all turns into an opaque 500.
+      **Closed a live gap the acceptance criteria name:** `updateStudent` copied
+      `universityId` straight from the request body, so **any signed-in student could move
+      themselves to another school by editing their own profile** — which would have moved
+      their directory, theme and school-scoped surfaces with them. The stored school is
+      kept and the body's value is overwritten server-side. Email was already ignored.
+      Verified 2026-09-18: `./mvnw --batch-mode verify` **133 tests, 0 failures** (8 new,
+      against a disposable Postgres 16 — round trip of the three fields, the bio boundary
+      accepted and boundary+1 rejected, over-long surname rejected by field, year and
+      photo-URL bounds, all three optional, and the school-reassignment attempt refused
+      while the editable fields still changed). Flyway V5→V6 on a populated database left
+      all 33 rows intact and the app started, so `validate` passed on the upgraded schema.
+      **Not verified:** no real Clerk session — the read/update path was exercised through
+      the service and repository, not over HTTP with a minted token, so the end-to-end
+      check in the story's Verify section is outstanding. **Deliberately not done:**
+      `bio`/`photo_url` are **not** added to the directory's `Student` model — what the
+      directory may expose is invariant 5 and S1-07's question, not this story's. The
+      school is kept, not **derived**; deriving it from the verified email domain is S1-03,
+      blocked on D-SCHOOLS. The `photo_url` host constraint stays with S1-05.
 
 ---
 

@@ -33,7 +33,10 @@ public class StudentRepository {
               s.grade AS grade,
               s.major AS major,
               s.email AS email,
-              s.social_media_link AS socialMediaLink
+              s.social_media_link AS socialMediaLink,
+              s.graduation_year AS graduationYear,
+              s.bio AS bio,
+              s.photo_url AS photoUrl
             FROM student s
             JOIN university u ON s.university_id = u.id
             WHERE 1 = 1
@@ -51,7 +54,10 @@ public class StudentRepository {
               s.major AS major,
               s.email AS email,
               s.clerk_user_id AS clerkUserId,
-              s.social_media_link AS socialMediaLink
+              s.social_media_link AS socialMediaLink,
+              s.graduation_year AS graduationYear,
+              s.bio AS bio,
+              s.photo_url AS photoUrl
             FROM student s
             WHERE 1 = 1
             """;
@@ -71,15 +77,15 @@ public class StudentRepository {
 
 
     public static final String INSERT_NEW_STUDENT = """
-            INSERT INTO student (first_name, last_name, resident_city, resident_state, university_id, grade, major,email, clerk_user_id, social_media_link)
-            VALUES (:firstName, :lastName, :residentCity, :residentState, :universityId, :grade, :major, :email, :clerkUserId, :socialMediaLink)
+            INSERT INTO student (first_name, last_name, resident_city, resident_state, university_id, grade, major,email, clerk_user_id, social_media_link, graduation_year, bio, photo_url)
+            VALUES (:firstName, :lastName, :residentCity, :residentState, :universityId, :grade, :major, :email, :clerkUserId, :socialMediaLink, :graduationYear, :bio, :photoUrl)
             """;
 
     // clerk_user_id is absent on purpose: a profile edit changes what the row says, never
     // whose row it is. Identity moves only through an insert or the S1-04 webhook.
     public static final String UPDATE_STUDENT_INFO = """
             UPDATE student
-            SET first_name = :firstName, last_name = :lastName, resident_city = :residentCity, resident_state = :residentState, university_id = :universityId, grade = :grade, major = :major,email = :email, social_media_link = :socialMediaLink
+            SET first_name = :firstName, last_name = :lastName, resident_city = :residentCity, resident_state = :residentState, university_id = :universityId, grade = :grade, major = :major,email = :email, social_media_link = :socialMediaLink, graduation_year = :graduationYear, bio = :bio, photo_url = :photoUrl
             WHERE id = :id
             """;
 
@@ -255,7 +261,10 @@ public class StudentRepository {
                 .addValue("email", student.getEmail())
                 // From the verified token, never the request body: this is the row's owner.
                 .addValue("clerkUserId", clerkUserId)
-                .addValue("socialMediaLink", student.getSocialMediaLink());
+                .addValue("socialMediaLink", student.getSocialMediaLink())
+                .addValue("graduationYear", student.getGraduationYear())
+                .addValue("bio", student.getBio())
+                .addValue("photoUrl", student.getPhotoUrl());
         try {
             return jdbcTemplate.update(INSERT_NEW_STUDENT, params);// update() returns an "int" to indicate how many
                                                                    // rows
@@ -291,7 +300,10 @@ public class StudentRepository {
                 .addValue("grade", updatedStudent.getGrade())
                 .addValue("major", updatedStudent.getMajor())
                 .addValue("email", updatedStudent.getEmail())
-                .addValue("socialMediaLink", updatedStudent.getSocialMediaLink());
+                .addValue("socialMediaLink", updatedStudent.getSocialMediaLink())
+                .addValue("graduationYear", updatedStudent.getGraduationYear())
+                .addValue("bio", updatedStudent.getBio())
+                .addValue("photoUrl", updatedStudent.getPhotoUrl());
 
         StringBuilder sql = new StringBuilder(UPDATE_STUDENT_INFO);
         return jdbcTemplate.update(sql.toString(), params);

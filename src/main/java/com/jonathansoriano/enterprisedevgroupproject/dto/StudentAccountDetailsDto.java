@@ -21,4 +21,7 @@ public class StudentAccountDetailsDto {
     private String major;
     private String email;
     private String socialMediaLink;
+    private Integer graduationYear;
+    private String bio;
+    private String photoUrl;
 }

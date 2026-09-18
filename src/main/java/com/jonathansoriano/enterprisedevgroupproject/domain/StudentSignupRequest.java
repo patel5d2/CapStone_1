@@ -53,4 +53,20 @@ public class StudentSignupRequest {
 
     @Size(max = 255, message = "Link must be 255 characters or fewer")
     private String socialMediaLink;
+
+    @Min(value = ProfileFieldBounds.GRADUATION_YEAR_MIN,
+            message = "Graduation year must be a four-digit year")
+    @Max(value = ProfileFieldBounds.GRADUATION_YEAR_MAX,
+            message = "Graduation year must be a four-digit year")
+    private Integer graduationYear;
+
+    @Size(max = ProfileFieldBounds.BIO_MAX,
+            message = "Bio must be " + ProfileFieldBounds.BIO_MAX + " characters or fewer")
+    private String bio;
+
+    @Size(max = ProfileFieldBounds.PHOTO_URL_MAX,
+            message = "Photo address must be " + ProfileFieldBounds.PHOTO_URL_MAX + " characters or fewer")
+    @Pattern(regexp = ProfileFieldBounds.PHOTO_URL_PATTERN,
+            message = "Photo must be an https:// web address")
+    private String photoUrl;
 }
