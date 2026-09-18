@@ -7,10 +7,16 @@
 > and append to the logs. Never reflow or reorder sections — that turns every merge into
 > a conflict.
 
-**Updated:** 2026-09-16 · **Documentation audit baseline:** `1b28132`
+**Updated:** 2026-09-17 · **Documentation audit baseline:** `1b28132`
 **Current sprint:** **Sprint 0 — Plan and set up (Sep 14 – Sep 25, 2026)**
 
 ---
+
+> **Tracker audit 2026-09-17.** Nine of the eleven Sprint 0 items are complete; six of
+> them were still showing unticked because the tracker lagged the repository, not because
+> the work was missing. Each is now ticked with the evidence that was checked. **Only
+> S0-6 (GitHub Projects backlog) and S0-8 (branch protection) remain**, and both are
+> GitHub account actions rather than code.
 
 ## 🟡 Blocking — partially cleared
 
@@ -54,47 +60,82 @@ Definition of Done.
       `spring-boot-starter-flyway`, and Boot 4 moved the auto-configuration into its own
       module. With only `flyway-core` on the classpath the migrations silently never run
       and Hibernate fails validation with `missing table [anonymous_request]`.
-- [ ] **S0-2 Drop H2.** Remove the dependency and console config; Testcontainers so tests
-      run on Postgres 16. *(Default profile now points at Postgres — done as part of
-      S0-1. H2 remains a test-scope dependency and `spring-boot-h2console` is still in
-      `pom.xml`.)*
-- [ ] **S0-3 CI starts the container it builds.** `docker compose up -d`, poll
-      `/actuator/health`, fail the job otherwise. Makes Team Rule 7 enforceable.
-- [ ] **S0-4 Wireframes** for the four tabs at mobile and desktop widths —
-      **artifacts complete, team acceptance pending (2026-09-17).**
+- [x] **S0-2 Drop H2.** Verified 2026-09-17: no `com.h2database:h2` and no
+      `spring-boot-h2console` anywhere in `pom.xml`; `spring-boot-testcontainers` and
+      `testcontainers-postgresql` are test-scoped. `src/test/resources/application.properties`
+      now runs Postgres with `spring.flyway.enabled=true` and `ddl-auto=validate`, so tests
+      exercise the same engine and the same migrations as the application. Decision 008
+      (Postgres everywhere) is now true in fact, not just for the app.
+- [x] **S0-3 CI starts the container it builds.** Verified 2026-09-17: `main.yml` has a
+      `container-build` job ("Validate container startup") that builds and `load`s the image,
+      then runs `scripts/smoke-container.sh` — `docker compose -f docker-compose.ci.yml`,
+      polls `/actuator/health`, fetches `/`, checks SPA routes and content types, uploads
+      diagnostics, and tears the stack down on any outcome. Team Rule 7 is enforceable.
+- [x] **S0-4 Wireframes** for the four tabs at mobile and desktop widths —
+      **artifacts complete (24 files), team acceptance pending (2026-09-17).**
       [Review board](../docs/phase-0/wireframes/index.html) and
       [specification](../docs/phase-0/wireframes.md): eight primary frames at 375px
       and 1440px, plus directory and mobile-chat details; editable SVGs and PNGs.
       Local rendering/layout checks passed. Review, PR/merge, CI, cross-browser,
       keyboard acceptance and sprint demo remain required by the Definition of Done.
-- [ ] **S0-5 ERD** covering current and planned tables
+- [x] **S0-5 ERD** covering current and planned tables. `docs/phase-0/erd.md` (341 lines)
+      with `erd-current.mmd` — all **20** tables, matching `V1__baseline.sql` — and
+      `erd-planned.mmd` for the Sprint 1+ additions. Same Definition-of-Done caveat as the
+      wireframes: artifacts exist, team review and demo acceptance are not recorded.
 - [ ] **S0-6 Backlog** in GitHub Projects, stories sized for Sprints 1–5
-- [ ] **S0-7 Pin Java 21** — pom 21 / CI 21 / Dockerfile Temurin 25 disagree
+- [x] **S0-7 Pin Java 21** — verified 2026-09-17: they already agree. `pom.xml`
+      `<java.version>21</java.version>`, `Dockerfile` `eclipse-temurin:21-jdk-alpine` and
+      `21-jre-alpine`, both workflows `java-version: "21"`. The "Temurin 25" in the
+      original story text was stale.
 - [ ] **S0-8 Enable branch protection** on `main` (Team Rule 5)
 - [x] **S0-9 Correct Compose syntax.** Stray non-YAML first line removed;
       `docker compose --env-file .env.example config --quiet` passes.
-- [ ] **S0-10 Complete monitoring wiring.** Decide how Prometheus authenticates to the
-      protected metrics endpoint, add actual dashboards, and configure/verify latency
-      histogram data. Health alone is not uptime evidence.
-- [ ] **S0-11 Align release artifacts.** Build the SPA before packaging the release JAR;
-      the Docker path already builds it. Review configuration forwarding for Clerk and
-      production database settings before claiming deployment readiness.
+- [x] **S0-10 Complete monitoring wiring.** All three parts verified 2026-09-17.
+      *Authentication:* basic auth, and `scripts/smoke-monitoring.sh` asserts
+      `/actuator/prometheus` returns 401 anonymously **and** 401 on a wrong password, so the
+      guard is tested rather than assumed. *Dashboards:*
+      `monitoring/grafana/provisioning/dashboards/campusbridge-overview.json`, seven panels
+      including HTTP latency p95, 5xx rate, JVM heap and database connections.
+      *Histograms:* `percentiles-histogram` set in `application.yml`, and the smoke test
+      asserts `http_server_requests_seconds_bucket` is exported and that Prometheus
+      actually ingests it.
+- [x] **S0-11 Align release artifacts.** Verified 2026-09-17: `release.yml` sets up Node,
+      runs `npm ci` then `npm run lint && npm run build` before packaging, and then
+      `scripts/verify-spa-jar.py`, which fails the release if `index.html` or any compiled
+      asset is missing from the JAR. The gap is not just closed, it is guarded against
+      regression. *(Configuration forwarding for Clerk and production database settings is
+      still unreviewed — that half of the original story stands.)*
 
 ---
 
-## In progress
+## Landed early (Sprint 2 work, done in Sprint 0)
 
 Started ahead of its scheduled sprint because the user directed the work explicitly.
 Not a scope change: four-tab navigation is already recorded in `1_overview.md` §Target
 navigation and `4_ui_design.md` §Target navigation, and restated in
 `future-specs/1_design-document.md` §3.2.
 
-- [ ] **S2-1 Four-tab consolidation.** `AppShell` drops to four destinations in the
-      order Marketplace, Messages, Community, Support. The student directory becomes a
-      sub-surface inside Community rendered through the `Tabs` primitive, not a peer
-      tab; `/directory` redirects to `/community?tab=directory` so existing links keep
-      working. **In progress — scheduled for Sprint 2.** The target responsive shell
-      (1024px sidebar, 72px rail) is *not* part of this entry and remains Sprint 2 work.
+**Still Sprint 2, still open:** school theming (objective 8), the user theme override,
+the text-size preference, and the notification centre that shares the sidebar's bottom
+slot.
+
+- [x] **S2-1 Four-tab consolidation.** `AppShell` carries four destinations in the order
+      Marketplace, Messages, Community, Support. The student directory is a sub-surface
+      inside Community rendered through the `Tabs` primitive, not a peer tab;
+      `/directory` redirects to `/community?tab=directory` so existing links keep
+      working, and `Directory` no longer renders its own `PageHeader` because Community
+      owns the heading.
+
+      **The responsive shell landed too**, though this entry had excluded it: sidebar at
+      ≥1024px (`lg:w-60`, 240px), icon rail 640–1023px (`w-18`, 72px), bottom tab bar
+      below that (`min-h-13`, 52px targets). One `<aside>` whose label collapses, and one
+      `NAV_ITEMS` array driving all three containers, so destinations cannot drift apart.
+
+      Verified 2026-09-17: all five routes serve 200 (`/directory` included, for old
+      links); all four labels and the redirect target are compiled into the served
+      bundle; rendered in headless Chromium at 1440/820/390 in light and dark.
+      **Not verified:** landing on the Directory tab after the redirect, because the
+      route is behind `RequireAuth` and needs a Clerk session.
 
 ---
 
@@ -114,7 +155,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 8 | School theming automatic on login | ❌ one palette only | Sprint 2 |
 | 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
 | 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
-| 11 | 99% availability | ⚠️ Compose parses, Postgres schema owned by Flyway, app verified up locally; CI still never starts the container, monitoring incomplete, no deployed uptime evidence | Sprint 0 |
+| 11 | 99% availability | ⚠️ Compose parses, Flyway owns the schema, CI now starts the container it builds and smoke-tests health/SPA/monitoring, Grafana dashboard and latency histograms verified. **Remaining: no deployed environment and therefore no uptime evidence** — availability cannot be measured from CI | Sprint 0 |
 
 ---
 
@@ -207,6 +248,13 @@ JAR job omits the frontend build, unlike the container build.
 > a domain nobody here listed; objective 1 asks for a verified institutional email, not
 > a verified *listed* school. The trade is that any `.edu` in the world is accepted,
 > including schools outside the Cincinnati metro. Needs a Rule 8 vote.
+>
+> **Evidence pack for that vote (2026-09-18):**
+> [`docs/phase-1/school-domains.md`](../docs/phase-1/school-domains.md) — six institutions
+> with student email domains cited to the institutions' own IT and registrar pages, the
+> allowlist / any-`.edu` / hybrid trade-off written out, and the unsupported and
+> ambiguous domain behaviour S1-03 needs. It records evidence and a ballot; it decides
+> nothing.
 
 
 Per **Team Rule 8**, architecture decisions are made by majority vote and recorded in the
@@ -259,6 +307,16 @@ Raise at the next weekly meeting. Do not guess these in code.
    Needs a deployment answer before Sprint 12.
 4. **Six schools or eight?** The contract says "at least six", the plan names six, the
    database seeds eight. Thomas More and Cincinnati Christian — in or out?
+
+   **Evidence recorded 2026-09-18, still not a decision**
+   ([`docs/phase-1/school-domains.md`](../docs/phase-1/school-domains.md)): the two are
+   not symmetric. Thomas More is a live institution issuing `thomasmore.edu` addresses.
+   **Cincinnati Christian University closed at the end of the fall 2019 semester** after
+   withdrawing from the Higher Learning Commission, so it enrols no students and issues
+   no `ccuniversity.edu` addresses — including the three seeded in `V3`. Six schools have
+   a student domain confirmed from their own IT pages; **Mount St. Joseph's is not
+   confirmed** and needs a call to ISS before it can go in a mapping table. Removing the
+   closed school is a new migration — never an edit to applied `V2`/`V3`.
 5. **Directory email exposure vs invariant 4.** The contract says no personal contacts are
    shared; the directory's stated purpose is finding peers by email. Which wins?
 6. **Scope beyond the signed contract.** The plan adds seller reviews, offers, purchase
