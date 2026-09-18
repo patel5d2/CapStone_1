@@ -8,6 +8,8 @@ export interface School {
 
 // ---- Directory (existing /student endpoints) ----
 export interface Student {
+  /** Stable directory identifier. Use this to key or refer to a student, never `email`. */
+  id: number
   firstName: string
   lastName: string
   residentCity: string

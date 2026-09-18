@@ -243,6 +243,7 @@ public class StudentService {
      */
     static Student buildStudentFromDto(StudentDto dto) {
         return Student.builder()
+                .id(dto.getId())
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
                 .residentCity(dto.getResidentCity())

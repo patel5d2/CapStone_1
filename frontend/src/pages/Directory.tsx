@@ -120,7 +120,7 @@ export default function Directory() {
           </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {students.map((student) => (
-              <article key={student.email} className="card card-hover animate-fade-in-up flex flex-col p-5">
+              <article key={student.id} className="card card-hover animate-fade-in-up flex flex-col p-5">
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-100 text-base font-bold text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
                     {student.firstName.charAt(0)}

@@ -232,6 +232,36 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       directory may expose is invariant 5 and S1-07's question, not this story's. The
       school is kept, not **derived**; deriving it from the verified email domain is S1-03,
       blocked on D-SCHOOLS. The `photo_url` host constraint stays with S1-05.
+- [ ] **S1-07 Privacy controls and contact-exposure removal** — **stopped, as the story
+      instructs.** Its accuracy note says to implement whichever answer #52 records and to
+      stop if none is, and Open Question 5 is still open. No migration, no
+      `profile_privacy` table, no filtering, no DTO changes: removing every address would
+      have decided Open Question 5 by writing code, which is what the guardrail forbids.
+      What was produced is the audit the vote needs —
+      [`docs/phase-1/privacy-audit.md`](../docs/phase-1/privacy-audit.md): the eight
+      response shapes that carry an address and who receives each, the four places the SPA
+      consumes them, the finding that the directory has no email search to lose, and the
+      two things that genuinely block removal.
+      **A dependency the map is missing:** S1-07 cannot fully land before the ownership
+      cutover. The directory payload has **no identifier at all** and chat addresses
+      recipients by email, so there is nothing to replace the address with until S1-11 and
+      S1-10/11/12 provide one. **Objective 6 does not move.**
+- [x] **Directory identifier — the S1-07 prerequisite** (2026-09-18). The directory
+      response now carries the student row's `id`. It carried **none** before, so the only
+      thing identifying a row was the student's email address: the SPA keyed its list on
+      it, and anything wanting to refer to a student had to use it. That made the contact
+      details in the payload load-bearing, which is what blocked their removal.
+      Backend: `Student` gains `id`, mapped from the `StudentDto` the query already
+      selected — the surrogate key, **not** the Clerk subject, which identifies the account
+      to Clerk and does not belong in a payload other students receive. Frontend: the
+      `Student` type gains `id` and `Directory` keys on it instead of `student.email`.
+      Verified 2026-09-18: `./mvnw --batch-mode verify` **136 tests, 0 failures** (3 new,
+      against Postgres — every row has an id, ids are distinct enough to key a list, and
+      the id resolves back to that student's own row); `npm run lint` clean and
+      `npm run build` clean.
+      **Deliberately decision-neutral.** It removes nothing and exposes no contact data;
+      the id is needed whichever way #52 decides. The address removal, the
+      `profile_privacy` table and chat-by-id still wait on the vote and on S1-11.
 
 ---
 
@@ -480,6 +510,19 @@ Raise at the next weekly meeting. Do not guess these in code.
    closed school is a new migration — never an edit to applied `V2`/`V3`.
 5. **Directory email exposure vs invariant 4.** The contract says no personal contacts are
    shared; the directory's stated purpose is finding peers by email. Which wins?
+
+   **Audit for the vote, 2026-09-18** ([`docs/phase-1/privacy-audit.md`](../docs/phase-1/privacy-audit.md)),
+   which reframes the question: **the directory cannot be searched by email.** `GET /student`
+   takes name, city, state, university, grade and major — there is no email parameter. It
+   *discloses* addresses in results rather than looking anything up by them, so removing
+   the field costs no implemented capability and leaves objective 5's partial-name search
+   untouched. Eight response shapes carry an address today; the SPA renders a `mailto:`
+   link to other students and uses the address as a list key. **What does block removal:**
+   chat addresses recipients by `recipientEmail`, and the directory payload carries no id
+   at all — so the replacement identifier has to exist first (S1-11, S1-10/11/12). Email
+   must not become a `profile_privacy` toggle: invariant 5 makes field visibility a choice,
+   invariant 4 makes contact exposure a rule, and a `show_email` switch would turn the rule
+   into a setting.
 6. **Scope beyond the signed contract.** The plan adds seller reviews, offers, purchase
    history, peer mentorship, study groups, campus map, notification centre and home feed.
    None appear in the contract. Rule 8 says scope changes need a majority vote.
