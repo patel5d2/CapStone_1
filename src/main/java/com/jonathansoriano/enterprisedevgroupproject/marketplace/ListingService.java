@@ -27,6 +27,16 @@ public class ListingService {
         this.reportRepository = reportRepository;
     }
 
+    /**
+     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
+     *
+     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
+     * so without this the Hibernate session closes when the repository call returns and
+     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
+     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
+     * empty table nothing ever touched the collection.
+     */
+    @Transactional(readOnly = true)
     public List<ListingResponse> search(ListingCategory category, ListingType listingType, ListingStatus status,
                                          Long schoolId, String courseCode, String keyword, String requesterEmail) {
         List<Listing> listings = listingRepository.search(category, listingType, status, schoolId, courseCode, keyword);
@@ -34,11 +44,31 @@ public class ListingService {
         return listings.stream().map(listing -> toResponse(listing, favoritedIds)).collect(Collectors.toList());
     }
 
+    /**
+     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
+     *
+     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
+     * so without this the Hibernate session closes when the repository call returns and
+     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
+     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
+     * empty table nothing ever touched the collection.
+     */
+    @Transactional(readOnly = true)
     public ListingResponse get(Long id, String requesterEmail) {
         Listing listing = findOrThrow(id);
         return toResponse(listing, favoritedListingIds(requesterEmail));
     }
 
+    /**
+     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
+     *
+     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
+     * so without this the Hibernate session closes when the repository call returns and
+     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
+     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
+     * empty table nothing ever touched the collection.
+     */
+    @Transactional(readOnly = true)
     public List<ListingResponse> myListings(String sellerEmail) {
         Set<Long> favoritedIds = favoritedListingIds(sellerEmail);
         return listingRepository.findBySellerEmailOrderByCreatedAtDesc(sellerEmail).stream()
@@ -46,6 +76,16 @@ public class ListingService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
+     *
+     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
+     * so without this the Hibernate session closes when the repository call returns and
+     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
+     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
+     * empty table nothing ever touched the collection.
+     */
+    @Transactional(readOnly = true)
     public List<ListingResponse> myFavorites(String userEmail) {
         List<Long> favoritedIds = favoriteRepository.findByUserEmailOrderByCreatedAtDesc(userEmail).stream()
                 .map(ListingFavorite::getListingId)
@@ -97,6 +137,12 @@ public class ListingService {
         listingRepository.delete(listing);
     }
 
+    /**
+     * Writes, then maps — so it needs the session open for the same reason the reads do.
+     * Unlike {@link #update} it never replaces {@code photoUrls}, so the collection it
+     * maps is still the lazy one loaded from the database.
+     */
+    @Transactional
     public ListingResponse markSold(Long id, String requesterEmail) {
         Listing listing = findOrThrow(id);
         requireOwner(listing, requesterEmail);
