@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -40,6 +41,11 @@ public class Student {
     private String universityName;
     private String grade;
     private String major;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String email;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String socialMediaLink;
+    private Integer graduationYear;
+    private String bio;
+    private String photoUrl;
 }

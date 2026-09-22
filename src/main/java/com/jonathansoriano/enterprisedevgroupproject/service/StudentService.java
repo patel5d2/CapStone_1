@@ -14,7 +14,6 @@ import com.jonathansoriano.enterprisedevgroupproject.model.Student;
 import com.jonathansoriano.enterprisedevgroupproject.model.StudentAccountDetails;
 import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
 import com.jonathansoriano.enterprisedevgroupproject.repository.UserRepository;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -43,7 +42,6 @@ public class StudentService {
      * @throws SearchNotFoundException if no students are found matching the given
      *                                 criteria.
      */
-    @Cacheable(value = "students")
     public List<Student> find(StudentRequest request) {
         List<Student> students = buildStudentListFromDtoList(studentRepository.find(request));
 
@@ -64,7 +62,7 @@ public class StudentService {
     public StudentAccountDetails findByEmail(String usersUsername) {
         StudentAccountDetailsDto studentDto = studentRepository.findByEmail(usersUsername)
                 .orElseThrow(
-                        () -> new SearchNotFoundException("Student account not found with email: " + usersUsername));
+                        () -> new SearchNotFoundException("Student account not found"));
 
         return buildStudentAccountDetailFromDto(studentDto, usersUsername);
     }
@@ -268,6 +266,9 @@ public class StudentService {
                 .major(studentDto.getMajor())
                 .email(email)
                 .socialMediaLink(studentDto.getSocialMediaLink())
+                .graduationYear(studentDto.getGraduationYear())
+                .bio(studentDto.getBio())
+                .photoUrl(studentDto.getPhotoUrl())
                 .build();
     }
 

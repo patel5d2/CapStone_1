@@ -16,20 +16,49 @@ export interface Student {
   residentState: string
   universityName: string
   grade: string
-  major: string
-  email: string
-  socialMediaLink: string | null
+  major?: string | null
+  graduationYear?: number | null
+  bio?: string | null
+  photoUrl?: string | null
 }
 
-/**
- * The caller's own profile (GET /student/profile) — the "separate authorized response"
- * the privacy work keeps distinct from the directory row. It omits `id`, which the server
- * does not return here, and adds the fields only the owner sees on their own record.
- */
+export interface ProfileVisibility {
+  showMajor: boolean
+  showGraduationYear: boolean
+  showBio: boolean
+  showPhoto: boolean
+}
+
+/** Owner-only fields are kept separate from the directory response. */
 export interface StudentAccountDetails extends Omit<Student, 'id'> {
+  email: string
+  major: string
+  socialMediaLink: string | null
+  universityId: number
   graduationYear: number | null
   bio: string | null
   photoUrl: string | null
+  visibility: ProfileVisibility
+}
+
+export interface ProfileSaveRequest {
+  firstName: string
+  lastName: string
+  residentCity: string
+  residentState: string
+  universityId: number
+  grade: string
+  major: string
+  email: string
+  socialMediaLink: string | null
+  graduationYear: number | null
+  bio: string | null
+  photoUrl: string | null
+  visibility: ProfileVisibility
+}
+
+export interface ProfileImageResponse {
+  photoUrl: string
 }
 
 export interface StudentSignupRequest {

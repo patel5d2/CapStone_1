@@ -1,60 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { UserRound, Save, Sparkles, Check } from 'lucide-react'
+import { UserRound, Save, Check } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
-import { useSchools } from '../hooks/useSchools'
 import { useToast } from '../components/ui/Toast'
 import { PageHeader } from '../components/ui/Tabs'
-import { ErrorState, Spinner } from '../components/ui/Feedback'
-import type { StudentAccountDetails } from '../types'
+import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback'
+import type { ProfileImageResponse, ProfileSaveRequest, ProfileVisibility, School, StudentAccountDetails } from '../types'
 
 const GRADES = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate']
-
-/**
- * Mirrors ProfileFieldBounds on the server (V6). These are UX, never security — the
- * server rejects the same values with a field-level 400 whatever this file says, and a
- * check here only saves the student a round trip. Keep them in step: a bound that is
- * looser here shows a server error instead of a field message, and one that is tighter
- * refuses input the server would have accepted.
- */
-const BIO_MAX = 1000
-const GRADUATION_YEAR_MIN = 1900
-const GRADUATION_YEAR_MAX = 2100
-
-type FieldErrors = Partial<Record<keyof ProfileForm, string>>
-
-/**
- * Server field names onto form field names. They already agree, so this only keeps the
- * ones this form actually renders — a message for a field that is not on screen would
- * otherwise be silently dropped, so it falls through to the banner instead.
- */
-function toFormErrors(serverErrors: Record<string, string>): FieldErrors {
-  const mapped: FieldErrors = {}
-  for (const [field, message] of Object.entries(serverErrors)) {
-    if (field in EMPTY) mapped[field as keyof ProfileForm] = message
-  }
-  return mapped
-}
-
-/** Field-level checks, so a problem is shown on the field rather than as a toast. */
-function validate(form: ProfileForm): FieldErrors {
-  const errors: FieldErrors = {}
-  if (!form.firstName.trim()) errors.firstName = 'Required'
-  if (!form.lastName.trim()) errors.lastName = 'Required'
-  if (!form.residentCity.trim()) errors.residentCity = 'Required'
-  if (!/^[A-Z]{2}$/.test(form.residentState)) errors.residentState = 'Two capital letters, like OH'
-  if (!form.major.trim()) errors.major = 'Required'
-  if (!form.universityId) errors.universityId = 'Pick your school'
-  if (form.bio.length > BIO_MAX) errors.bio = `${form.bio.length} of ${BIO_MAX} characters`
-  if (form.graduationYear) {
-    const year = Number(form.graduationYear)
-    if (!Number.isInteger(year) || year < GRADUATION_YEAR_MIN || year > GRADUATION_YEAR_MAX) {
-      errors.graduationYear = 'Enter a four-digit year'
-    }
-  }
-  return errors
-}
-
+const PRIVATE: ProfileVisibility = { showMajor: false, showGraduationYear: false, showBio: false, showPhoto: false }
+const VISIBILITY: { key: keyof ProfileVisibility; label: string }[] = [
+  { key: 'showMajor', label: 'Major' },
+  { key: 'showGraduationYear', label: 'Graduation year' },
+  { key: 'showBio', label: 'About you' },
+  { key: 'showPhoto', label: 'Profile photo' },
+]
 interface ProfileForm {
   firstName: string
   lastName: string
@@ -67,338 +27,276 @@ interface ProfileForm {
   graduationYear: string
   bio: string
 }
-
+type FieldErrors = Partial<Record<keyof ProfileForm, string>>
 const EMPTY: ProfileForm = {
-  firstName: '',
-  lastName: '',
-  residentCity: '',
-  residentState: '',
-  universityId: '',
-  grade: 'Freshman',
-  major: '',
-  socialMediaLink: '',
-  graduationYear: '',
-  bio: '',
+  firstName: '', lastName: '', residentCity: '', residentState: '', universityId: '',
+  grade: 'Freshman', major: '', socialMediaLink: '', graduationYear: '', bio: '',
+}
+
+/** UX checks mirror the request DTOs. The server remains authoritative. */
+function validate(form: ProfileForm): FieldErrors {
+  const errors: FieldErrors = {}
+  for (const key of ['firstName', 'lastName', 'residentCity', 'major', 'grade'] as const) {
+    if (!form[key].trim()) errors[key] = 'This field is required.'
+  }
+  for (const key of ['firstName', 'lastName', 'residentCity'] as const) {
+    if (form[key].length > 100) errors[key] = 'Use 100 characters or fewer.'
+  }
+  if (form.major.length > 255) errors.major = 'Use 255 characters or fewer.'
+  if (form.socialMediaLink.length > 255) errors.socialMediaLink = 'Use 255 characters or fewer.'
+  if (!/^[A-Z]{2}$/.test(form.residentState)) errors.residentState = 'Enter two capital letters, such as OH.'
+  if (!form.universityId) errors.universityId = 'Select your school.'
+  if (form.bio.length > 1000) errors.bio = 'Use 1000 characters or fewer.'
+  if (form.graduationYear && (!/^\d{4}$/.test(form.graduationYear)
+      || Number(form.graduationYear) < 1900 || Number(form.graduationYear) > 2100)) {
+    errors.graduationYear = 'Enter a year from 1900 to 2100.'
+  }
+  return errors
 }
 
 export default function Profile() {
   const { user } = useUser()
   const { push } = useToast()
-  const { schools } = useSchools()
-
   const email = user?.primaryEmailAddress?.emailAddress ?? ''
   const [form, setForm] = useState<ProfileForm>(EMPTY)
+  const [visibility, setVisibility] = useState<ProfileVisibility>(PRIVATE)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [schools, setSchools] = useState<School[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  // No directory row yet: the first save has to create one rather than update.
-  const [isNew, setIsNew] = useState(false)
-  // The profile endpoint identifies the school by name, but saving needs its
-  // id — so the name is held until the school list arrives to match it against.
-  const [savedSchoolName, setSavedSchoolName] = useState<string | null>(null)
-  // Explicit states rather than implied ones: a failed load offers a retry instead of
-  // leaving an empty form that looks like a new profile, and a failed save says so on
-  // the page rather than only in a toast that disappears.
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [isNew, setIsNew] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-
-  const load = useCallback(() => {
-    let cancelled = false
-    setLoading(true)
-    setLoadError(null)
-    api
-      .get<StudentAccountDetails>('/student/profile')
-      .then((profile) => {
-        if (cancelled) return
-        setForm({
-          firstName: profile.firstName ?? '',
-          lastName: profile.lastName ?? '',
-          residentCity: profile.residentCity ?? '',
-          residentState: profile.residentState ?? '',
-          universityId: '',
-          grade: profile.grade ?? 'Freshman',
-          major: profile.major ?? '',
-          socialMediaLink: profile.socialMediaLink ?? '',
-          graduationYear: profile.graduationYear ? String(profile.graduationYear) : '',
-          bio: profile.bio ?? '',
-        })
-        setSavedSchoolName(profile.universityName ?? null)
-        setIsNew(false)
-      })
-      .catch((e) => {
-        if (cancelled) return
-        // 404 is not a failure: the account is verified but has no directory row yet.
-        // That is also the S1-04 pending-profile state — the Clerk webhook records the
-        // identity, never the directory row, so this is the normal first visit whether
-        // or not a delivery has landed.
-        if (e instanceof ApiError && e.status === 404) setIsNew(true)
-        else setLoadError(e instanceof Error ? e.message : 'Could not load your profile')
-      })
-      .finally(() => !cancelled && setLoading(false))
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => load(), [load])
+  const errorSummary = useRef<HTMLParagraphElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+  const busy = saving || uploading
 
   useEffect(() => {
-    if (!savedSchoolName || schools.length === 0) return
-    const match = schools.find((s) => s.name === savedSchoolName)
-    if (match) setForm((prev) => (prev.universityId ? prev : { ...prev, universityId: String(match.id) }))
-  }, [schools, savedSchoolName])
+    let cancelled = false
+    const profile = api.get<StudentAccountDetails>('/student/profile').catch((error: unknown) => {
+      // S1-04 stores identity separately. A missing student row is normal before
+      // the first save, regardless of when Clerk's webhook arrives.
+      if (error instanceof ApiError && error.status === 404) return null
+      throw error
+    })
+    Promise.all([profile, api.get<School[]>('/api/schools')])
+      .then(([value, availableSchools]) => {
+        if (cancelled) return
+        setSchools(availableSchools)
+        setIsNew(value === null)
+        setForm(value ? {
+          firstName: value.firstName ?? '', lastName: value.lastName ?? '',
+          residentCity: value.residentCity ?? '', residentState: value.residentState ?? '',
+          universityId: String(value.universityId ?? ''), grade: value.grade ?? 'Freshman',
+          major: value.major ?? '', socialMediaLink: value.socialMediaLink ?? '',
+          graduationYear: value.graduationYear == null ? '' : String(value.graduationYear), bio: value.bio ?? '',
+        } : EMPTY)
+        setVisibility(value?.visibility ?? PRIVATE)
+        setPhotoUrl(value?.photoUrl ?? null)
+        setSaved(false)
+        setSaveError(null)
+        setFieldErrors({})
+        setFile(null)
+        setUploadError(null)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Could not load your profile.')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [reload, user?.id])
+
+  const edit = (key: keyof ProfileForm, value: string) => {
+    setForm((previous) => ({ ...previous, [key]: value }))
+    setFieldErrors((previous) => ({ ...previous, [key]: undefined }))
+    setSaved(false)
+  }
+  const field = (key: keyof ProfileForm) => ({
+    id: `profile-${key}`, name: key, className: 'field', value: form[key],
+    'aria-invalid': Boolean(fieldErrors[key]),
+    'aria-describedby': fieldErrors[key] ? `profile-${key}-error` : undefined,
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      edit(key, key === 'residentState' ? event.target.value.toUpperCase() : event.target.value),
+  })
+
+  const upload = async (selected: File) => {
+    setFile(selected)
+    setUploadError(null)
+    setSaved(false)
+    if (selected.size > 10_000_000) {
+      setUploadError('Photo must be 10 MB or smaller. Choose a smaller file.')
+      return
+    }
+    setUploading(true)
+    try {
+      const response = await api.upload<ProfileImageResponse>('/api/profile-images', selected)
+      setPhotoUrl(response.photoUrl)
+      setFile(null)
+      push('Photo uploaded. Save your profile to keep it.', 'info')
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Could not upload your photo. Try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const save = async () => {
+    if (busy || file) return
     const errors = validate(form)
     setFieldErrors(errors)
     setSaveError(null)
     setSaved(false)
-    if (Object.keys(errors).length > 0) {
-      // The messages are on the fields; the toast only says where to look.
-      push('Check the highlighted fields', 'error')
+    if (Object.keys(errors).length) {
+      setSaveError('Your profile was not saved. Check the marked fields below.')
+      requestAnimationFrame(() => errorSummary.current?.focus())
       return
     }
-
-    setSaving(true)
-    const body = {
-      ...form,
-      universityId: Number(form.universityId),
-      email,
-      socialMediaLink: form.socialMediaLink || null,
+    const body: ProfileSaveRequest = {
+      ...form, email, universityId: Number(form.universityId),
       graduationYear: form.graduationYear ? Number(form.graduationYear) : null,
-      bio: form.bio || null,
+      socialMediaLink: form.socialMediaLink || null, bio: form.bio || null, photoUrl, visibility,
     }
+    setSaving(true)
     try {
-      if (isNew) {
-        await api.post<string>('/student', body)
-        setIsNew(false)
-        push('Directory profile created', 'success')
-      } else {
-        await api.put<string>('/student/profile', body)
-        push('Profile updated', 'success')
-      }
+      if (isNew) await api.post<string>('/student', body)
+      else await api.put<string>('/student/profile', body)
+      setIsNew(false)
       setSaved(true)
-    } catch (e) {
-      // The server is the thing that actually decides. When it names fields, show its
-      // messages on those fields rather than as one banner the student has to map back
-      // themselves — the checks above are only a shortcut that saves a round trip.
-      const serverFields = e instanceof ApiError ? e.fieldErrors : undefined
-      if (serverFields && Object.keys(serverFields).length > 0) {
-        setFieldErrors(toFormErrors(serverFields))
-        push('Check the highlighted fields', 'error')
-      } else {
-        // Kept on the page, not only in a toast: a save that failed while the student was
-        // reading something else must still be visible, with the way to try again.
-        setSaveError(e instanceof Error ? e.message : 'Could not save your profile')
+      push('Profile and visibility saved', 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not save your profile.'
+      const mapped: FieldErrors = {}
+      if (error instanceof ApiError && error.fieldErrors) {
+        for (const [key, value] of Object.entries(error.fieldErrors)) {
+          if (key in EMPTY) mapped[key as keyof ProfileForm] = value
+        }
       }
+      setFieldErrors(mapped)
+      // Always retain the banner, including errors for fields this page cannot map.
+      setSaveError(`Your profile was not saved. ${message}`)
+      requestAnimationFrame(() => errorSummary.current?.focus())
     } finally {
       setSaving(false)
     }
   }
 
-  const set = (key: keyof ProfileForm) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-      setForm({ ...form, [key]: e.target.value })
-      // Clear this field's error as soon as it is edited, and drop the saved badge:
-      // the page no longer reflects what is stored.
-      setFieldErrors((prev) => ({ ...prev, [key]: undefined }))
-      setSaved(false)
-    }
-
-  if (loading) return <Spinner label="Loading your profile…" />
-  if (loadError) return <ErrorState message={loadError} onRetry={load} />
+  if (loading) return <div role="status"><Spinner label="Loading your profile…" /></div>
+  if (loadError) return <ErrorState message={loadError} onRetry={() => { setLoading(true); setLoadError(null); setReload((value) => value + 1) }} />
+  if (!schools.length) return <EmptyState icon={<UserRound className="h-6 w-6" />} title="Schools are unavailable"
+    description="We could not find a school to complete your profile. Please try again."
+    action={<button className="btn-primary" onClick={() => setReload((value) => value + 1)}>Try again</button>} />
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader
-        title={isNew ? 'Create your profile' : 'My profile'}
-        subtitle={
-          isNew
-            ? 'One more step — this is what other students see in the directory.'
-            : 'This is how you appear in the directory and next to your listings.'
-        }
-      />
-
-      {isNew && (
-        <div className="card mb-5 flex items-start gap-3 border-primary-200 bg-primary-50 p-4 dark:bg-primary-900/30">
-          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary-600 dark:text-primary-200" />
-          <p className="text-sm text-primary-900 dark:text-primary-100">
-            Your account is verified, but you do not have a directory profile yet. Fill this in so classmates can
-            find you and trust your listings.
-          </p>
-        </div>
-      )}
-
-      <div className="card p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-100 text-lg font-bold text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
-            {form.firstName ? (
-              `${form.firstName.charAt(0)}${form.lastName.charAt(0)}`
-            ) : (
-              <UserRound className="h-6 w-6" />
-            )}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{email}</p>
-            <p className="text-xs text-[var(--color-ink-faint)]">
-              Managed by Clerk — change your email or password from the avatar menu.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="First name" error={fieldErrors.firstName}>
-            <input className="field" value={form.firstName} onChange={set('firstName')} />
-          </Field>
-          <Field label="Last name" error={fieldErrors.lastName}>
-            <input className="field" value={form.lastName} onChange={set('lastName')} />
-          </Field>
-          <Field
-            label="School"
-            error={fieldErrors.universityId}
-            hint={isNew ? undefined : 'Set when your profile was created'}
-          >
-            <select
-              className="field"
-              value={form.universityId}
-              onChange={set('universityId')}
-              // Editable only while creating. The server ignores a school sent on an
-              // update — it decides which directory, theme and school surfaces a student
-              // belongs to, so it is not a field the owner may reassign (S1-06). Leaving
-              // the control enabled would offer a change that silently does not happen.
-              disabled={!isNew}
-            >
-              <option value="">Select your school</option>
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Year">
-            <select className="field" value={form.grade} onChange={set('grade')}>
-              {GRADES.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Major" error={fieldErrors.major}>
-            <input className="field" value={form.major} onChange={set('major')} />
-          </Field>
-          <Field label="City" error={fieldErrors.residentCity}>
-            <input className="field" value={form.residentCity} onChange={set('residentCity')} />
-          </Field>
-          <Field label="State" hint="Two letters, e.g. OH" error={fieldErrors.residentState}>
-            <input
-              className="field"
-              maxLength={2}
-              value={form.residentState}
-              onChange={(e) => setForm({ ...form, residentState: e.target.value.toUpperCase() })}
-            />
-          </Field>
-          <Field label="Social link" hint="Optional" error={fieldErrors.socialMediaLink}>
-            <input
-              className="field"
-              placeholder="https://linkedin.com/in/…"
-              value={form.socialMediaLink}
-              onChange={set('socialMediaLink')}
-            />
-          </Field>
-          <Field label="Graduation year" hint="Optional" error={fieldErrors.graduationYear}>
-            <input
-              className="field"
-              inputMode="numeric"
-              placeholder="2027"
-              value={form.graduationYear}
-              onChange={set('graduationYear')}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field
-              label="About you"
-              hint="Optional"
-              error={fieldErrors.bio}
-              // Counted rather than silently truncated, and announced politely so a
-              // screen reader hears the remaining room without interrupting typing.
-              footer={
-                <span aria-live="polite" className="text-xs text-[var(--color-ink-faint)]">
-                  {form.bio.length} / {BIO_MAX}
-                </span>
-              }
-            >
-              <textarea
-                className="field min-h-24"
-                rows={4}
-                placeholder="What you study, what you are looking for, anything that helps classmates recognise you."
-                value={form.bio}
-                onChange={set('bio')}
-              />
+      <PageHeader title={isNew ? 'Complete your profile' : 'My profile'}
+        subtitle="Add your details and choose what classmates can see." />
+      {isNew && <p className="card mb-5 p-4 text-sm" role="status">
+        Your directory profile is not ready yet. Complete the required fields below, then save.
+      </p>}
+      <form className="card p-4 sm:p-6" noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
+        <p className="mb-5 break-words text-sm text-[var(--color-ink-muted)]">
+          Signed in as {email}. Manage your account from the avatar menu.
+        </p>
+        {saveError && <div className="mb-5 rounded-xl border border-[var(--color-danger)] p-4">
+          <p ref={errorSummary} tabIndex={-1} role="alert" className="text-sm text-[var(--color-danger)]">{saveError}</p>
+          <button type="submit" className="btn-ghost mt-3" disabled={busy || Boolean(file)}>Try saving again</button>
+        </div>}
+        <fieldset disabled={busy} className="min-w-0">
+          <legend className="mb-4 text-sm font-bold">Profile details</legend>
+          <p className="mb-4 text-sm text-[var(--color-ink-muted)]">Fields marked “required” must be completed.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field name="firstName" label="First name" required errors={fieldErrors}><input {...field('firstName')} autoComplete="given-name" required /></Field>
+            <Field name="lastName" label="Last name" required errors={fieldErrors}><input {...field('lastName')} autoComplete="family-name" required /></Field>
+            <Field name="universityId" label="School" required errors={fieldErrors}>
+              <select {...field('universityId')} disabled={!isNew || busy} required>
+                <option value="">Select your school</option>
+                {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+              </select>
             </Field>
+            <Field name="grade" label="Year of study" required errors={fieldErrors}>
+              <select {...field('grade')} required>{GRADES.map((grade) => <option key={grade}>{grade}</option>)}</select>
+            </Field>
+            <Field name="major" label="Major" required errors={fieldErrors}><input {...field('major')} required /></Field>
+            <Field name="residentCity" label="City" required errors={fieldErrors}><input {...field('residentCity')} autoComplete="address-level2" required /></Field>
+            <Field name="residentState" label="State (two letters)" required errors={fieldErrors}>
+              <input {...field('residentState')} autoComplete="address-level1" maxLength={2} required />
+            </Field>
+            <Field name="graduationYear" label="Graduation year" errors={fieldErrors}><input {...field('graduationYear')} inputMode="numeric" /></Field>
+            <div className="sm:col-span-2">
+              <Field name="bio" label="About you" errors={fieldErrors}><textarea {...field('bio')} rows={4} /></Field>
+              <p className="mt-1 text-sm text-[var(--color-ink-muted)]">{form.bio.length} / 1000 characters</p>
+            </div>
           </div>
-        </div>
+          {!isNew && <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Your school was set when your profile was created.</p>}
+        </fieldset>
 
-        {saveError && (
-          <div
-            role="alert"
-            className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--color-danger)] p-3"
-          >
-            <p className="text-sm font-medium text-[var(--color-danger)]">{saveError}</p>
-            <button type="button" className="btn-ghost btn-sm" onClick={save} disabled={saving}>
-              Try again
-            </button>
+        <fieldset disabled={busy} className="mt-6 min-w-0 border-t border-[var(--color-border)] pt-5">
+          <legend className="text-sm font-bold">Profile photo (optional)</legend>
+          <div className="mb-4 flex items-center gap-3">
+            {photoUrl ? <img src={photoUrl} alt="Your profile photo" className="h-16 w-16 rounded-full object-cover" />
+              : <UserRound className="h-12 w-12 text-[var(--color-ink-muted)]" aria-hidden="true" />}
+            <p className="text-sm text-[var(--color-ink-muted)]">JPEG, PNG or WebP. Up to 10 MB and 4000 × 4000 pixels.</p>
           </div>
-        )}
+          <label htmlFor="profile-photo" className="mb-2 block text-sm font-semibold">Choose a profile photo</label>
+          <input ref={fileInput} id="profile-photo" type="file" accept="image/jpeg,image/png,image/webp"
+            className="field min-w-0 max-w-full" aria-describedby={uploadError ? 'photo-error' : undefined}
+            onChange={(event) => { const selected = event.target.files?.[0]; if (selected) void upload(selected) }} />
+          {uploadError && <div className="mt-3">
+            <p id="photo-error" role="alert" className="text-sm text-[var(--color-danger)]">{uploadError}</p>
+            {file && <button type="button" className="btn-ghost mt-2" onClick={() => void upload(file)}>Retry photo upload</button>}
+          </div>}
+          {(photoUrl || file) && <button type="button" className="btn-ghost mt-3" onClick={() => {
+            setPhotoUrl(null); setFile(null); setUploadError(null); setSaved(false)
+            if (fileInput.current) fileInput.current.value = ''
+          }}>Remove photo</button>}
+          {photoUrl && !saved && <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Save your profile to keep this photo.</p>}
+        </fieldset>
+        <div role="status" aria-live="polite">{uploading && <Spinner label="Uploading your photo…" />}</div>
 
+        <fieldset disabled={busy} className="mt-6 min-w-0 border-t border-[var(--color-border)] pt-5">
+          <legend className="text-sm font-bold">What other students can see</legend>
+          <p className="mb-4 text-sm text-[var(--color-ink-muted)]">
+            Name, school, year of study and city/state appear in the directory. Email and social links are not shown.
+            The fields below stay private unless you choose to share them. Changes take effect when you save.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {VISIBILITY.map(({ key, label }) => <div key={key}>
+              <label htmlFor={`visibility-${key}`} className="mb-1.5 block text-sm font-semibold">{label} visibility</label>
+              <select id={`visibility-${key}`} className="field" value={visibility[key] ? 'students' : 'private'}
+                onChange={(event) => { setVisibility({ ...visibility, [key]: event.target.value === 'students' }); setSaved(false) }}>
+                <option value="private">Only me</option>
+                <option value="students">Other students</option>
+              </select>
+            </div>)}
+          </div>
+        </fieldset>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-          {/* Stated, not implied: the toast has usually gone by the time anyone looks. */}
-          {saved && !saving && (
-            <p role="status" className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-muted)]">
-              <Check className="h-4 w-4" aria-hidden="true" />
-              Saved
-            </p>
-          )}
-          <button className="btn-primary" onClick={save} disabled={saving}>
-            <Save className="h-4 w-4" />
-            {saving ? 'Saving…' : isNew ? 'Create profile' : 'Save changes'}
+          <p role="status" aria-live="polite" className="text-sm text-[var(--color-ink-muted)]">
+            {saving ? 'Saving profile and visibility…' : saved ? <span className="flex items-center gap-2"><Check className="h-4 w-4" aria-hidden="true" />Profile and visibility saved</span> : 'Changes are saved when you select Save profile.'}
+          </p>
+          <button className="btn-primary" type="submit" disabled={busy || Boolean(file)}>
+            <Save className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save profile'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   )
 }
 
-function Field({
-  label,
-  hint,
-  error,
-  footer,
-  children,
-}: {
-  label: string
-  hint?: string
-  error?: string
-  footer?: React.ReactNode
-  children: React.ReactNode
+function Field({ name, label, required, errors, children }: {
+  name: keyof ProfileForm; label: string; required?: boolean; errors: FieldErrors; children: React.ReactNode
 }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-bold tracking-wide text-[var(--color-ink-muted)] uppercase">
-        {label}
-        {hint && <span className="ml-1 font-medium normal-case opacity-70">({hint})</span>}
-      </span>
-      {children}
-      {/* The message sits inside the label, so it is announced with the field rather
-          than as loose text somewhere after it. */}
-      {(error || footer) && (
-        <span className="mt-1 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-[var(--color-danger)]">{error}</span>
-          {footer}
-        </span>
-      )}
+  return <div>
+    <label htmlFor={`profile-${name}`} className="mb-1.5 block text-sm font-semibold">
+      {label} <span className="font-normal text-[var(--color-ink-muted)]">({required ? 'required' : 'optional'})</span>
     </label>
-  )
+    {children}
+    {errors[name] && <p id={`profile-${name}-error`} className="mt-1 text-sm text-[var(--color-danger)]">{errors[name]}</p>}
+  </div>
 }

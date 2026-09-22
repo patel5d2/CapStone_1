@@ -24,4 +24,6 @@ public class StudentAccountDetails {
     private Integer graduationYear;
     private String bio;
     private String photoUrl;
+    private Long universityId;
+    private com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility visibility;
 }
