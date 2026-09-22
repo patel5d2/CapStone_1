@@ -51,23 +51,11 @@ public class InstitutionalAccessPolicy {
      */
     static final String FACTOR_VERIFICATION_AGE_CLAIM = "fva";
 
-    /**
-     * Off by default, and deliberately so.
-     *
-     * <p>Re-checked against the live instance on 2026-09-18: second factors are now
-     * enabled — {@code authenticator_app: ["totp"]}, {@code phone_number: ["phone_code"]}
-     * and {@code backup_code} — which corrects the earlier note here that the instance
-     * had none. Two things still stand in the way of switching this on:
-     * {@code sign_in.second_factor.required} is {@code false}, so accounts that have not
-     * enrolled carry no second factor, and the {@code fva} claim has still not been seen
-     * on a token from this instance. Turning it on before the team has enrolled refuses
-     * every one of those accounts. Decision 015 chooses the factor (TOTP plus backup
-     * codes), not this flag.
-     */
+    /** Require a verified second factor after university email verification. */
     private final boolean requireTwoFactor;
 
     public InstitutionalAccessPolicy(
-            @Value("${campusbridge.auth.require-two-factor:false}") boolean requireTwoFactor) {
+            @Value("${campusbridge.auth.require-two-factor:true}") boolean requireTwoFactor) {
         this.requireTwoFactor = requireTwoFactor;
     }
 
@@ -82,8 +70,8 @@ public class InstitutionalAccessPolicy {
         if (requireTwoFactor) {
             log.warn("Two-factor enforcement is ENABLED: any token without a second factor "
                     + "(Clerk 'fva' claim) is refused. If two-step verification is not enabled in "
-                    + "the Clerk dashboard, this refuses EVERY account. Unset "
-                    + "campusbridge.auth.require-two-factor to reverse.");
+                    + "the Clerk dashboard, this refuses EVERY account. Set "
+                    + "campusbridge.auth.require-two-factor=false to reverse.");
         } else {
             log.info("Institutional email enforcement active (.edu); two-factor enforcement is off.");
         }
@@ -137,9 +125,7 @@ public class InstitutionalAccessPolicy {
      * Reads Clerk's {@code fva} claim. The second element is the age in minutes of the
      * user's second-factor verification, or -1 if they never completed one.
      *
-     * <p>Unverified against the live Clerk instance, which has 2FA switched off and so
-     * cannot issue a token that would exercise this. Confirm the claim shape on a real
-     * token before setting {@code campusbridge.auth.require-two-factor=true}.
+     * <p>Missing or malformed claims fail closed.
      */
     static boolean hasSecondFactor(Object factorVerificationAgeClaim) {
         if (!(factorVerificationAgeClaim instanceof List<?> ages) || ages.size() < 2) {

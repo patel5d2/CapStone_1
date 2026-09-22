@@ -17,7 +17,7 @@ function load(file, mocks) {
     exports,
     require: (name) => name === 'react/jsx-runtime'
       ? { jsx, jsxs: jsx, Fragment: 'Fragment' }
-      : mocks[name] ?? {},
+      : name === 'react' ? { useEffect: () => {}, ...mocks[name] } : mocks[name] ?? {},
   })
   return exports
 }
@@ -53,23 +53,25 @@ function findElement(node, type) {
 }
 
 for (const status of ['needs_second_factor', 'needs_new_password']) {
-  test(`SignInPage: email verification continues into Clerk for ${status}`, async () => {
+  test(`SignInPage: password verification continues into Clerk for ${status}`, async () => {
     const states = []
     let index = 0
     let activations = 0
     let pathname = '/sign-in'
     const signIn = {
       status: 'needs_first_factor',
+      create: async () => ({ supportedFirstFactors: [{ strategy: 'password' }] }),
       attemptFirstFactor: async () => { signIn.status = status; return signIn },
     }
     const { default: Page } = load('pages/SignInPage.tsx', {
       react: {
         useState: (initial) => {
           const slot = index++
-          if (!(slot in states)) states[slot] = slot === 2 ? true : initial
+          if (!(slot in states)) states[slot] = slot === 0 ? 'student@school.edu' : slot === 1 ? 'password-example' : initial
           return [states[slot], (value) => { states[slot] = value }]
         },
       },
+      '../lib/institutionalEmail': { isInstitutionalEmail: () => true },
       '@clerk/clerk-react': {
         SignIn: 'ClerkSignIn',
         useSignIn: () => ({
@@ -117,9 +119,15 @@ for (const [page, hook, method, destination] of [
     test(`${page}: activation ${pending ? 'preserves MFA redirect' : 'continues normally'}`, async () => {
       const calls = []
       let stateIndex = 0
-      const resource = { [method]: async () => ({ status: 'complete', createdSessionId: 'session-test' }) }
+      const resource = { create: async () => ({ supportedFirstFactors: [{ strategy: 'password' }] }), [method]: async () => ({ status: 'complete', createdSessionId: 'session-test' }) }
       const pageModule = load(`pages/${page}.tsx`, {
-        react: { useState: (initial) => [stateIndex++ === 2 ? true : initial, () => {}] },
+        react: { useState: (initial) => {
+          const slot = stateIndex++
+          return [page === 'SignInPage'
+            ? slot === 0 ? 'student@school.edu' : slot === 1 ? 'password-example' : initial
+            : slot === 2 ? true : initial, () => {}]
+        } },
+        '../lib/institutionalEmail': { isInstitutionalEmail: () => true },
         '@clerk/clerk-react': {
           [hook]: () => ({
             isLoaded: true,
@@ -140,4 +148,86 @@ for (const [page, hook, method, destination] of [
       assert.deepEqual(calls, [pending ? '/session-tasks/setup-mfa' : destination])
     })
   }
+}
+
+for (const [email, password, allowed] of [
+  ['student@school.edu', 'Abcd1234!', true],
+  ['student@school.edu', 'Abcd123!', false],
+  ['student@gmail.com', 'Abcd1234!', false],
+  ['student@school.edu.evil.com', 'Abcd1234!', false],
+]) {
+  test(`signup validates university address and password: ${email}, length ${password.length}`, async () => {
+    let stateIndex = 0
+    const calls = []
+    const institutional = load('lib/institutionalEmail.ts', {})
+    const { default: Page } = load('pages/SignUpPage.tsx', {
+      react: { useState: (initial) => [stateIndex++ === 0
+        ? { firstName: ' Jane ', lastName: ' Doe ', email, password } : initial, () => {}] },
+      '../lib/institutionalEmail': institutional,
+      '@clerk/clerk-react': { useSignUp: () => ({
+        isLoaded: true,
+        signUp: {
+          create: async (details) => {
+            calls.push('create')
+            assert.equal(details.firstName, 'Jane')
+            assert.equal(details.lastName, 'Doe')
+            return { status: 'missing_requirements' }
+          },
+          prepareEmailAddressVerification: async ({ strategy }) => calls.push(strategy),
+        },
+        setActive: () => assert.fail('Must verify email before activating'),
+      }) },
+      'react-router-dom': { useNavigate: () => () => assert.fail('Must verify email before navigating') },
+    })
+    await findForm(Page()).props.onSubmit({ preventDefault() {} })
+    assert.deepEqual(calls, allowed ? ['create', 'email_code'] : [])
+  })
+}
+
+function findButton(node, label) {
+  if (!node || typeof node !== 'object') return undefined
+  if (node.type === 'button' && node.props.children === label) return node
+  return [node.props?.children].flat().map((child) => findButton(child, label)).find(Boolean)
+}
+
+for (const rejected of [false, true]) {
+  test(`verification resend ${rejected ? 'shows provider error' : 'requests email code and starts cooldown'}`, async () => {
+    const states = [{ firstName: 'Jane', lastName: 'Doe', email: 'student@school.edu', password: '' }, 'oldcode', true, null, false, 0, null]
+    let index = 0
+    let requests = 0
+    const { default: Page } = load('pages/SignUpPage.tsx', {
+      react: { useState: () => {
+        const slot = index++
+        return [states[slot], (value) => { states[slot] = value }]
+      } },
+      '@clerk/clerk-react': { useSignUp: () => ({
+        isLoaded: true,
+        signUp: { prepareEmailAddressVerification: async ({ strategy }) => {
+          assert.equal(strategy, 'email_code')
+          requests++
+          if (rejected) throw { errors: [{ longMessage: 'Too many requests. Try again later.' }] }
+        } },
+      }) },
+      'react-router-dom': { useNavigate: () => () => assert.fail('Resend must stay on verification') },
+    })
+    const button = findButton(Page(), 'Resend code')
+    assert.ok(button, 'Verification screen needs a resend action')
+    assert.equal(button.props.disabled, false)
+    await button.props.onClick()
+    assert.equal(requests, 1)
+    assert.equal(states[4], false, 'Always release busy state')
+    assert.equal(states[5], 30)
+    if (rejected) {
+      assert.equal(states[3], 'Too many requests. Try again later.')
+      assert.equal(states[6], null, 'Do not claim success after failure')
+    } else {
+      assert.equal(states[1], '', 'Clear the previous code')
+      assert.match(states[6], /Another code was requested/)
+    }
+    index = 0
+    const coolingDown = findButton(Page(), 'Resend code in 30s')
+    assert.equal(coolingDown.props.disabled, true)
+    await coolingDown.props.onClick()
+    assert.equal(requests, 1, 'Do not resend during cooldown')
+  })
 }

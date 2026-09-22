@@ -14,13 +14,18 @@ function messageOf(error: unknown, fallback: string) {
 /**
  * Sign-in is school email + password, with the second factor handled by Clerk.
  *
- * ⚠️ **This does not work until the Clerk dashboard enables password as a first factor.**
- * Checked against the live instance on 2026-09-18: `password.enabled` and
- * `password.required` are both true — a password is collected at sign-up — but
- * `password.used_for_first_factor` is **false**, so the password cannot be used to sign
- * in. Until someone flips that, `signIn.create` reports no password factor and this page
- * says so rather than showing a field that can never work. Do not merge ahead of the
- * dashboard change: it replaces the `email_code` flow that is currently the only way in.
+ * Password as a first factor is now live. Re-checked against the instance on 2026-09-21:
+ * `signIn.create` for a real account answers `supported_first_factors: [password,
+ * email_code, reset_password_email_code]`. The earlier warning here — that
+ * `password.used_for_first_factor` was false and this page could not work — no longer
+ * holds; that flag in `user_settings.attributes` does not describe the password strategy.
+ * The guard below stays anyway, because it costs nothing and says something true if the
+ * dashboard ever changes back.
+ *
+ * Deliberately no SSO. Microsoft sign-in was built and removed: UC's Office of
+ * Information Security refused admin consent for Clerk on 2026-09-17
+ * (SCTASK990173447), and lifting that needs a university contract, procurement and a
+ * staff-initiated security review. Do not re-add it expecting uc.edu to work.
  *
  * The second factor is not implemented here and does not need to be. When Clerk answers
  * `needs_second_factor`, the attempt is handed to Clerk's own `<SignIn />`, which prompts
@@ -111,8 +116,7 @@ export default function SignInPage() {
           <div className="text-center">
             <h1 className="text-xl font-extrabold tracking-tight">Sign in to CampusBridge</h1>
             <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-              Use your school email and password. If your account has two-step
-              verification, we ask for your code next.
+              Use your university email and password, then complete MFA verification.
             </p>
           </div>
 

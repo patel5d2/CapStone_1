@@ -64,7 +64,7 @@ function NotInstitutional({ email }: { email?: string }) {
  * four tabs fill with 403s. **Both must be flipped together** — the frontend alone
  * blocks nothing, and the backend alone is an unexplained wall.
  */
-const REQUIRE_TWO_FACTOR = import.meta.env.VITE_REQUIRE_TWO_FACTOR === 'true'
+const REQUIRE_TWO_FACTOR = import.meta.env.VITE_REQUIRE_TWO_FACTOR !== 'false'
 
 /**
  * A student with a school address who has not enrolled a second factor. Unlike the
