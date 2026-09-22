@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "computedAt": 1790030330287,
+  "computedAt": 1790089832729,
   "entries": [
     {
       "id": "mem-school-list-grows-----0",
       "content": "name: school-list-grows\ndescription: CampusBridge will keep adding supported schools after launch, so school/domain data must never be hard-coded\nmetadata:\n  type: project\n---\n\nStated 2026-09-18: the team intends to add more supported schools as a later feature,\nbeyond the six/eight under discussion in D-SCHOOLS.\n\n**Why:** it turns \"adding a school\" from a one-time seed into a recurring operation, and\nit is the deciding factor in the ADR-014 ballot (a regional allowlist pays a data change\nand a…",
       "summary": "---",
       "category": "school-list-grows",
-      "confidence": 0.5,
+      "confidence": 0.49,
       "pageRank": 1,
       "accessCount": 0,
       "words": [

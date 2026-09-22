@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useSignUp } from '@clerk/clerk-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, MailCheck } from 'lucide-react'
@@ -6,7 +6,7 @@ import { Wordmark } from '../components/ui/Wordmark'
 import { isInstitutionalEmail, suggestUsername } from '../lib/institutionalEmail'
 
 /** Clerk's configured minimum for this instance. */
-const MIN_PASSWORD_LENGTH = 15
+const MIN_PASSWORD_LENGTH = 9
 
 /** Clerk errors arrive as a list; the long message is the one written for a human. */
 function messageOf(error: unknown, fallback: string) {
@@ -27,6 +27,32 @@ export default function SignUpPage() {
   const [awaitingCode, setAwaitingCode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [resendIn, setResendIn] = useState(0)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (resendIn <= 0) return
+    const timer = window.setTimeout(() => setResendIn((remaining) => Math.max(0, remaining - 1)), 1000)
+    return () => window.clearTimeout(timer)
+  }, [resendIn])
+
+  const resendCode = async () => {
+    if (!isLoaded || busy || resendIn > 0) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+      setCode('')
+      setNotice('Another code was requested. Check your university inbox and junk folder, and use the latest code.')
+      setResendIn(30)
+    } catch (err) {
+      setError(messageOf(err, 'Could not resend the code. Please try again shortly.'))
+      setResendIn(30)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [key]: e.target.value })
@@ -70,17 +96,34 @@ export default function SignUpPage() {
         lastName: form.lastName.trim(),
       }
 
-      try {
-        await signUp.create({ ...attempt, username: suggestUsername(email) })
-      } catch (err) {
-        // Two students called j.smith at different schools collide on the derived
-        // username. They never see it, so a suffix costs them nothing.
-        if (paramOf(err) !== 'username') throw err
-        await signUp.create({ ...attempt, username: `${suggestUsername(email)}${Math.floor(Math.random() * 10000)}` })
+      const created = await signUp
+        .create({ ...attempt, username: suggestUsername(email) })
+        .catch((err) => {
+          // Two students called j.smith at different schools collide on the derived
+          // username. They never see it, so a suffix costs them nothing.
+          if (paramOf(err) !== 'username') throw err
+          return signUp.create({ ...attempt, username: `${suggestUsername(email)}${Math.floor(Math.random() * 10000)}` })
+        })
+
+      // Never activate an unverified address if the hosted signup settings change.
+      if (created.status === 'complete') {
+        if (created.verifications.emailAddress.status !== 'verified') {
+          setError('Email verification is required. Contact the CampusBridge team to enable signup verification.')
+          return
+        }
+        await setActive({
+          session: created.createdSessionId,
+          navigate: async ({ session }) => {
+            if (!session?.currentTask) navigate('/profile', { replace: true })
+          },
+        })
+        return
       }
 
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
       setAwaitingCode(true)
+      setResendIn(30)
+      setNotice(null)
     } catch (err) {
       setError(messageOf(err, 'Could not start sign-up. Check your details and try again.'))
     } finally {
@@ -105,7 +148,9 @@ export default function SignUpPage() {
           },
         })
       } else {
-        setError('That code was not accepted. Check the email and try again.')
+        setError(result.verifications.emailAddress.status === 'verified'
+          ? 'Your email is verified, but account setup is incomplete. Contact the CampusBridge team to check the required signup fields.'
+          : 'That code was not accepted. Check the email and try again.')
       }
     } catch (err) {
       setError(messageOf(err, 'That code was not accepted.'))
@@ -127,7 +172,7 @@ export default function SignUpPage() {
               </span>
               <h1 className="text-xl font-extrabold tracking-tight">Check your school email</h1>
               <p className="text-sm text-[var(--color-ink-muted)]">
-                We sent a code to <span className="font-semibold break-all">{form.email.trim()}</span>.
+                We requested a verification code for <span className="font-semibold break-all">{form.email.trim()}</span>.
               </p>
             </div>
 
@@ -146,12 +191,28 @@ export default function SignUpPage() {
             <button className="btn-primary w-full" disabled={busy || !code.trim()}>
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Verify and continue
             </button>
+            <p className="text-xs text-[var(--color-ink-muted)]">
+              Allow a few minutes for delivery. Check Junk or Spam and your university email quarantine.
+              If it is still missing, confirm your email address or request another code.
+            </p>
+            {notice && <p role="status" className="text-sm text-[var(--color-ink-muted)]">{notice}</p>}
+            <button
+              type="button"
+              className="btn-secondary w-full"
+              onClick={resendCode}
+              disabled={!isLoaded || busy || resendIn > 0}
+            >
+              {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+            </button>
             <button
               type="button"
               className="btn-ghost btn-sm w-full"
+              disabled={busy}
               onClick={() => {
                 setAwaitingCode(false)
                 setError(null)
+                setCode('')
+                setNotice(null)
               }}
             >
               Use a different email
@@ -160,20 +221,23 @@ export default function SignUpPage() {
         ) : (
           <form onSubmit={submitDetails} className="space-y-4">
             <div className="text-center">
-              <h1 className="text-xl font-extrabold tracking-tight">Join CampusBridge</h1>
-              <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-                For verified students at Cincinnati-area schools.
+              {/* Hidden visually, not deleted: the wordmark above is a link, so removing
+                  the heading outright would leave this page with none for a screen
+                  reader to navigate by. */}
+              <h1 className="sr-only">Join CampusBridge</h1>
+              <p className="text-sm text-[var(--color-ink-muted)]">
+                Create your account, verify your university email, then set up MFA.
               </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold">First name</span>
-                <input className="field" value={form.firstName} onChange={set('firstName')} required />
+                <input className="field" autoComplete="given-name" value={form.firstName} onChange={set('firstName')} required />
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold">Last name</span>
-                <input className="field" value={form.lastName} onChange={set('lastName')} required />
+                <input className="field" autoComplete="family-name" value={form.lastName} onChange={set('lastName')} required />
               </label>
             </div>
 
@@ -189,7 +253,7 @@ export default function SignUpPage() {
                 required
               />
               <span className="mt-1 block text-xs text-[var(--color-ink-faint)]">
-                Must end in .edu — this is how we verify you are a student.
+                University email ending in .edu only. No personal emails.
               </span>
             </label>
 
@@ -199,6 +263,7 @@ export default function SignUpPage() {
                 className="field"
                 type="password"
                 autoComplete="new-password"
+                minLength={MIN_PASSWORD_LENGTH}
                 value={form.password}
                 onChange={set('password')}
                 required

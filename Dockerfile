@@ -13,7 +13,7 @@ COPY frontend/ ./
 # meant to be public; override per environment with --build-arg.
 ARG VITE_CLERK_PUBLISHABLE_KEY=pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
-ARG VITE_REQUIRE_TWO_FACTOR=false
+ARG VITE_REQUIRE_TWO_FACTOR=true
 ENV VITE_REQUIRE_TWO_FACTOR=$VITE_REQUIRE_TWO_FACTOR
 # vite.config.ts writes the bundle to ../src/main/resources/static, which
 # resolves to /src/main/resources/static inside this stage.
