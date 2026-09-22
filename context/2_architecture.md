@@ -4,6 +4,19 @@
 > `PARTIAL` = present but incomplete or broken. `PLANNED` = agreed, not yet installed.
 > Never import a `PLANNED` dependency; add it in its own sprint task first.
 
+## Profile implementation direction (2026-09-21)
+
+User-authorized S1-08 dependency work uses Cloudinary through a server-side signed
+upload relay, with no SDK or new dependency. `CLOUDINARY_URL` is server-only. Uploads
+are bounded to 10 MB, 4000 × 4000, JPEG/PNG/WebP; the application tracks ownership
+and retries deletion of replaced images and uploads abandoned for 24 hours. An hourly
+bounded worker owns cleanup. Profile fields and visibility save in one transaction;
+major, graduation year, bio and photo default private, including legacy profiles.
+Directory responses omit email/social contacts; private major values cannot match
+search. The directory's contact action addresses a student by its database id.
+These are implementation directions, **Proposed** pending the Rule 8 minutes. The
+existing contact-bearing DTOs outside the directory remain separate S1-07 debt.
+
 ## Architecture style
 
 **Modular monolith.** One Spring Boot deployable serving a compiled React SPA from its

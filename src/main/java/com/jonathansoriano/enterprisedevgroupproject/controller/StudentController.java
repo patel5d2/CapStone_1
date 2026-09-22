@@ -24,11 +24,14 @@ import java.util.List;
 public class StudentController {
     private final StudentService service;
     private final StudentIdentityService identity;
+    private final com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles;
 
     // Constructor Dependency Injection instead of Autowiring Service class
-    public StudentController(StudentService service, StudentIdentityService identity) {
+    public StudentController(StudentService service, StudentIdentityService identity,
+            com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles) {
         this.service = service;
         this.identity = identity;
+        this.profiles = profiles;
     }
 
     /**
@@ -64,7 +67,7 @@ public class StudentController {
                 .major(major)
                 .build();
 
-        return ResponseEntity.ok(service.find(request));
+        return ResponseEntity.ok(profiles.directory(request));
 
     }
 
@@ -78,9 +81,7 @@ public class StudentController {
     public ResponseEntity<StudentAccountDetails> getProfile(@AuthenticationPrincipal Jwt clerkSession) {
         // Resolved from the Clerk subject first, so a student who changed their address
         // still reaches their own profile (ADR-012).
-        String currentUserName = identity.ownerEmailFor(clerkSession);
-
-        StudentAccountDetails studentAccountDetails = service.findByEmail(currentUserName);
+        StudentAccountDetails studentAccountDetails = profiles.read(clerkSession);
         return ResponseEntity.ok(studentAccountDetails);
     }
 
@@ -93,7 +94,7 @@ public class StudentController {
      */
     @PutMapping("/profile")
     public ResponseEntity<String> updateStudent(@AuthenticationPrincipal Jwt clerkSession, @Valid @RequestBody EditStudentDetailsRequest studentDetails) {
-        String successfulAccountUpdate = service.updateStudent(identity.ownerEmailFor(clerkSession), studentDetails);
+        String successfulAccountUpdate = profiles.update(clerkSession, studentDetails);
 
         return new ResponseEntity<>(successfulAccountUpdate, HttpStatus.OK);
     }
@@ -122,7 +123,7 @@ public class StudentController {
         // The new row is bound to the Clerk subject that created it. This is the only
         // place a subject is ever written, and it comes from the verified token.
         String successfulInsertionMessage =
-                service.insertNewStudent(student, CurrentUser.subjectOf(clerkSession));
+                profiles.create(clerkSession, student);
 
         return new ResponseEntity<>(successfulInsertionMessage, HttpStatus.CREATED);
 

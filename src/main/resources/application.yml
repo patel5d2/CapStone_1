@@ -3,6 +3,11 @@ spring:
     active: default #- second application.yml file name has to have dev in it for Spring Boot to load it. (application-dev.yml)
                     #- we can go back to the base application.yml file with the 'default' profile.
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
   application:
     name: EnterpriseDevGroupProject
 

@@ -103,6 +103,12 @@ public class ExceptionTranslator {
         return new ResponseEntity<>(wrapper, ex.getStatusCode());
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ExceptionWrapper> handleUploadSize(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ExceptionWrapper(
+                413, "Photo must be 10 MB or smaller.", request.getRequestURI()));
+    }
+
     // Any other exception thrown will be caught here
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ExceptionWrapper> handleException(Exception ex, HttpServletRequest request) {

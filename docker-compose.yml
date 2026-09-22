@@ -51,6 +51,7 @@ services:
       # Empty unless the environment supplies it; the webhook then refuses deliveries
       # rather than the app failing to start.
       CLERK_WEBHOOK_SECRET: "${CLERK_WEBHOOK_SECRET:-}"
+      CLOUDINARY_URL: "${CLOUDINARY_URL:-}"
       CAMPUSBRIDGE_MONITORING_ENABLED: "true"
       METRICS_PASSWORD: "${METRICS_PASSWORD:?Set METRICS_PASSWORD for the Prometheus service account}"
     depends_on:

@@ -57,6 +57,8 @@ class StudentControllerTest {
     // StudentIdentityServiceTest; here it only has to hand back an address.
     @MockitoBean
     private StudentIdentityService identity;
+    @MockitoBean
+    private com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles;
     @Autowired
     private MockMvc mockMvc;
 
@@ -92,7 +94,7 @@ class StudentControllerTest {
     void find_Http200() throws Exception {
         // Arrange
         List<Student> expectedList = getStudentList();
-        when(service.find(any())).thenReturn(expectedList);
+        when(profiles.directory(any())).thenReturn(expectedList);
 
         //Act and Assert (andExpect() is our assertions)
         mockMvc.perform(get("/student")
@@ -107,7 +109,7 @@ class StudentControllerTest {
     @Test
     void find_Http404_NotFound() throws Exception{
         //Arrange
-        when(service.find(any())).thenThrow(SearchNotFoundException.class);
+        when(profiles.directory(any())).thenThrow(SearchNotFoundException.class);
         //Act and Assert (using andExpect() method)
         mockMvc.perform(get("/student")
                 .param("firstName", "Grady")
@@ -133,7 +135,7 @@ class StudentControllerTest {
                             }
                             """;
         String expectedMessage = "Student Signup Successful!";
-        when(service.insertNewStudent(any(), any())).thenReturn(expectedMessage);
+        when(profiles.create(any(), any())).thenReturn(expectedMessage);
         //Act and Assert (using andExpect() method)
         mockMvc.perform(post("/student")
                         .contentType(MediaType.APPLICATION_JSON)

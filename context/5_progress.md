@@ -656,3 +656,11 @@ Raise at the next weekly meeting. Do not guess these in code.
   (`student.id = 1`) was created through the browser against the Flyway-built schema,
   Clerk session and all — the first evidence the save path works outside a test. It
   survived a later migration, so persistence across restarts holds too.
+
+- **2026-09-21 S1-08 resumed by explicit user direction.** User authorized Cloudinary,
+  the documented suggested limits and cleanup policy, and in-platform contact only
+  with no email visibility toggle. **Proposed decision 017:** JPEG/PNG/WebP, 10 MB,
+  4000 × 4000, 24-hour abandonment, hourly bounded cleanup with retry; major,
+  graduation year, bio and photo default private. No SDK. Formal Rule 8 minutes and
+  post-capstone account ownership are still outstanding; user authorization is not
+  recorded as a team vote. Implementation and verification in progress.

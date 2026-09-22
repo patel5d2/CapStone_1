@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Search, Mail, MapPin, Link2, GraduationCap, MessageCircle } from 'lucide-react'
+import { Search, MapPin, GraduationCap, MessageCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { api, toQueryString, ApiError } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
@@ -49,7 +49,7 @@ export default function Directory() {
 
   const messageStudent = async (student: Student) => {
     try {
-      await api.post('/api/messages/conversations', { recipientEmail: student.email })
+      await api.post(`/api/students/${student.id}/conversation`)
       push('Conversation started', 'success')
       navigate('/messages')
     } catch (e) {
@@ -123,8 +123,9 @@ export default function Directory() {
               <article key={student.id} className="card card-hover animate-fade-in-up flex flex-col p-5">
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-100 text-base font-bold text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
-                    {student.firstName.charAt(0)}
-                    {student.lastName.charAt(0)}
+                    {student.photoUrl ? (
+                      <img src={student.photoUrl} alt={`${student.firstName} ${student.lastName}`} className="h-11 w-11 rounded-full object-cover" />
+                    ) : `${student.firstName.charAt(0)}${student.lastName.charAt(0)}`}
                   </span>
                   <div className="min-w-0">
                     <h3 className="truncate text-base font-bold">
@@ -136,7 +137,7 @@ export default function Directory() {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="badge-primary">{student.grade}</span>
-                  <span className="badge-neutral normal-case">{student.major}</span>
+                  {student.major && <span className="badge-neutral normal-case">{student.major}</span>}
                 </div>
 
                 <div className="mt-4 space-y-1.5 border-t border-[var(--color-border)] pt-3 text-xs text-[var(--color-ink-muted)]">
@@ -144,25 +145,8 @@ export default function Directory() {
                     <MapPin className="h-3.5 w-3.5 shrink-0" />
                     {student.residentCity}, {student.residentState}
                   </p>
-                  <p className="flex items-center gap-1.5">
-                    <Mail className="h-3.5 w-3.5 shrink-0" />
-                    <a href={`mailto:${student.email}`} className="truncate hover:text-primary-600 dark:hover:text-primary-400">
-                      {student.email}
-                    </a>
-                  </p>
-                  {student.socialMediaLink && (
-                    <p className="flex items-center gap-1.5">
-                      <Link2 className="h-3.5 w-3.5 shrink-0" />
-                      <a
-                        href={student.socialMediaLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate hover:text-primary-600 dark:hover:text-primary-400"
-                      >
-                        {student.socialMediaLink}
-                      </a>
-                    </p>
-                  )}
+                  {student.graduationYear && <p>Graduates {student.graduationYear}</p>}
+                  {student.bio && <p className="break-words whitespace-pre-wrap">{student.bio}</p>}
                 </div>
 
                 <button className="btn-secondary btn-sm mt-4" onClick={() => messageStudent(student)}>
