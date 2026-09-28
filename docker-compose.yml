@@ -30,7 +30,7 @@ services:
     build:
       context: .
       args:
-        VITE_CLERK_PUBLISHABLE_KEY: "${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA}"
+        VITE_CLERK_PUBLISHABLE_KEY: "${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk}"
         VITE_REQUIRE_TWO_FACTOR: "${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:-true}"
     image: ghcr.io/patel5d2/capstone_1:local
     container_name: enterprisedevgroupproject
@@ -45,8 +45,8 @@ services:
       DATABASE_PASSWORD: "${DATABASE_PASSWORD}"
       DEV_DATABASE_NAME: "${DEV_DATABASE_NAME}"
       PROD_DATABASE_NAME: "${PROD_DATABASE_NAME}"
-      CLERK_ISSUER: "${CLERK_ISSUER:-https://mighty-escargot-6562.clerk.accounts.dev}"
-      CLERK_JWKS_URI: "${CLERK_JWKS_URI:-https://mighty-escargot-6562.clerk.accounts.dev/.well-known/jwks.json}"
+      CLERK_ISSUER: "${CLERK_ISSUER:-https://innocent-macaw-1687.clerk.accounts.dev}"
+      CLERK_JWKS_URI: "${CLERK_JWKS_URI:-https://innocent-macaw-1687.clerk.accounts.dev/.well-known/jwks.json}"
       CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR: "${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:-true}"
       # Empty unless the environment supplies it; the webhook then refuses deliveries
       # rather than the app failing to start.
