@@ -1,21 +1,27 @@
 package com.jonathansoriano.enterprisedevgroupproject;
 
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import java.io.IOException;
+import javax.sql.DataSource;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * One disposable database per cached Spring context. Spring owns its lifecycle so
- * it stays available until the datasource and other dependent beans shut down.
- * Docker is required: database tests must fail if PostgreSQL cannot be started.
+ * One disposable PostgreSQL 16 per cached Spring context, run from embedded binaries
+ * in a temp directory: no Docker, no developer database. Spring closes it (and deletes
+ * its data) after the datasource shuts down. A test that forgets to import this still
+ * fails, because src/test's datasource URL is deliberately unreachable.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class PostgresTestConfiguration {
 
+    @Bean(destroyMethod = "close")
+    EmbeddedPostgres embeddedPostgres() throws IOException {
+        return EmbeddedPostgres.start();
+    }
+
     @Bean
-    @ServiceConnection
-    PostgreSQLContainer postgres() {
-        return new PostgreSQLContainer("postgres:16-alpine");
+    DataSource dataSource(EmbeddedPostgres postgres) {
+        return postgres.getPostgresDatabase();
     }
 }
