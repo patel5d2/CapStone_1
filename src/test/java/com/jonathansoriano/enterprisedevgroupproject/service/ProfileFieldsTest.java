@@ -1,6 +1,5 @@
 package com.jonathansoriano.enterprisedevgroupproject.service;
 
-import com.jonathansoriano.enterprisedevgroupproject.PostgresTestConfiguration;
 import com.jonathansoriano.enterprisedevgroupproject.domain.EditStudentDetailsRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.ProfileFieldBounds;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
@@ -12,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code DataIntegrityViolationException} that the catch-all turns into an opaque 500.
  */
 @SpringBootTest
-@Import(PostgresTestConfiguration.class)
 @Transactional
 @ExtendWith(SpringExtension.class)
 class ProfileFieldsTest {
