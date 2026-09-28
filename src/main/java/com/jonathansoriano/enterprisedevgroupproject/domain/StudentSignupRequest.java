@@ -13,12 +13,15 @@ import lombok.NoArgsConstructor;
 //This is the class that will be used to create a new Student in the student table.
 public class StudentSignupRequest {
     @NotBlank(message = "First name field is required")
+    @Size(max = 100, message = "First name must be 100 characters or fewer")
     private String firstName;
 
     @NotBlank(message = "Last name field is required")
+    @Size(max = 100, message = "Last name must be 100 characters or fewer")
     private String lastName;
 
     @NotBlank(message = "Resident City field is required")
+    @Size(max = 100, message = "City must be 100 characters or fewer")
     private String residentCity;
 
     @NotBlank(message = "Resident State field is required")
@@ -30,12 +33,17 @@ public class StudentSignupRequest {
     private Integer universityId;
 
     @NotBlank(message = "Grade field is required")
+    @Size(max = 20, message = "Grade must be 20 characters or fewer")
     private String grade;
 
     @NotBlank(message = "Major field is required")
+    @Size(max = 255, message = "Major must be 255 characters or fewer")
     private String major;
 
+    // Set server-side from the caller's Clerk session token; a value sent by the
+    // client is overwritten before this request reaches the service layer.
     @NotBlank(message = "Email field is required")
+    @Size(max = 255, message = "Email must be 255 characters or fewer")
     @Email(message = "Please provide a valid email address")
     @Pattern(
             regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
@@ -43,9 +51,24 @@ public class StudentSignupRequest {
     )
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 4, max = 255, message = "Password must be between 4 and 255 characters")
-    private String password;
-
+    @Size(max = 255, message = "Link must be 255 characters or fewer")
     private String socialMediaLink;
+
+    @Min(value = ProfileFieldBounds.GRADUATION_YEAR_MIN,
+            message = "Graduation year must be a four-digit year")
+    @Max(value = ProfileFieldBounds.GRADUATION_YEAR_MAX,
+            message = "Graduation year must be a four-digit year")
+    private Integer graduationYear;
+
+    @Size(max = ProfileFieldBounds.BIO_MAX,
+            message = "Bio must be " + ProfileFieldBounds.BIO_MAX + " characters or fewer")
+    private String bio;
+
+    @Size(max = ProfileFieldBounds.PHOTO_URL_MAX,
+            message = "Photo address must be " + ProfileFieldBounds.PHOTO_URL_MAX + " characters or fewer")
+    @Pattern(regexp = ProfileFieldBounds.PHOTO_URL_PATTERN,
+            message = "Photo must be an https:// web address")
+    private String photoUrl;
+
+    private com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility visibility;
 }

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="CampusBridge">
+  <!-- The wordmark tile: primary-600 (#2c6a4d) with a white graduation cap, matching the
+       tile in components/ui/Wordmark.tsx. Replaces a stock purple lightning bolt that was
+       neither the brand nor in the palette. Kept as literal hex: a favicon is a static
+       file with no access to the theme's CSS variables. -->
+  <rect width="32" height="32" rx="9" fill="#2c6a4d"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Mortarboard, drawn to read at 16px: a wide brim, then the tassel cord. -->
+    <path d="M16 9 6.5 13.4 16 17.8l9.5-4.4z"/>
+    <path d="M10.2 15.1v4.6c0 1.6 2.6 2.9 5.8 2.9s5.8-1.3 5.8-2.9v-4.6"/>
+    <path d="M25.5 13.4v5.1"/>
+  </g>
+</svg>

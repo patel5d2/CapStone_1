@@ -13,6 +13,12 @@ permissions: {}
 
 env:
   REGISTRY: ghcr.io
+  # Configure these public repository variables before cutting a release.
+  # Deployment must supply the same issuer/JWKS/2FA values to the backend.
+  VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+  VITE_REQUIRE_TWO_FACTOR: ${{ vars.CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR }}
+  CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
+  CLERK_JWKS_URI: ${{ vars.CLERK_JWKS_URI }}
 
 jobs:
   build:
@@ -37,6 +43,24 @@ jobs:
       - name: Make Maven wrapper executable
         run: chmod +x mvnw
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate matching release Clerk configuration
+        run: node scripts/validate-release-config.mjs
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint and build the release SPA
+        working-directory: frontend
+        run: npm run lint && npm run build
+
       - name: Validate tag against Maven version
         id: version
         shell: bash
@@ -59,6 +83,9 @@ jobs:
 
       - name: Build and test release
         run: ./mvnw --batch-mode verify
+
+      - name: Verify the release JAR contains the SPA and referenced assets
+        run: python3 scripts/verify-spa-jar.py
 
       - name: Stage versioned JAR
         shell: bash
@@ -136,6 +163,9 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            VITE_CLERK_PUBLISHABLE_KEY=${{ env.VITE_CLERK_PUBLISHABLE_KEY }}
+            VITE_REQUIRE_TWO_FACTOR=${{ env.VITE_REQUIRE_TWO_FACTOR }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

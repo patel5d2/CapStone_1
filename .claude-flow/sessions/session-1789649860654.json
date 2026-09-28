@@ -1,0 +1,14 @@
+{
+  "id": "session-1789649860654",
+  "startedAt": "2026-09-17T12:57:40.654Z",
+  "cwd": "/Users/dharminpatel/CapStone_1",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-09-17T12:57:41.155Z",
+  "duration": 503
+}

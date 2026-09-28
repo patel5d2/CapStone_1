@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+<title id="title">Support — support-desktop wireframe</title>
+<desc id="desc">CampusBridge target layout. Fictional sample content. Static wireframe; controls are illustrative.</desc>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#252525} .muted{fill:#555} .white{fill:#fff}</style>
+<rect x="0" y="0" width="1440" height="900" rx="0" fill="#fafafa" stroke="none" stroke-width="1"/>
+<rect x="0" y="0" width="240" height="900" rx="0" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="24" y="48" font-size="23" font-weight="700" text-anchor="start" class="">CampusBridge</text>
+<text x="24" y="76" font-size="11" font-weight="400" text-anchor="start" class="muted">YOUR CAMPUS, CONNECTED</text>
+<rect x="16" y="120" width="208" height="48" rx="5" fill="#fff" stroke="none" stroke-width="1"/>
+<rect x="32" y="134" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="150" font-size="16" font-weight="400" text-anchor="start" class="">Marketplace</text>
+<rect x="16" y="184" width="208" height="48" rx="5" fill="#fff" stroke="none" stroke-width="1"/>
+<rect x="32" y="198" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="214" font-size="16" font-weight="400" text-anchor="start" class="">Messages</text>
+<rect x="16" y="248" width="208" height="48" rx="5" fill="#fff" stroke="none" stroke-width="1"/>
+<rect x="32" y="262" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="278" font-size="16" font-weight="400" text-anchor="start" class="">Community</text>
+<rect x="16" y="312" width="208" height="48" rx="5" fill="#e5e5e5" stroke="none" stroke-width="1"/>
+<rect x="16" y="312" width="4" height="48" rx="0" fill="#252525" stroke="none" stroke-width="1"/>
+<rect x="32" y="326" width="20" height="20" rx="3" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="66" y="342" font-size="16" font-weight="700" text-anchor="start" class="">Support</text>
+<rect x="24" y="816" width="192" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="120.0" y="842.9" font-size="14" font-weight="400" text-anchor="middle" class="">My profile / Sign out</text>
+<text x="280" y="60" font-size="32" font-weight="700" text-anchor="start" class="">Support</text>
+<text x="280" y="89" font-size="16" font-weight="400" text-anchor="start" class="muted">Find campus help or ask for essentials.</text>
+<text x="1396" y="54" font-size="14" font-weight="400" text-anchor="end" class="">Sample student · UC</text>
+<rect x="280.0" y="120" width="222.66666666666666" height="44" rx="4" fill="#333" stroke="#999" stroke-width="1"/>
+<text x="391.3333333333333" y="146.9" font-size="14" font-weight="700" text-anchor="middle" class="white">Resources</text>
+<rect x="506.66666666666663" y="120" width="222.66666666666666" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="618.0" y="146.9" font-size="14" font-weight="400" text-anchor="middle" class="">Open requests</text>
+<rect x="733.3333333333333" y="120" width="222.66666666666666" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="844.6666666666666" y="146.9" font-size="14" font-weight="400" text-anchor="middle" class="">My requests</text>
+<rect x="280" y="180" width="680" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="292" y="208" font-size="14" font-weight="400" text-anchor="start" class="muted">School: University of Cincinnati</text>
+<rect x="280" y="236" width="680" height="44" rx="4" fill="#333" stroke="#999" stroke-width="1"/>
+<text x="620.0" y="262.9" font-size="14" font-weight="700" text-anchor="middle" class="white">+ Request essentials</text>
+<rect x="280" y="308" width="216" height="240" rx="5" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="296" y="335" font-size="18" font-weight="700" text-anchor="start" class="">Food pantry</text>
+<text x="296" y="368" font-size="15" font-weight="400" text-anchor="start" class="">Food and basic</text>
+<text x="296" y="391" font-size="15" font-weight="400" text-anchor="start" class="">supplies.</text>
+<text x="296" y="438" font-size="13" font-weight="400" text-anchor="start" class="muted">School resource</text>
+<rect x="292" y="494" width="192" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="388.0" y="520.55" font-size="13" font-weight="400" text-anchor="middle" class="">View resource</text>
+<rect x="512" y="308" width="216" height="240" rx="5" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="528" y="335" font-size="18" font-weight="700" text-anchor="start" class="">Emergency aid</text>
+<text x="528" y="368" font-size="15" font-weight="400" text-anchor="start" class="">Explore financial</text>
+<text x="528" y="391" font-size="15" font-weight="400" text-anchor="start" class="">assistance.</text>
+<text x="528" y="438" font-size="13" font-weight="400" text-anchor="start" class="muted">School resource</text>
+<rect x="524" y="494" width="192" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="620.0" y="520.55" font-size="13" font-weight="400" text-anchor="middle" class="">View resource</text>
+<rect x="744" y="308" width="216" height="240" rx="5" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="760" y="335" font-size="18" font-weight="700" text-anchor="start" class="">Counseling</text>
+<text x="760" y="368" font-size="15" font-weight="400" text-anchor="start" class="">Find student</text>
+<text x="760" y="391" font-size="15" font-weight="400" text-anchor="start" class="">wellbeing support.</text>
+<text x="760" y="438" font-size="13" font-weight="400" text-anchor="start" class="muted">School resource</text>
+<rect x="756" y="494" width="192" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="852.0" y="520.55" font-size="13" font-weight="400" text-anchor="middle" class="">View resource</text>
+<rect x="996" y="120" width="400" height="436" rx="5" fill="#eee" stroke="#999" stroke-width="1"/>
+<text x="1020" y="160" font-size="21" font-weight="700" text-anchor="start" class="">Ask without sharing your name</text>
+<text x="1020" y="206" font-size="14" font-weight="400" text-anchor="start" class="">Requests appear without your public name.</text>
+<text x="1020" y="242" font-size="14" font-weight="400" text-anchor="start" class="">Avoid personal details in the description.</text>
+<text x="1020" y="278" font-size="14" font-weight="400" text-anchor="start" class="">Choose a category and describe the need.</text>
+<text x="1020" y="314" font-size="14" font-weight="400" text-anchor="start" class="">Track progress under My requests.</text>
+<rect x="1020" y="380" width="352" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="1196.0" y="406.9" font-size="14" font-weight="400" text-anchor="middle" class="">Browse open requests</text>
+<rect x="1020" y="446" width="352" height="44" rx="4" fill="#fff" stroke="#999" stroke-width="1"/>
+<text x="1196.0" y="472.9" font-size="14" font-weight="400" text-anchor="middle" class="">Browse free / donate listings</text>
+<text x="280" y="636" font-size="16" font-weight="400" text-anchor="start" class="">Resource details: description, location, hours and official service link.</text>
+<text x="280" y="666" font-size="14" font-weight="400" text-anchor="start" class="muted">Sample categories only; verify service details before publishing.</text>
+<text x="280" y="716" font-size="15" font-weight="400" text-anchor="start" class="">A request moves from Open to Fulfilled; the author can manage their own requests.</text>
+</svg>

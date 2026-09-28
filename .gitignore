@@ -34,3 +34,11 @@ build/
 
 ### Environment variables ###
 .env
+.env.local
+.env.*.local
+
+### Frontend ###
+node_modules/
+# The React SPA is compiled into the Spring Boot static folder by
+# `cd frontend && npm run build`, so the output is generated, not source.
+src/main/resources/static/

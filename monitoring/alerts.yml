@@ -16,9 +16,9 @@ groups:
       - alert: HighErrorRate
         expr: |
           (
-            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            sum(rate(http_server_requests_seconds_count{job="spring-boot-app",status=~"5..",uri!~"/actuator.*"}[5m]))
             /
-            sum(rate(http_server_requests_seconds_count[5m]))
+            sum(rate(http_server_requests_seconds_count{job="spring-boot-app",uri!~"/actuator.*"}[5m]))
           ) > 0.05
         for: 2m
         labels:
@@ -30,7 +30,7 @@ groups:
       # High response latency (p95 > 2s over 5 min)
       - alert: HighLatency
         expr: |
-          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le))
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="spring-boot-app",uri!~"/actuator.*"}[5m])) by (le))
           > 2
         for: 3m
         labels:
@@ -42,9 +42,9 @@ groups:
       # JVM heap usage above 85%
       - alert: HighHeapUsage
         expr: |
-          jvm_memory_used_bytes{area="heap"}
+          sum by (instance) (jvm_memory_used_bytes{job="spring-boot-app",area="heap"})
           /
-          jvm_memory_max_bytes{area="heap"}
+          sum by (instance) (jvm_memory_max_bytes{job="spring-boot-app",area="heap"})
           > 0.85
         for: 5m
         labels:

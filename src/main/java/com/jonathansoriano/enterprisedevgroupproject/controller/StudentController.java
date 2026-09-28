@@ -3,14 +3,16 @@ package com.jonathansoriano.enterprisedevgroupproject.controller;
 import com.jonathansoriano.enterprisedevgroupproject.domain.EditStudentDetailsRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentRequest;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
-import com.jonathansoriano.enterprisedevgroupproject.model.CustomerUserDetails;
 import com.jonathansoriano.enterprisedevgroupproject.model.Student;
 import com.jonathansoriano.enterprisedevgroupproject.model.StudentAccountDetails;
+import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
+import com.jonathansoriano.enterprisedevgroupproject.service.StudentIdentityService;
 import com.jonathansoriano.enterprisedevgroupproject.service.StudentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,10 +23,15 @@ import java.util.List;
 @RequestMapping("/student")
 public class StudentController {
     private final StudentService service;
+    private final StudentIdentityService identity;
+    private final com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles;
 
     // Constructor Dependency Injection instead of Autowiring Service class
-    public StudentController(StudentService service) {
+    public StudentController(StudentService service, StudentIdentityService identity,
+            com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles) {
         this.service = service;
+        this.identity = identity;
+        this.profiles = profiles;
     }
 
     /**
@@ -60,7 +67,7 @@ public class StudentController {
                 .major(major)
                 .build();
 
-        return ResponseEntity.ok(service.find(request));
+        return ResponseEntity.ok(profiles.directory(request));
 
     }
 
@@ -71,11 +78,10 @@ public class StudentController {
      * @return a {@code ResponseEntity} containing the student's account details
      */
     @GetMapping("/profile")
-    public ResponseEntity<StudentAccountDetails> getProfile(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        // 'userDetails' IS the Principal.
-        String currentUserName = userDetails.getUsername();
-
-        StudentAccountDetails studentAccountDetails = service.findByEmail(currentUserName);
+    public ResponseEntity<StudentAccountDetails> getProfile(@AuthenticationPrincipal Jwt clerkSession) {
+        // Resolved from the Clerk subject first, so a student who changed their address
+        // still reaches their own profile (ADR-012).
+        StudentAccountDetails studentAccountDetails = profiles.read(clerkSession);
         return ResponseEntity.ok(studentAccountDetails);
     }
 
@@ -87,28 +93,37 @@ public class StudentController {
      * @return a {@code ResponseEntity} containing a success message upon successful profile update
      */
     @PutMapping("/profile")
-    public ResponseEntity<String> updateStudent(@AuthenticationPrincipal CustomerUserDetails userDetails, @Valid @RequestBody EditStudentDetailsRequest studentDetails) {
-        String successfulAccountUpdate = service.updateStudent(userDetails.getUsername(), studentDetails);
+    public ResponseEntity<String> updateStudent(@AuthenticationPrincipal Jwt clerkSession, @Valid @RequestBody EditStudentDetailsRequest studentDetails) {
+        String successfulAccountUpdate = profiles.update(clerkSession, studentDetails);
 
         return new ResponseEntity<>(successfulAccountUpdate, HttpStatus.OK);
     }
 
     /**
-     * Creates a new student in the system based on the provided signup request.
+     * Creates the directory profile for the caller. The caller has already signed up
+     * with Clerk by this point, so the request carries only the directory fields;
+     * the email is taken from the verified Clerk session token, never from the body.
      *
-     * @param student the {@code StudentSignupRequest} object containing the
-     *                student's information
-     *                such as first name, last name, city, state, university ID,
-     *                grade, major, email,
-     *                password, and social media link
+     * @param clerkSession the caller's verified Clerk session token
+     * @param student      the {@code StudentSignupRequest} object containing the
+     *                     student's information such as first name, last name, city,
+     *                     state, university ID, grade, major, and social media link
      * @return a {@code ResponseEntity} containing a success message upon successful
      *         student creation
      */
 
     @PostMapping
-    public ResponseEntity<String> createNewStudent(@Valid @RequestBody StudentSignupRequest student) {
+    public ResponseEntity<String> createNewStudent(@AuthenticationPrincipal Jwt clerkSession,
+            @Valid @RequestBody StudentSignupRequest student) {
 
-        String successfulInsertionMessage = service.insertNewStudent(student);
+        // The body's email is advisory only. Trusting it would let any signed-in user
+        // create or claim a profile under somebody else's address.
+        student.setEmail(CurrentUser.emailOf(clerkSession));
+
+        // The new row is bound to the Clerk subject that created it. This is the only
+        // place a subject is ever written, and it comes from the verified token.
+        String successfulInsertionMessage =
+                profiles.create(clerkSession, student);
 
         return new ResponseEntity<>(successfulInsertionMessage, HttpStatus.CREATED);
 

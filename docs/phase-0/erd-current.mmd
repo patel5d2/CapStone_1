@@ -1,0 +1,176 @@
+erDiagram
+    %% Current schema: V1__baseline.sql, inspected 2026-09-16.
+    %% All edges are physical foreign keys. Email ownership has no edges.
+    university {
+        bigint id PK "required"
+        varchar name UK "required"
+    }
+    student {
+        bigint id PK "required"
+        varchar first_name "required"
+        varchar last_name "required"
+        varchar resident_city "required"
+        varchar resident_state "required"
+        bigint university_id FK "required"
+        varchar grade "required"
+        varchar major "required"
+        varchar email UK "required"
+        varchar social_media_link "nullable"
+    }
+    app_user {
+        bigint id PK "required"
+        varchar role "required"
+        varchar email UK "required"
+        varchar password "nullable"
+    }
+    listing {
+        bigint id PK "required"
+        varchar seller_email "required"
+        varchar title "required"
+        varchar description "nullable"
+        varchar category "required"
+        varchar listing_type "required"
+        varchar status "required"
+        numeric price "nullable"
+        varchar course_code "nullable"
+        bigint school_id FK "nullable"
+        timestamptz created_at "required"
+        timestamptz updated_at "required"
+    }
+    listing_photo {
+        bigint listing_id FK "required"
+        varchar photo_url "nullable"
+    }
+    listing_favorite {
+        bigint id PK "required"
+        bigint listing_id FK "required"
+        varchar user_email "required"
+        timestamptz created_at "required"
+    }
+    listing_report {
+        bigint id PK "required"
+        bigint listing_id FK "required"
+        varchar reporter_email "required"
+        varchar reason "required"
+        timestamptz created_at "required"
+    }
+    conversation {
+        bigint id PK "required"
+        varchar type "required"
+        bigint listing_id FK "nullable"
+        timestamptz created_at "required"
+    }
+    conversation_participant {
+        bigint id PK "required"
+        bigint conversation_id FK "required"
+        varchar user_email "required"
+        integer unread_count "required"
+        timestamptz last_read_at "nullable"
+    }
+    message {
+        bigint id PK "required"
+        bigint conversation_id FK "required"
+        varchar sender_email "required"
+        varchar content "required"
+        varchar image_url "nullable"
+        timestamptz created_at "required"
+    }
+    blocked_user {
+        bigint id PK "required"
+        varchar blocker_email "required"
+        varchar blocked_email "required"
+        timestamptz created_at "required"
+    }
+    user_report {
+        bigint id PK "required"
+        varchar reporter_email "required"
+        varchar reported_email "required"
+        varchar reason "required"
+        timestamptz created_at "required"
+    }
+    app_group {
+        bigint id PK "required"
+        varchar name "required"
+        varchar description "nullable"
+        varchar type "required"
+        varchar related_value "nullable"
+        bigint school_id FK "nullable"
+        varchar created_by_email "required"
+        timestamptz created_at "required"
+    }
+    group_membership {
+        bigint id PK "required"
+        bigint group_id FK "required"
+        varchar user_email "required"
+        timestamptz joined_at "required"
+    }
+    post {
+        bigint id PK "required"
+        varchar author_email "required"
+        varchar content "required"
+        varchar image_url "nullable"
+        bigint group_id FK "nullable"
+        boolean pinned "required"
+        timestamptz created_at "required"
+    }
+    post_comment {
+        bigint id PK "required"
+        bigint post_id FK "required"
+        varchar author_email "required"
+        varchar content "required"
+        timestamptz created_at "required"
+    }
+    post_like {
+        bigint id PK "required"
+        bigint post_id FK "required"
+        varchar user_email "required"
+        timestamptz created_at "required"
+    }
+    event {
+        bigint id PK "required"
+        varchar title "required"
+        varchar description "nullable"
+        varchar location "nullable"
+        timestamptz starts_at "required"
+        bigint school_id FK "nullable"
+        bigint listing_id FK "nullable"
+        varchar created_by_email "required"
+        timestamptz created_at "required"
+    }
+    support_resource {
+        bigint id PK "required"
+        bigint school_id FK "required"
+        varchar name "required"
+        varchar category "required"
+        varchar description "nullable"
+        varchar address "nullable"
+        varchar contact_info "nullable"
+        float latitude "nullable"
+        float longitude "nullable"
+    }
+    anonymous_request {
+        bigint id PK "required"
+        varchar requester_email "required"
+        varchar category "required"
+        varchar description "required"
+        varchar status "required"
+        bigint school_id FK "nullable"
+        timestamptz created_at "required"
+    }
+    university ||..o{ student : "university_id"
+    university |o..o{ listing : "school_id"
+    listing ||..o{ listing_photo : "listing_id"
+    listing ||..o{ listing_favorite : "listing_id"
+    listing ||..o{ listing_report : "listing_id"
+    listing |o..o{ conversation : "listing_id"
+    conversation ||..o{ conversation_participant : "conversation_id"
+    conversation ||..o{ message : "conversation_id"
+    university |o..o{ app_group : "school_id"
+    app_group ||..o{ group_membership : "group_id"
+    app_group |o..o{ post : "group_id"
+    post ||..o{ post_comment : "post_id"
+    post ||..o{ post_like : "post_id"
+    university |o..o{ event : "school_id"
+    listing |o..o{ event : "listing_id"
+    university ||..o{ support_resource : "school_id"
+    university |o..o{ anonymous_request : "school_id"
