@@ -25,7 +25,7 @@ public class StudentController {
     private final StudentService service;
     private final StudentIdentityService identity;
     private final com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles;
-
+    //JONS COMMENT
     // Constructor Dependency Injection instead of Autowiring Service class
     public StudentController(StudentService service, StudentIdentityService identity,
             com.jonathansoriano.enterprisedevgroupproject.profile.ProfileCompletionService profiles) {
