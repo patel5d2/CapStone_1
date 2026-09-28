@@ -3,25 +3,73 @@ spring:
     active: default #- second application.yml file name has to have dev in it for Spring Boot to load it. (application-dev.yml)
                     #- we can go back to the base application.yml file with the 'default' profile.
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
   application:
     name: EnterpriseDevGroupProject
 
+  # PostgreSQL in every environment. The previous H2-in-dev / Postgres-in-prod split
+  # hid dialect differences until deployment; see decision 008 in context/5_progress.md.
+  # Start the database with `docker compose up -d db`.
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:testdb
-    username: sa
-    password: ''
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DEV_DATABASE_NAME:enterprise_dev}
+    # Defaults mirror the committed .env.example so `docker compose up -d db` then
+    # `./mvnw spring-boot:run` works with no setup. These are local throwaway
+    # credentials, never production ones: application-prod.yml defines no defaults,
+    # so a real deployment fails fast unless the environment supplies them.
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:changeme}
 
-  sql:
-    init:
-      mode: always #- ensures SQL files are executed every time the application starts
-      schema-locations: classpath:h2-schema.sql
-      data-locations: classpath:h2-data.sql
+  # Flyway is the only thing that creates or changes tables (decision 009).
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+  # validate, not update: Hibernate checks that the entities match the schema Flyway
+  # built and refuses to start if they drifted, instead of silently altering tables.
+  # university/student/app_user are plain JDBC, not @Entity, so Hibernate ignores
+  # them either way — which is exactly why ddl-auto could never have created them.
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  # ── Clerk authentication ──
+  # Incoming Clerk session tokens are checked against this instance's signing keys.
+  # jwk-set-uri is given explicitly so the keys are fetched on first use rather than
+  # at startup: the app still boots if Clerk is briefly unreachable. issuer-uri stays
+  # set so the 'iss' claim is validated too. Override both for a production instance.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${CLERK_ISSUER:https://mighty-escargot-6562.clerk.accounts.dev}
+          jwk-set-uri: ${CLERK_JWKS_URI:https://mighty-escargot-6562.clerk.accounts.dev/.well-known/jwks.json}
+
+# ── CampusBridge access rules (objective 1) ──
+campusbridge:
+  auth:
+    # Requires the Clerk session token to assert a second factor ('fva' claim).
+    # This must stay in step with VITE_REQUIRE_TWO_FACTOR in frontend/.env, and it
+    # denies every request unless two-step verification is enabled in the Clerk
+    # dashboard AND the account has enrolled a factor.
+    #
+    # Email verification is followed by MFA enrollment.
+    require-two-factor: ${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:true}
+
+  clerk:
+    # Signing secret of the Clerk dashboard webhook endpoint ("whsec_..."). Empty by
+    # default and never committed (Team Rule 9, invariant 8): with no value the webhook
+    # route refuses every delivery rather than trusting an unverifiable one.
+    webhook-secret: ${CLERK_WEBHOOK_SECRET:}
+
+  monitoring:
+    enabled: ${CAMPUSBRIDGE_MONITORING_ENABLED:false}
+    password: ${METRICS_PASSWORD:}
 
 # ── Actuator & Prometheus ──
 management:
@@ -31,4 +79,11 @@ management:
         include: health,info,prometheus,metrics
   endpoint:
     health:
-      show-details: always
+      # /actuator/health is reachable anonymously so container healthchecks work,
+      # so details (database, disk, connection pool) are shown only to callers
+      # with a valid Clerk token. Anonymous callers see just {"status":"UP"}.
+      show-details: when_authorized
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

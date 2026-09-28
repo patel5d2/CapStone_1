@@ -21,4 +21,9 @@ public class StudentAccountDetails {
     private String major;
     private String email;
     private String socialMediaLink;
+    private Integer graduationYear;
+    private String bio;
+    private String photoUrl;
+    private Long universityId;
+    private com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility visibility;
 }

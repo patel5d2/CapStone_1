@@ -1,0 +1,83 @@
+# Standalone, disposable fixture; never merge this into the developer stack.
+# scripts/smoke-container.sh supplies a unique project name and --env-file /dev/null.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: campusbridge_ci
+      POSTGRES_PASSWORD: disposable-ci-database
+      POSTGRES_DB: campusbridge_ci
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    image: ${CI_IMAGE:-capstone-1:ci}
+    pull_policy: never
+    ports:
+      - "127.0.0.1:${CI_APP_PORT:-18080}:8080"
+    environment:
+      JAVA_OPTS: -Xmx512m
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_USERNAME: campusbridge_ci
+      DATABASE_PASSWORD: disposable-ci-database
+      PROD_DATABASE_NAME: campusbridge_ci
+      # JWT validation is lazy; startup and anonymous smoke checks need no Clerk
+      # network access, real account, API key, or token.
+      CLERK_ISSUER: https://clerk.ci.invalid
+      CLERK_JWKS_URI: https://clerk.ci.invalid/.well-known/jwks.json
+      CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR: "false"
+      CAMPUSBRIDGE_MONITORING_ENABLED: "true"
+      METRICS_PASSWORD: disposable-ci-metrics
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v3.2.1
+    ports:
+      - "127.0.0.1:${CI_PROMETHEUS_PORT:-19090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    secrets:
+      - metrics_password
+    tmpfs:
+      - /prometheus:mode=1777
+    depends_on:
+      app:
+        condition: service_healthy
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:11.5.2
+    ports:
+      - "127.0.0.1:${CI_GRAFANA_PORT:-13000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ci_admin
+      GF_SECURITY_ADMIN_PASSWORD: disposable-ci-grafana
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    tmpfs:
+      - /var/lib/grafana:mode=1777
+    depends_on:
+      - prometheus
+
+secrets:
+  metrics_password:
+    environment: METRICS_PASSWORD
