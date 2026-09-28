@@ -47,8 +47,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${CLERK_ISSUER:https://mighty-escargot-6562.clerk.accounts.dev}
-          jwk-set-uri: ${CLERK_JWKS_URI:https://mighty-escargot-6562.clerk.accounts.dev/.well-known/jwks.json}
+          issuer-uri: ${CLERK_ISSUER:https://innocent-macaw-1687.clerk.accounts.dev}
+          jwk-set-uri: ${CLERK_JWKS_URI:https://innocent-macaw-1687.clerk.accounts.dev/.well-known/jwks.json}
 
 # ── CampusBridge access rules (objective 1) ──
 campusbridge:
