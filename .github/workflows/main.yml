@@ -87,7 +87,7 @@ jobs:
       - name: Type-check and build
         working-directory: frontend
         env:
-          VITE_CLERK_PUBLISHABLE_KEY: pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk
         run: npm run build
 
   container-build:

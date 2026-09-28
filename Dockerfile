@@ -11,7 +11,7 @@ RUN npm ci
 COPY frontend/ ./
 # The Clerk publishable key is baked in at build time. Publishable keys are
 # meant to be public; override per environment with --build-arg.
-ARG VITE_CLERK_PUBLISHABLE_KEY=pk_test_bWlnaHR5LWVzY2FyZ290LTY1NjIuY2xlcmsuYWNjb3VudHMuZGV2JA
+ARG VITE_CLERK_PUBLISHABLE_KEY=pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 ARG VITE_REQUIRE_TWO_FACTOR=true
 ENV VITE_REQUIRE_TWO_FACTOR=$VITE_REQUIRE_TWO_FACTOR
