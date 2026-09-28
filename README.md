@@ -200,7 +200,7 @@ Browser ──► Spring Boot (:8080) ──► H2 (default) / PostgreSQL 16 (bl
 | Auth | Clerk — `@clerk/clerk-react` in the SPA, OAuth2 resource server in the API |
 | Images | Cloudinary or S3 *(planned)* |
 | Real-time | WebSocket / STOMP *(planned)* |
-| Testing | JUnit Jupiter · Mockito · H2 tests · JaCoCo reports; Testcontainers planned |
+| Testing | JUnit Jupiter · Mockito · embedded PostgreSQL 16 (no Docker needed: `./mvnw test`) · JaCoCo reports |
 | Ops | Docker · Docker Compose · Prometheus · Grafana · GitHub Actions · GHCR |
 
 Full detail, including which pieces are built versus planned, is in
