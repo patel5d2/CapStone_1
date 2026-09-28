@@ -11,26 +11,21 @@ spring:
   application:
     name: EnterpriseDevGroupProject
 
-  # PostgreSQL in every environment. The previous H2-in-dev / Postgres-in-prod split
-  # hid dialect differences until deployment; see decision 008 in context/5_progress.md.
-  # Start the database with `docker compose up -d db`.
+  # H2 in-memory database in every environment: `./mvnw spring-boot:run` needs no
+  # Docker and no local database. PostgreSQL mode keeps the SQL close to what the
+  # schema was written for. Everything is lost when the app stops.
   datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DEV_DATABASE_NAME:enterprise_dev}
-    # Defaults mirror the committed .env.example so `docker compose up -d db` then
-    # `./mvnw spring-boot:run` works with no setup. These are local throwaway
-    # credentials, never production ones: application-prod.yml defines no defaults,
-    # so a real deployment fails fast unless the environment supplies them.
-    username: ${DATABASE_USERNAME:postgres}
-    password: ${DATABASE_PASSWORD:changeme}
+    url: jdbc:h2:mem:campusbridge;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
 
-  # Flyway is the only thing that creates or changes tables (decision 009).
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
+  # schema.sql (tables) then data.sql (mock data) build the database on every start.
+  sql:
+    init:
+      mode: always
 
-  # validate, not update: Hibernate checks that the entities match the schema Flyway
-  # built and refuses to start if they drifted, instead of silently altering tables.
+  # validate, not update: Hibernate checks that the entities match the schema.sql
+  # tables and refuses to start if they drifted, instead of silently altering tables.
   # university/student/app_user are plain JDBC, not @Entity, so Hibernate ignores
   # them either way — which is exactly why ddl-auto could never have created them.
   jpa:

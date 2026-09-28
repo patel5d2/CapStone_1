@@ -1,12 +1,17 @@
--- CampusBridge baseline schema (S0-1).
+-- CampusBridge schema: every table, in one file.
 --
--- Single source of truth for the database. Replaces three competing sources:
--- h2-schema.sql, db/init/*.sql, and Hibernate's ddl-auto=update. The JPA half of
--- this file was generated from the entity classes (ddl-auto=create against
--- Postgres 16, then pg_dump), so `ddl-auto: validate` passes against it. Change an
--- @Entity and you must add a migration here, or the app refuses to start — which
--- is the point.
+-- Runs against the H2 in-memory database (PostgreSQL compatibility mode) on every
+-- startup via spring.sql.init; the database starts empty each time, so this file is
+-- the whole schema, not a migration. data.sql runs after it with the mock data.
+-- Hibernate still validates the @Entity classes against these tables
+-- (ddl-auto: validate), so change an entity and you must change this file too.
 --
+-- Built from the former Flyway migrations V1, V4, V5, V6 and V7, in that order.
+
+-- ===========================================================================
+-- V1 baseline
+-- ===========================================================================
+
 -- Ordering: parents before children, so the foreign keys below resolve.
 
 -- ---------------------------------------------------------------------------
@@ -268,3 +273,135 @@ CREATE TABLE anonymous_request (
 );
 
 CREATE INDEX idx_anonymous_request_school ON anonymous_request (school_id);
+
+-- ===========================================================================
+-- V4 student.clerk_user_id
+-- ===========================================================================
+
+-- S1-02 / ADR-012: the stable identity column.
+--
+-- Clerk email addresses are mutable, and 16 ownership columns across 13 tables key on
+-- email, so an address change today orphans a student's listings, conversations, blocks
+-- and posts. This is the stable key those columns migrate to in S1-10, S1-11 and S1-12.
+--
+-- Nullable on purpose. Every existing row stays valid, and NULL states the truth: nobody
+-- has proved they own that row yet. The column is filled only when a Clerk subject
+-- creates its own directory row (and, from S1-04, by the verified user.created webhook)
+-- -- never by a bulk email match. That is what keeps the 33 fabricated V3 demo students
+-- unbindable: they were seeded on plausible addresses such as sarah.johnson@mail.uc.edu,
+-- and matching on email alone would hand a real student a fabricated profile.
+--
+-- No separate index: PostgreSQL implements UNIQUE with a btree index, so the constraint
+-- below already serves lookups by clerk_user_id. NULLs are distinct in a unique
+-- constraint, so any number of unbound rows coexist while a Clerk subject still owns at
+-- most one student row.
+--
+-- Rules, options considered and the D-IDENTITY ballot: docs/phase-1/identity-backfill.md
+
+ALTER TABLE student ADD COLUMN clerk_user_id varchar(255);
+
+ALTER TABLE student ADD CONSTRAINT uk_student_clerk_user_id UNIQUE (clerk_user_id);
+
+-- ===========================================================================
+-- V5 clerk_identity
+-- ===========================================================================
+
+-- S1-04 / ADR-012: what Clerk's user.created webhook can actually record today.
+--
+-- The story asks the webhook to create the student row. It cannot, and this table is
+-- the honest alternative rather than a silent redefinition of the requirement:
+--
+--   * `student` has seven NOT NULL columns a Clerk user event does not carry --
+--     resident_city, resident_state, grade, major, university_id, and first/last name
+--     (Clerk allows both to be null). Creating the row from an event means inventing
+--     five values for a real person.
+--   * university_id needs the domain-to-school mapping from S1-03, which does not exist
+--     and is itself blocked on the unvoted D-SCHOOLS decision. Guessing a school is
+--     exactly what that issue forbids.
+--
+-- So the webhook records the *identity* -- the verified Clerk subject and the address it
+-- signed up with -- and the directory row is still completed by POST /student, which has
+-- bound clerk_user_id since S1-02. That is the "pending profile" state: an account that
+-- exists in Clerk and here, but has no directory row yet.
+--
+-- last_event_at makes the handler idempotent and order-safe without a separate ledger:
+-- the upsert only advances a row when the incoming event is newer, so a Clerk retry is a
+-- no-op and an out-of-order delivery cannot roll an address back. last_event_id is kept
+-- for tracing a row back to the delivery that last wrote it.
+--
+-- No foreign key to student on purpose: the identity legitimately exists before the
+-- directory row does, which is the whole point of the pending state.
+
+CREATE TABLE clerk_identity (
+    clerk_user_id varchar(255) PRIMARY KEY,
+    email         varchar(255)               NOT NULL,
+    last_event_id varchar(255)               NOT NULL,
+    last_event_at timestamp(6) with time zone NOT NULL,
+    created_at    timestamp(6) with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    timestamp(6) with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Finding the identity behind an address during profile completion.
+CREATE INDEX idx_clerk_identity_email ON clerk_identity (email);
+
+-- ===========================================================================
+-- V6 profile fields
+-- ===========================================================================
+
+-- S1-06: the profile fields the directory, theming and community surfaces need.
+--
+-- Names and types follow the planned ERD accepted in S0-5 (docs/phase-0/erd-planned.mmd):
+-- graduation_year integer, bio varchar, photo_url varchar.
+--
+-- All three are nullable. Every existing row predates them, and the contract asks for a
+-- profile a student completes over time, not seven required fields at sign-up. A NOT NULL
+-- here would mean inventing a default for 34 rows, including the fabricated V3 demo people.
+--
+-- Lengths, and why -- each one is mirrored by an @Size or @Min/@Max on the request objects,
+-- because the defect this story exists to prevent is an over-length value reaching Postgres
+-- and coming back as an opaque 500 from ExceptionTranslator's catch-all:
+--
+--   * bio varchar(1000) -- no recorded requirement sets this. 1000 is a few paragraphs,
+--     enough for a self-description on a directory card and small enough that it can be
+--     returned in a list response without bloating it. **A team decision could change it;
+--     it is a chosen value, not a derived one.**
+--   * photo_url varchar(255) -- matches the two URL columns already in the schema,
+--     social_media_link and listing_photo.photo_url.
+--   * graduation_year integer -- as the ERD has it. The request objects bound it to a
+--     four-digit year; anything outside that is a typing error, not a student.
+--
+-- photo_url holds a reference, not an image. Constraining it to the approved asset host
+-- so a student cannot point their profile at someone else's asset needs that host, which
+-- is S1-05 (Cloudinary, decision 016, still Proposed). Until then the request objects
+-- require https and bound the length, exactly as listing photos are bounded today.
+
+ALTER TABLE student ADD COLUMN graduation_year integer;
+ALTER TABLE student ADD COLUMN bio             varchar(1000);
+ALTER TABLE student ADD COLUMN photo_url       varchar(255);
+
+-- ===========================================================================
+-- V7 profile privacy and images
+-- ===========================================================================
+
+-- S1-08 dependencies. Existing profiles have no privacy row and default private.
+CREATE TABLE profile_privacy (
+    student_id bigint PRIMARY KEY REFERENCES student(id) ON DELETE CASCADE,
+    show_major boolean NOT NULL DEFAULT false,
+    show_graduation_year boolean NOT NULL DEFAULT false,
+    show_bio boolean NOT NULL DEFAULT false,
+    show_photo boolean NOT NULL DEFAULT false
+);
+
+-- Record the provider id BEFORE upload, so even ambiguous/time-out outcomes can
+-- be cleaned up. No provider credentials are stored here.
+CREATE TABLE image_asset (
+    id varchar(36) PRIMARY KEY,
+    owner_subject varchar(255) NOT NULL,
+    public_id varchar(255) NOT NULL UNIQUE,
+    url varchar(255) UNIQUE,
+    student_id bigint REFERENCES student(id) ON DELETE SET NULL,
+    delete_after timestamp with time zone
+);
+CREATE INDEX idx_image_asset_cleanup ON image_asset(delete_after);
+CREATE INDEX idx_image_asset_student ON image_asset(student_id);
+

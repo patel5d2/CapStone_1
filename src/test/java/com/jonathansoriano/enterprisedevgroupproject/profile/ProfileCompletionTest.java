@@ -1,13 +1,11 @@
 package com.jonathansoriano.enterprisedevgroupproject.profile;
 
-import com.jonathansoriano.enterprisedevgroupproject.PostgresTestConfiguration;
 import com.jonathansoriano.enterprisedevgroupproject.domain.*;
 import com.jonathansoriano.enterprisedevgroupproject.image.*;
 import com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,7 +15,6 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
-@Import(PostgresTestConfiguration.class)
 @Transactional
 class ProfileCompletionTest {
     @Autowired ProfileCompletionService profiles;
