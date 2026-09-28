@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.webhook;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -11,24 +12,30 @@ import java.time.ZoneOffset;
 /**
  * The verified Clerk identities this application has been told about.
  *
- * <p>One statement, because idempotency and ordering are the same problem: Clerk retries
- * a delivery until it gets a 2xx and does not guarantee order, so the upsert advances a
- * row only when the incoming event is newer than the one already recorded. A retry
- * carries the same timestamp and changes nothing; a late-arriving older event cannot roll
- * an address back.
+ * <p>Idempotency and ordering are the same problem: Clerk retries a delivery until it
+ * gets a 2xx and does not guarantee order, so a row advances only when the incoming event
+ * is newer than the one already recorded. A retry carries the same timestamp and changes
+ * nothing; a late-arriving older event cannot roll an address back.
+ *
+ * <p>Plain UPDATE-then-INSERT rather than an upsert statement: H2 has no equivalent of
+ * PostgreSQL's conditional {@code ON CONFLICT ... DO UPDATE ... WHERE}.
  */
 @Repository
 public class ClerkIdentityRepository {
 
-    private static final String UPSERT_IDENTITY = """
+    private static final String ADVANCE_IDENTITY = """
+            UPDATE clerk_identity
+            SET email = :email,
+                last_event_id = :lastEventId,
+                last_event_at = :lastEventAt,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE clerk_user_id = :clerkUserId AND last_event_at < :lastEventAt
+            """;
+
+    private static final String INSERT_IDENTITY = """
             INSERT INTO clerk_identity (clerk_user_id, email, last_event_id, last_event_at)
-            VALUES (:clerkUserId, :email, :lastEventId, :lastEventAt)
-            ON CONFLICT (clerk_user_id) DO UPDATE
-            SET email = EXCLUDED.email,
-                last_event_id = EXCLUDED.last_event_id,
-                last_event_at = EXCLUDED.last_event_at,
-                updated_at = now()
-            WHERE clerk_identity.last_event_at < EXCLUDED.last_event_at
+            SELECT :clerkUserId, :email, :lastEventId, :lastEventAt
+            WHERE NOT EXISTS (SELECT 1 FROM clerk_identity WHERE clerk_user_id = :clerkUserId)
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -52,6 +59,16 @@ public class ClerkIdentityRepository {
                 .addValue("lastEventId", eventId)
                 .addValue("lastEventAt", OffsetDateTime.ofInstant(eventAt, ZoneOffset.UTC));
 
-        return jdbcTemplate.update(UPSERT_IDENTITY, params);
+        int advanced = jdbcTemplate.update(ADVANCE_IDENTITY, params);
+        if (advanced > 0) {
+            return advanced;
+        }
+        try {
+            return jdbcTemplate.update(INSERT_IDENTITY, params);
+        } catch (DuplicateKeyException raced) {
+            // A concurrent first delivery inserted between the two statements; the
+            // UPDATE's newer-than check decides again against what it wrote.
+            return jdbcTemplate.update(ADVANCE_IDENTITY, params);
+        }
     }
 }

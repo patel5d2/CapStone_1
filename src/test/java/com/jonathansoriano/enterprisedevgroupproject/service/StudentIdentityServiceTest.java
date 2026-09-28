@@ -1,13 +1,11 @@
 package com.jonathansoriano.enterprisedevgroupproject.service;
 
-import com.jonathansoriano.enterprisedevgroupproject.PostgresTestConfiguration;
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * account failing to claim it.
  */
 @SpringBootTest
-@Import(PostgresTestConfiguration.class)
 @Transactional
 @ExtendWith(SpringExtension.class)
 class StudentIdentityServiceTest {

@@ -1,8 +1,2 @@
-# Production. Every value comes from the environment; nothing is defaulted here,
-# so a missing variable fails fast at startup rather than silently pointing the
-# application at the wrong database.
-spring:
-  datasource:
-    url: jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${PROD_DATABASE_NAME}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+# Production. Uses the same H2 in-memory datasource as application.yml: all data is
+# lost whenever the application restarts.

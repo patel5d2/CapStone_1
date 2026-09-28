@@ -19,7 +19,6 @@ import com.jonathansoriano.enterprisedevgroupproject.support.SupportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -34,7 +33,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * transaction, so a mocked test would not catch a regression there.
  */
 @SpringBootTest
-@Import(PostgresTestConfiguration.class)
 class FeatureFlowsIntegrationTest {
 
     private static final String SELLER = "seller@mail.uc.edu";

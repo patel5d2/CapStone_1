@@ -1,3 +1,23 @@
+-- CampusBridge mock data, loaded after schema.sql on every startup.
+-- The in-memory database is empty each time, so these inserts never collide.
+
+-- The supported institutions, carried over verbatim from the retired h2-data.sql
+-- so school ids and names keep matching what the SPA and SupportResourceSeeder expect.
+--
+-- Eight rows, not six. Open Question 4 in context/5_progress.md is still unresolved:
+-- the contract says "at least six", the sprint plan names six, this seed has eight.
+-- Thomas More and Cincinnati Christian are the two in dispute.
+
+INSERT INTO university (name) VALUES
+    ('University of Cincinnati'),
+    ('Northern Kentucky University'),
+    ('Xavier University'),
+    ('Miami University'),
+    ('Thomas More University'),
+    ('Cincinnati State Technical and Community College'),
+    ('Mount St. Joseph University'),
+    ('Cincinnati Christian University');
+
 -- Demo directory data: the 33 students that used to live in h2-data.sql.
 --
 -- Resolves Open Question 9. Without this a fresh database has an empty directory and
@@ -5,12 +25,11 @@
 -- feature cannot be demonstrated. These are fabricated people, present so the
 -- directory, messaging and listing flows have something to exercise.
 --
--- REMOVE THIS BEFORE THE PLATFORM CARRIES REAL ACCOUNTS. Delete with a later
--- migration, never by editing this file — V3 has already been applied.
+-- REMOVE THIS BEFORE THE PLATFORM CARRIES REAL ACCOUNTS.
 --
 -- Two deliberate differences from the h2-data.sql original:
 --   * schools are matched by name rather than a hardcoded id, so this survives any
---     future change to the order of V2__seed_schools.sql;
+--     future change to the order of the school rows above;
 --   * app_user.password is left NULL. The original seeded bcrypt hashes of a shared
 --     password "passw0rd!"; Clerk owns credentials now (decision 013) and this
 --     application stores none, so seeding password hashes would reintroduce exactly
@@ -56,11 +75,9 @@ FROM (VALUES
     ('Zachary', 'Nelson', 'Montgomery', 'OH', 'Cincinnati Christian University', 'Senior', 'Youth Ministry', 'zachary.nelson@ccuniversity.edu', 'https://linkedin.com/in/zacharynelson')
 ) AS v (first_name, last_name, resident_city, resident_state, university_name,
         grade, major, email, social_media_link)
-JOIN university u ON u.name = v.university_name
-ON CONFLICT (email) DO NOTHING;
+JOIN university u ON u.name = v.university_name;
 
 -- insertNewStudent keeps one app_user row per student; the seed holds to the same
 -- invariant so a seeded email is not treated as an unclaimed profile.
 INSERT INTO app_user (role, email)
-SELECT 'USER', s.email FROM student s
-ON CONFLICT (email) DO NOTHING;
+SELECT 'USER', s.email FROM student s;
