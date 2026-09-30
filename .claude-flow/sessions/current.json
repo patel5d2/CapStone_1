@@ -1,18 +1,8 @@
 {
-  "id": "session-1790623655773",
-  "startedAt": "2026-09-28T19:27:35.773Z",
-  "cwd": "/Users/dharminpatel/CapStone_1",
   "context": {
     "lastMatchedPatterns": [
       "mem-school-list-grows-----0"
     ]
   },
-  "metrics": {
-    "edits": 4,
-    "commands": 0,
-    "tasks": 0,
-    "errors": 0
-  },
-  "updatedAt": "2026-09-30T14:42:10.488Z",
-  "restoredAt": "2026-09-30T14:00:23.691Z"
+  "updatedAt": "2026-09-30T20:13:46.893Z"
 }
