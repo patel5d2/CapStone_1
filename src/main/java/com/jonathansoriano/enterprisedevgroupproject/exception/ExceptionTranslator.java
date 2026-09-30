@@ -109,6 +109,13 @@ public class ExceptionTranslator {
                 413, "Photo must be 10 MB or smaller.", request.getRequestURI()));
     }
 
+    // An unknown path (e.g. "/" before the SPA is built into static/) is a 404, not a 500.
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ExceptionWrapper> handleNoResource(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ExceptionWrapper(
+                404, "Not found.", request.getRequestURI()));
+    }
+
     // Any other exception thrown will be caught here
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ExceptionWrapper> handleException(Exception ex, HttpServletRequest request) {

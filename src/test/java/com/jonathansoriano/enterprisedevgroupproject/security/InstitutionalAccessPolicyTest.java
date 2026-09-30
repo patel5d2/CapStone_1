@@ -46,26 +46,22 @@ class InstitutionalAccessPolicyTest {
             "SARAH.JOHNSON@MAIL.UC.EDU",       // Clerk does not normalise case for us
             "  buyer@xavier.edu  ",            // surrounding whitespace
             "student@nku.edu.",                // legal fully-qualified trailing dot
+            "dharminp976@gmail.com",           // personal addresses are allowed now
+            "student@outlook.com",
     })
-    @DisplayName("any .edu address is institutional, listed school or not")
-    void acceptsAnyEduDomain(String email) {
+    @DisplayName("any well-formed address is accepted, .edu or not")
+    void acceptsAnyDomain(String email) {
         assertThat(policy(false).isInstitutional(email)).isTrue();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "dharminp976@gmail.com",           // a real personal address, the common case
-            "student@outlook.com",
-            "student@xavier.edu.attacker.com", // .edu in the middle, not the suffix
-            "student@edu",                     // bare "edu" is not a .edu domain
-            "student@notedu",                  // missing the dot
-            "student@school.education",        // .edu as a prefix of the real suffix
             "no-at-sign",
             "@xavier.edu",                     // empty local part
             "student@",                        // empty domain
     })
-    @DisplayName("everything else is rejected")
-    void rejectsEverythingElse(String email) {
+    @DisplayName("malformed addresses are rejected")
+    void rejectsMalformed(String email) {
         assertThat(policy(false).isInstitutional(email)).isFalse();
     }
 
@@ -126,9 +122,9 @@ class InstitutionalAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("2FA never rescues a non-institutional address")
-    void twoFactorDoesNotOverrideTheDomainRule() {
-        assertThat(policy(true).grantsStudentAccess(tokenFor("dharminp976@gmail.com", List.of(0, 0)))).isFalse();
+    @DisplayName("2FA never rescues a malformed address")
+    void twoFactorDoesNotOverrideTheEmailRule() {
+        assertThat(policy(true).grantsStudentAccess(tokenFor("no-at-sign", List.of(0, 0)))).isFalse();
     }
 
     @Test

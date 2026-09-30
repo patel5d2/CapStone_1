@@ -3,7 +3,7 @@ import { useSignUp } from '@clerk/clerk-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, MailCheck } from 'lucide-react'
 import { Wordmark } from '../components/ui/Wordmark'
-import { isInstitutionalEmail, suggestUsername } from '../lib/institutionalEmail'
+import { isInstitutionalEmail } from '../lib/institutionalEmail'
 
 /** Clerk's configured minimum for this instance. */
 const MIN_PASSWORD_LENGTH = 9
@@ -12,10 +12,6 @@ const MIN_PASSWORD_LENGTH = 9
 function messageOf(error: unknown, fallback: string) {
   const first = (error as { errors?: { longMessage?: string; message?: string }[] })?.errors?.[0]
   return first?.longMessage ?? first?.message ?? fallback
-}
-
-function paramOf(error: unknown) {
-  return (error as { errors?: { meta?: { paramName?: string } }[] })?.errors?.[0]?.meta?.paramName
 }
 
 export default function SignUpPage() {
@@ -66,7 +62,7 @@ export default function SignUpPage() {
     if (!form.firstName.trim()) return 'Enter your first name.'
     if (!form.lastName.trim()) return 'Enter your last name.'
     if (!isInstitutionalEmail(form.email)) {
-      return 'Use your school email address — one ending in .edu. Personal addresses such as Gmail or Outlook cannot be used.'
+      return 'Enter a valid email address.'
     }
     if (form.password.length < MIN_PASSWORD_LENGTH) {
       return `Passwords must be at least ${MIN_PASSWORD_LENGTH} characters.`
@@ -96,14 +92,8 @@ export default function SignUpPage() {
         lastName: form.lastName.trim(),
       }
 
-      const created = await signUp
-        .create({ ...attempt, username: suggestUsername(email) })
-        .catch((err) => {
-          // Two students called j.smith at different schools collide on the derived
-          // username. They never see it, so a suffix costs them nothing.
-          if (paramOf(err) !== 'username') throw err
-          return signUp.create({ ...attempt, username: `${suggestUsername(email)}${Math.floor(Math.random() * 10000)}` })
-        })
+      // Usernames are off on the Clerk instance; sending one is rejected as an unknown param.
+      const created = await signUp.create(attempt)
 
       // Never activate an unverified address if the hosted signup settings change.
       if (created.status === 'complete') {
@@ -138,7 +128,12 @@ export default function SignUpPage() {
     setBusy(true)
     setError(null)
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code: code.trim() })
+      // A second click after the code already went through fails with
+      // verification_already_verified; carry on from the sign-up as it stands.
+      const result = await signUp.attemptEmailAddressVerification({ code: code.trim() }).catch((err) => {
+        if ((err as { errors?: { code?: string }[] })?.errors?.[0]?.code === 'verification_already_verified') return signUp
+        throw err
+      })
       if (result.status === 'complete') {
         await setActive({
           session: result.createdSessionId,
@@ -149,7 +144,7 @@ export default function SignUpPage() {
         })
       } else {
         setError(result.verifications.emailAddress.status === 'verified'
-          ? 'Your email is verified, but account setup is incomplete. Contact the CampusBridge team to check the required signup fields.'
+          ? `Your email is verified, but Clerk still needs: ${result.missingFields.join(', ') || 'unknown fields'}. Contact the CampusBridge team to check the required signup fields.`
           : 'That code was not accepted. Check the email and try again.')
       }
     } catch (err) {
@@ -170,7 +165,7 @@ export default function SignUpPage() {
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
                 <MailCheck className="h-5 w-5" />
               </span>
-              <h1 className="text-xl font-extrabold tracking-tight">Check your school email</h1>
+              <h1 className="text-xl font-extrabold tracking-tight">Check your email</h1>
               <p className="text-sm text-[var(--color-ink-muted)]">
                 We requested a verification code for <span className="font-semibold break-all">{form.email.trim()}</span>.
               </p>
@@ -242,19 +237,16 @@ export default function SignUpPage() {
             </div>
 
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold">School email</span>
+              <span className="mb-1.5 block text-xs font-semibold">Email</span>
               <input
                 className="field"
                 type="email"
                 autoComplete="email"
-                placeholder="you@yourschool.edu"
+                placeholder="you@example.com"
                 value={form.email}
                 onChange={set('email')}
                 required
               />
-              <span className="mt-1 block text-xs text-[var(--color-ink-faint)]">
-                University email ending in .edu only. No personal emails.
-              </span>
             </label>
 
             <label className="block">
