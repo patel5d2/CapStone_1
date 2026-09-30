@@ -40,10 +40,9 @@ function NotInstitutional({ email }: { email?: string }) {
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
           <GraduationCap className="h-6 w-6" />
         </span>
-        <h1 className="text-xl font-extrabold tracking-tight">Use your school email</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">Use a valid email</h1>
         <p className="text-sm text-[var(--color-ink-muted)]">
-          CampusBridge is for verified students, so accounts have to be on a school address ending in{' '}
-          <span className="font-semibold">.edu</span>.
+          Your account needs a valid email address to use CampusBridge.
         </p>
         {email && (
           <p className="text-sm text-[var(--color-ink-muted)]">
@@ -51,7 +50,7 @@ function NotInstitutional({ email }: { email?: string }) {
           </p>
         )}
         <SignOutButton>
-          <button className="btn-primary">Sign out and use a .edu address</button>
+          <button className="btn-primary">Sign out and use a valid email</button>
         </SignOutButton>
       </div>
     </div>

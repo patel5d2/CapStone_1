@@ -153,10 +153,10 @@ for (const [page, hook, method, destination] of [
 for (const [email, password, allowed] of [
   ['student@school.edu', 'Abcd1234!', true],
   ['student@school.edu', 'Abcd123!', false],
-  ['student@gmail.com', 'Abcd1234!', false],
-  ['student@school.edu.evil.com', 'Abcd1234!', false],
+  ['student@gmail.com', 'Abcd1234!', true],
+  ['no-at-sign', 'Abcd1234!', false],
 ]) {
-  test(`signup validates university address and password: ${email}, length ${password.length}`, async () => {
+  test(`signup validates email address and password: ${email}, length ${password.length}`, async () => {
     let stateIndex = 0
     const calls = []
     const institutional = load('lib/institutionalEmail.ts', {})

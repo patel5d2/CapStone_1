@@ -61,10 +61,10 @@ class InstitutionalAccessEnforcementTest {
     }
 
     @Test
-    @DisplayName("a personal address is refused with an explanation, not an empty 403")
-    void personalAddressIsRefusedWithAMessage() throws Exception {
+    @DisplayName("a malformed address is refused with an explanation, not an empty 403")
+    void malformedAddressIsRefusedWithAMessage() throws Exception {
         mockMvc.perform(get("/api/schools")
-                        .with(jwt().jwt(j -> j.claim("email", "dharminp976@gmail.com"))))
+                        .with(jwt().jwt(j -> j.claim("email", "no-at-sign"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.message").value(InstitutionalAccessPolicy.NOT_INSTITUTIONAL_MESSAGE))
@@ -76,7 +76,7 @@ class InstitutionalAccessEnforcementTest {
     @DisplayName("the legacy /student surface is behind the same rule")
     void legacyStudentSurfaceIsCovered() throws Exception {
         mockMvc.perform(get("/student")
-                        .with(jwt().jwt(j -> j.claim("email", "dharminp976@gmail.com"))))
+                        .with(jwt().jwt(j -> j.claim("email", "no-at-sign"))))
                 .andExpect(status().isForbidden());
     }
 

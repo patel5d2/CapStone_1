@@ -58,7 +58,7 @@ export default function Landing() {
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <SignedOut>
               <Link to="/sign-up" className="btn bg-white px-5 py-3 text-primary-700 hover:bg-primary-50">
-                Join with your .edu email <ArrowRight className="h-4 w-4" />
+                Join with your email <ArrowRight className="h-4 w-4" />
               </Link>
               <Link to="/sign-in" className="btn border border-white/40 px-5 py-3 text-white hover:bg-white/10">
                 Sign in

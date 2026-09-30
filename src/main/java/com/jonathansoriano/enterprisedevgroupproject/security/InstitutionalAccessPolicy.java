@@ -13,11 +13,8 @@ import java.util.Locale;
  * Objective 1, application half: decides whether a verified Clerk token belongs to a
  * student who may use the platform at all.
  *
- * <p>The rule is that the address sits on a {@code .edu} domain — any {@code .edu}, not
- * a list of named schools. That is deliberately broader than the eight seeded
- * universities: a student whose registrar issues an address this project has never
- * heard of should still be able to sign in, and maintaining a per-school allowlist
- * means a code or data change every time the school list moves.
+ * <p>The rule is that the token carries a well-formed email address. Any domain is
+ * accepted; the earlier {@code .edu}-only restriction was removed.
  *
  * <p>This exists because Clerk's own restrictions are configuration on a hosted
  * dashboard, and configuration drifts. Invariant 3 says only verified institutional
@@ -34,15 +31,13 @@ public class InstitutionalAccessPolicy {
 
     /** What the user is told when their address is rejected. */
     public static final String NOT_INSTITUTIONAL_MESSAGE =
-            "CampusBridge is for verified students. Sign in with your school email address "
-                    + "(one ending in .edu) — personal addresses such as Gmail or Outlook cannot be used.";
+            "CampusBridge could not read a valid email address on your account. "
+                    + "Sign in again with a valid email address.";
 
     /** What the user is told when their account has no second factor and one is required. */
     public static final String NO_SECOND_FACTOR_MESSAGE =
             "Two-factor authentication is required. Add a second factor to your account, "
                     + "then sign in again.";
-
-    private static final String INSTITUTIONAL_SUFFIX = ".edu";
 
     /**
      * Clerk's factor verification age claim: {@code [first_factor_age, second_factor_age]}
@@ -73,7 +68,7 @@ public class InstitutionalAccessPolicy {
                     + "the Clerk dashboard, this refuses EVERY account. Set "
                     + "campusbridge.auth.require-two-factor=false to reverse.");
         } else {
-            log.info("Institutional email enforcement active (.edu); two-factor enforcement is off.");
+            log.info("Email enforcement active (any valid address); two-factor enforcement is off.");
         }
     }
 
@@ -88,13 +83,12 @@ public class InstitutionalAccessPolicy {
         return !requireTwoFactor || hasSecondFactor(clerkSession.getClaim(FACTOR_VERIFICATION_AGE_CLAIM));
     }
 
-    /** True when the address sits on a {@code .edu} domain. */
+    /**
+     * True when the token carries a well-formed address. Any domain is accepted.
+     * ponytail: the .edu-only rule was dropped; reinstate a domain check here if it returns.
+     */
     public boolean isInstitutional(String email) {
-        String domain = domainOf(email);
-        // endsWith(".edu") rather than a contains check: "uc.edu.attacker.com" ends with
-        // neither, and requiring the leading dot stops a bare "edu" or "notedu" matching.
-        return domain != null && domain.endsWith(INSTITUTIONAL_SUFFIX)
-                && domain.length() > INSTITUTIONAL_SUFFIX.length();
+        return domainOf(email) != null;
     }
 
     /**

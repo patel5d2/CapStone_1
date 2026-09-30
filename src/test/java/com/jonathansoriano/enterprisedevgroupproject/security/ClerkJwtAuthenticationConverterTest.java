@@ -44,9 +44,15 @@ class ClerkJwtAuthenticationConverterTest {
     }
 
     @Test
-    @DisplayName("a personal address earns nothing, so the chain answers 403 not 401")
-    void personalAddressGetsNoAuthority() {
-        AbstractAuthenticationToken token = converter.convert(tokenFor("dharminp976@gmail.com"));
+    @DisplayName("a personal address earns ROLE_STUDENT too")
+    void personalAddressGetsTheRole() {
+        assertThat(authoritiesFor("dharminp976@gmail.com")).containsExactly("ROLE_STUDENT");
+    }
+
+    @Test
+    @DisplayName("a malformed address earns nothing, so the chain answers 403 not 401")
+    void malformedAddressGetsNoAuthority() {
+        AbstractAuthenticationToken token = converter.convert(tokenFor("no-at-sign"));
 
         assertThat(token.getAuthorities()).isEmpty();
         // Still authenticated: the signature was valid and they really are signed in.
