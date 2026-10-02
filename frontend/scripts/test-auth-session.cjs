@@ -40,6 +40,20 @@ for (const [label, state, destination] of [
   })
 }
 
+test('auth forms: pending on a task the app does not host offers sign-out, not the form', () => {
+  const { AuthSessionGate } = load('components/AuthSessionGate.tsx', {
+    '@clerk/clerk-react': {
+      useSession: () => ({ isLoaded: true, session: { status: 'pending', currentTask: { key: 'choose-organization' } } }),
+      SignOutButton: 'SignOutButton',
+    },
+    'react-router-dom': { Navigate: 'Navigate' },
+    './ui/Feedback': { Spinner: 'Spinner' },
+  })
+  const view = AuthSessionGate({ children: 'form' })
+  assert.ok(findElement(view, 'SignOutButton'))
+  assert.notEqual(view, 'form')
+})
+
 function findForm(node) {
   if (!node || typeof node !== 'object') return undefined
   if (node.type === 'form') return node
@@ -229,5 +243,26 @@ for (const rejected of [false, true]) {
     assert.equal(coolingDown.props.disabled, true)
     await coolingDown.props.onClick()
     assert.equal(requests, 1, 'Do not resend during cooldown')
+  })
+}
+
+for (const [label, outcome, expected] of [
+  ['no profile yet (404) sends the student to /profile', { status: 404 }, true],
+  ['saved profile lets them through', 'ok', false],
+  ['any other failure does not trap them', { status: 500 }, false],
+]) {
+  test(`profile gate: ${label}`, async () => {
+    class ApiError extends Error { constructor(status) { super('x'); this.status = status } }
+    let state
+    const { useProfileMissing } = load('lib/profileGate.ts', {
+      react: { useState: (initial) => [state ?? initial, (v) => { state = v }], useEffect: (fn) => { fn() } },
+      './api': {
+        ApiError,
+        api: { get: () => outcome === 'ok' ? Promise.resolve({}) : Promise.reject(new ApiError(outcome.status)) },
+      },
+    })
+    assert.equal(useProfileMissing(`user_${label}`), null)
+    await new Promise((r) => setTimeout(r, 0))
+    assert.equal(state, expected)
   })
 }
