@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "updatedAt": 1790798854473,
+  "updatedAt": 1790968361075,
   "nodeCount": 1,
   "contentFingerprint": "832bbb07_268886e0_49",
   "nodes": {
     "mem-school-list-grows-----0": {
       "id": "mem-school-list-grows-----0",
       "category": "school-list-grows",
-      "confidence": 0.455,
-      "accessCount": 0,
+      "confidence": 0.435,
+      "accessCount": 2,
       "createdAt": 1789999303809
     }
   },

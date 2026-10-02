@@ -1,0 +1,15 @@
+{
+  "id": "session-1790968359250",
+  "startedAt": "2026-10-02T19:12:39.250Z",
+  "cwd": "/Users/dharminpatel/Downloads/CapStone_1",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "restoredAt": "2026-10-02T19:12:39.891Z",
+  "endedAt": "2026-10-02T19:12:40.587Z",
+  "duration": 1338
+}
