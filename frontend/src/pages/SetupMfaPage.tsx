@@ -22,7 +22,9 @@ export default function SetupMfaPage() {
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-12">
       <Wordmark />
-      <TaskSetupMFA redirectUrlComplete="/marketplace" />
+      {/* MFA enrolment is the last step of sign-up (required_for_sign_up), so finish on
+          the profile form; an existing profile just opens "My profile". */}
+      <TaskSetupMFA redirectUrlComplete="/profile" />
     </div>
   )
 }
