@@ -1,2 +1,10 @@
 # Development profile. The H2 in-memory datasource in application.yml applies here
 # unchanged; this file exists so dev-only overrides have somewhere to go.
+spring:
+  datasource:
+    url: jdbc:postgresql://campus-bridge-dev-jonathan-7163.d.aivencloud.com:11945/campus_bridge_development?sslmode=require
+    username: avnadmin
+    password: ${DATABASE_PASSWORD}
+  sql:
+    init:
+      mode: never
