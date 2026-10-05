@@ -53,7 +53,7 @@ export default function SignInPage() {
     // says so while it is still useful.
     if (!isInstitutionalEmail(email)) {
       setError(
-        'Use your school email address — one ending in .edu. Personal addresses such as Gmail or Outlook cannot be used.',
+        'Enter a valid email address.',
       )
       return
     }
@@ -121,12 +121,12 @@ export default function SignInPage() {
           </div>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold">School email</span>
+            <span className="mb-1.5 block text-xs font-semibold">Email</span>
             <input
               className="field"
               type="email"
               autoComplete="email"
-              placeholder="you@yourschool.edu"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

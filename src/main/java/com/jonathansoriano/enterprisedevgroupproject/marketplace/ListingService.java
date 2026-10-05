@@ -203,7 +203,9 @@ public class ListingService {
                 .price(listing.getPrice())
                 .courseCode(listing.getCourseCode())
                 .schoolId(listing.getSchoolId())
-                .photoUrls(listing.getPhotoUrls())
+                // Copied, not handed over: the lazy collection itself would only be read
+                // when Jackson writes the response, after the transaction has closed.
+                .photoUrls(List.copyOf(listing.getPhotoUrls()))
                 .favorited(favoritedIds.contains(listing.getId()))
                 .createdAt(listing.getCreatedAt())
                 .updatedAt(listing.getUpdatedAt())

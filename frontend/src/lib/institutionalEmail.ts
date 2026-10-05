@@ -5,8 +5,6 @@
  * and tells them why while they can still fix it; the account is still refused by the
  * API if it ever exists, and that refusal is the actual gate.
  */
-const SUFFIX = '.edu'
-
 /** The domain part of an address, lower-cased, or null if there isn't one. */
 export function domainOf(email: string | undefined | null): string | null {
   if (!email) return null
@@ -19,18 +17,8 @@ export function domainOf(email: string | undefined | null): string | null {
   return domain && !/\s/.test(domain) ? domain : null
 }
 
+/** Any well-formed address is accepted; the .edu-only rule was dropped. */
 export function isInstitutionalEmail(email: string | undefined | null): boolean {
-  const domain = domainOf(email)
-  return !!domain && domain.length > SUFFIX.length && domain.endsWith(SUFFIX)
+  return !!domainOf(email)
 }
 
-/**
- * Clerk requires a username on this instance, but CampusBridge never shows one. Rather
- * than make every student invent one, derive it from the address they already typed.
- */
-export function suggestUsername(email: string): string {
-  const local = email.trim().toLowerCase().split('@')[0] ?? ''
-  const base = local.replace(/[^a-z0-9_]/g, '').slice(0, 20)
-  // Clerk rejects very short usernames; pad rather than fail on someone called "jo".
-  return base.length >= 4 ? base : `${base}${Math.floor(1000 + Math.random() * 9000)}`
-}

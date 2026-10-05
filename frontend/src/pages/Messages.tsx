@@ -287,7 +287,7 @@ export default function Messages() {
         open={newChatOpen}
         onClose={() => setNewChatOpen(false)}
         title="New direct message"
-        description="Enter the school email of the student you want to reach."
+        description="Enter the email of the student you want to reach."
         footer={
           <>
             <button className="btn-ghost" onClick={() => setNewChatOpen(false)}>
@@ -301,7 +301,7 @@ export default function Messages() {
       >
         <input
           className="field"
-          placeholder="student@mail.uc.edu"
+          placeholder="student@example.com"
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && startDirect()}
