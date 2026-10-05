@@ -22,7 +22,7 @@ RUN npm run build
 # ============================================================
 # Stage 1b: Build
 # ============================================================
-FROM eclipse-temurin:25-jdk-alpine AS build
+FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
 
 # Fix vulnerabilities by updating Alpine packages
@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/root/.m2/repository \
 # ============================================================
 # Stage 2: Runtime
 # ============================================================
-FROM eclipse-temurin:25-jre-alpine AS runtime
+FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 
 # Fix vulnerabilities

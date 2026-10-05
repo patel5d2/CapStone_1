@@ -13,6 +13,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      # The app targets Java 21 (pom.xml java.version, smoke-container.sh, VM 104).
+      # A new major JDK is a deliberate upgrade, not a weekly bump.
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions versions
   - package-ecosystem: "github-actions"
