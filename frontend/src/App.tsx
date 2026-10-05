@@ -5,6 +5,7 @@ import { GraduationCap, ShieldCheck } from 'lucide-react'
 import { AppShell } from './components/layout/AppShell'
 import { setTokenGetter } from './lib/authToken'
 import { isInstitutionalEmail } from './lib/institutionalEmail'
+import { useProfileMissing } from './lib/profileGate'
 import { Spinner } from './components/ui/Feedback'
 import Landing from './pages/Landing'
 import SignInPage from './pages/SignInPage'
@@ -40,10 +41,9 @@ function NotInstitutional({ email }: { email?: string }) {
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
           <GraduationCap className="h-6 w-6" />
         </span>
-        <h1 className="text-xl font-extrabold tracking-tight">Use your school email</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">Use a valid email</h1>
         <p className="text-sm text-[var(--color-ink-muted)]">
-          CampusBridge is for verified students, so accounts have to be on a school address ending in{' '}
-          <span className="font-semibold">.edu</span>.
+          Your account needs a valid email address to use CampusBridge.
         </p>
         {email && (
           <p className="text-sm text-[var(--color-ink-muted)]">
@@ -51,7 +51,7 @@ function NotInstitutional({ email }: { email?: string }) {
           </p>
         )}
         <SignOutButton>
-          <button className="btn-primary">Sign out and use a .edu address</button>
+          <button className="btn-primary">Sign out and use a valid email</button>
         </SignOutButton>
       </div>
     </div>
@@ -95,10 +95,15 @@ function TwoFactorRequired() {
   )
 }
 
-function RequireAuth({ children }: { children: ReactNode }) {
+/**
+ * Signed in, allowed, and — except on the profile page itself — has completed their
+ * profile. A new student is sent to /profile from every page until they save it.
+ */
+function RequireAuth({ children, allowIncompleteProfile = false }: { children: ReactNode; allowIncompleteProfile?: boolean }) {
   const { isLoaded, isSignedIn } = useAuth()
   const { isLoaded: sessionLoaded, session } = useSession()
   const { user } = useUser()
+  const profileMissing = useProfileMissing(isSignedIn && !allowIncompleteProfile ? user?.id : undefined)
   if (!isLoaded || !sessionLoaded) return <Spinner />
   if (session?.currentTask?.key === 'setup-mfa') {
     return <Navigate to="/session-tasks/setup-mfa" replace />
@@ -110,6 +115,10 @@ function RequireAuth({ children }: { children: ReactNode }) {
   // rejection then would flash it at students who are perfectly entitled to be here.
   if (user && !isInstitutionalEmail(email)) return <NotInstitutional email={email} />
   if (REQUIRE_TWO_FACTOR && user && !user.twoFactorEnabled) return <TwoFactorRequired />
+  if (!allowIncompleteProfile) {
+    if (profileMissing === null) return <Spinner />
+    if (profileMissing) return <Navigate to="/profile" replace />
+  }
 
   return <>{children}</>
 }
@@ -164,7 +173,7 @@ export default function App() {
           <Route
             path="/profile"
             element={
-              <RequireAuth>
+              <RequireAuth allowIncompleteProfile>
                 <Profile />
               </RequireAuth>
             }

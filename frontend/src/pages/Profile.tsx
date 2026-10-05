@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useUser } from '@clerk/clerk-react'
+import { useNavigate } from 'react-router-dom'
 import { UserRound, Save, Check } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
+import { markProfileComplete } from '../lib/profileGate'
 import { useToast } from '../components/ui/Toast'
 import { PageHeader } from '../components/ui/Tabs'
 import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback'
@@ -57,6 +59,7 @@ function validate(form: ProfileForm): FieldErrors {
 export default function Profile() {
   const { user } = useUser()
   const { push } = useToast()
+  const navigate = useNavigate()
   const email = user?.primaryEmailAddress?.emailAddress ?? ''
   const [form, setForm] = useState<ProfileForm>(EMPTY)
   const [visibility, setVisibility] = useState<ProfileVisibility>(PRIVATE)
@@ -168,7 +171,10 @@ export default function Profile() {
       else await api.put<string>('/student/profile', body)
       setIsNew(false)
       setSaved(true)
+      markProfileComplete(user?.id)
       push('Profile and visibility saved', 'success')
+      // First save finishes sign-up: let them into the app.
+      if (isNew) navigate('/marketplace')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not save your profile.'
       const mapped: FieldErrors = {}

@@ -1,4 +1,6 @@
-{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/test/java/com/jonathansoriano/enterprisedevgroupproject/PostgresTestConfiguration.java","success":true,"timestamp":1790623939190,"sessionId":null}
-{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/test/java/com/jonathansoriano/enterprisedevgroupproject/TestEnterpriseDevGroupProjectApplication.java","success":true,"timestamp":1790629241171,"sessionId":null}
-{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/main/resources/application.yml","success":true,"timestamp":1790635242030,"sessionId":null}
-{"type":"edit","file":"/Users/dharminpatel/CapStone_1/src/test/java/com/jonathansoriano/enterprisedevgroupproject/EnterpriseDevGroupProjectApplicationTests.java","success":true,"timestamp":1790635269574,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/Downloads/CapStone_1/frontend/src/components/AuthSessionGate.tsx","success":true,"timestamp":1790968693036,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/Downloads/CapStone_1/frontend/scripts/test-auth-session.cjs","success":true,"timestamp":1790968694142,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/Downloads/CapStone_1/frontend/src/components/AuthSessionGate.tsx","success":true,"timestamp":1790968896505,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/Downloads/CapStone_1/frontend/src/lib/profileGate.ts","success":true,"timestamp":1790969266710,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/Downloads/CapStone_1/frontend/wrangler.jsonc","success":true,"timestamp":1791169734292,"sessionId":null}
+{"type":"edit","file":"/Users/dharminpatel/Downloads/CapStone_1/frontend/worker.js","success":true,"timestamp":1791169735401,"sessionId":null}
