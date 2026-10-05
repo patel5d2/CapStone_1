@@ -1,0 +1,20 @@
+// Cloudflare Workers deploy of the SPA (Workers Builds: root /frontend, branch main).
+// The Spring Boot API runs elsewhere, so worker.js forwards /api and /student to it;
+// everything else is served from the built assets.
+{
+  "name": "capstone-1",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "campusbridge.dharmintech.org", "custom_domain": true }],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Refreshing /marketplace etc. serves index.html, like SpaForwardingConfig does.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/student", "/student/*"]
+  },
+  "vars": {
+    // Spring Boot API: Proxmox VM 104, published through the Cloudflare Tunnel.
+    "BACKEND_URL": "https://api.dharmintech.org"
+  }
+}
