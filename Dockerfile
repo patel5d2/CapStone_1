@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1a: Frontend build (React + TypeScript SPA)
 # ============================================================
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /frontend
 
 # Install dependencies first so this layer caches on lockfile changes only
