@@ -1,7 +1,10 @@
 # Development profile. The H2 in-memory datasource in application.yml gets overridden here
 # if datasource change. This file contains cloud-based datasource (Aiven PostgreSQL)
-# Secretes are stored locally in Run Configurations of the application
+# The password is read from DATABASE_PASSWORD: set it in the git-ignored .env file at the
+# project root (loaded below), or as an environment variable / Run Configuration.
 spring:
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: jdbc:postgresql://campus-bridge-dev-jonathan-7163.d.aivencloud.com:11945/campus_bridge_development?sslmode=require
     username: avnadmin
