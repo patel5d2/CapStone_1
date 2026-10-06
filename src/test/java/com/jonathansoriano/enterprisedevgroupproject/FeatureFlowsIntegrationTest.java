@@ -12,6 +12,7 @@ import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingType;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingRequest;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.MessagingService;
+import com.jonathansoriano.enterprisedevgroupproject.messages.Party;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
@@ -37,6 +38,9 @@ class FeatureFlowsIntegrationTest {
 
     private static final String SELLER = "seller@mail.uc.edu";
     private static final String BUYER = "buyer@xavier.edu";
+    // Messaging resolves callers to a Clerk subject plus address (ADR-012).
+    private static final Party SELLER_PARTY = new Party("user_seller", SELLER);
+    private static final Party BUYER_PARTY = new Party("user_buyer", BUYER);
 
     @Autowired
     private ListingService listingService;
@@ -173,40 +177,40 @@ class FeatureFlowsIntegrationTest {
                 .build(), SELLER);
 
         ConversationResponse conversation = messagingService.startConversation(
-                StartConversationRequest.builder().listingId(listing.getId()).build(), BUYER);
+                StartConversationRequest.builder().listingId(listing.getId()).build(), BUYER_PARTY);
 
         assertThat(conversation.getParticipantEmails()).containsExactlyInAnyOrder(SELLER, BUYER);
         assertThat(conversation.getListingId()).isEqualTo(listing.getId());
 
         // Starting again reuses the same thread instead of piling up duplicates
         ConversationResponse again = messagingService.startConversation(
-                StartConversationRequest.builder().listingId(listing.getId()).build(), BUYER);
+                StartConversationRequest.builder().listingId(listing.getId()).build(), BUYER_PARTY);
         assertThat(again.getId()).isEqualTo(conversation.getId());
 
-        messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Is this still available?", null), BUYER);
-        assertThat(messagingService.listMessages(conversation.getId(), SELLER)).hasSize(1);
+        messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Is this still available?", null), BUYER_PARTY);
+        assertThat(messagingService.listMessages(conversation.getId(), SELLER_PARTY)).hasSize(1);
 
         // The seller sees it as unread until they open the thread
-        assertThat(unreadFor(SELLER, conversation.getId())).isEqualTo(1);
-        messagingService.markRead(conversation.getId(), SELLER);
-        assertThat(unreadFor(SELLER, conversation.getId())).isZero();
+        assertThat(unreadFor(SELLER_PARTY, conversation.getId())).isEqualTo(1);
+        messagingService.markRead(conversation.getId(), SELLER_PARTY);
+        assertThat(unreadFor(SELLER_PARTY, conversation.getId())).isZero();
 
         // Outsiders cannot read someone else's conversation
-        assertThatThrownBy(() -> messagingService.listMessages(conversation.getId(), "stranger@nku.edu"))
+        assertThatThrownBy(() -> messagingService.listMessages(conversation.getId(), new Party("user_stranger", "stranger@nku.edu")))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("403");
 
         // Blocking stops further messages, and unblock (derived delete) restores them
-        messagingService.block(SELLER, BUYER);
-        assertThat(messagingService.listBlocked(SELLER)).contains(BUYER);
+        messagingService.block(SELLER_PARTY, BUYER);
+        assertThat(messagingService.listBlocked(SELLER_PARTY)).contains(BUYER);
         assertThatThrownBy(() ->
-                messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Hello?", null), BUYER))
+                messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Hello?", null), BUYER_PARTY))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("403");
 
-        messagingService.unblock(SELLER, BUYER);
-        assertThat(messagingService.listBlocked(SELLER)).doesNotContain(BUYER);
-        assertThat(messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Still there?", null), BUYER))
+        messagingService.unblock(SELLER_PARTY, BUYER);
+        assertThat(messagingService.listBlocked(SELLER_PARTY)).doesNotContain(BUYER);
+        assertThat(messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Still there?", null), BUYER_PARTY))
                 .isNotNull();
 
         listingService.delete(listing.getId(), SELLER);
@@ -249,8 +253,8 @@ class FeatureFlowsIntegrationTest {
                 .orElseThrow();
     }
 
-    private int unreadFor(String userEmail, Long conversationId) {
-        return messagingService.listConversations(userEmail).stream()
+    private int unreadFor(Party user, Long conversationId) {
+        return messagingService.listConversations(user).stream()
                 .filter(c -> c.getId().equals(conversationId))
                 .findFirst()
                 .map(ConversationResponse::getUnreadCount)

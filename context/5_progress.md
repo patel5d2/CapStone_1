@@ -300,6 +300,43 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       pinning the response shape — `fieldErrors.title`, `fieldErrors.category`,
       `fieldErrors['photoUrls[0]']`, and `message` asserted to contain no `{`);
       `npm run lint` and `npm run build` clean.
+- [x] **S1-11 Messaging identity (ADR-012 slice)** (2026-10-06). `conversation_participant`,
+      `message`, `blocked_user` and `user_report` carry a nullable Clerk-subject column beside
+      each address (`user_subject`, `sender_subject`, `blocker_subject`/`blocked_subject`,
+      `reporter_subject`/`reported_subject`); `(conversation_id, user_subject)` and
+      `(blocker_subject, blocked_subject)` are unique alongside the unchanged email
+      constraints. `MessagingIdentity` is the one place a messaging caller is resolved —
+      subject from the verified token, address from `ownerEmailFor` — and rows still keyed
+      only on that verified address are claimed for the subject on first contact
+      (decision 018, **Proposed**). `MessagingService` matches stored rows subject-first
+      (`Party.is`), so an address change keeps inbox membership, unread counts and blocks in
+      both directions, and a second account on a recycled address matches nothing.
+      Membership is decided in the service: a missing conversation is **404**, a
+      conversation without the caller **403** (invariant 2). Existing databases:
+      `scripts/db/messaging-identity-upgrade.sql` (idempotent) adds the columns and backfills
+      only addresses held by exactly one known subject; every other row is counted and stays
+      on its address until its owner signs in (rule 5).
+      **Disagreement with the story, stated rather than resolved:** it asks for a new Flyway
+      migration, and `main` no longer has Flyway — `schema.sql` is rebuilt on every start, so
+      the columns are in `schema.sql` and the upgrade is a script. See Open Question 13.
+      Verified 2026-10-06: `./mvnw --batch-mode verify` **161 tests, 0 failures** (13 new in
+      `MessagingIdentityTest`). An adversarial review before commit found five defects, all
+      fixed with a regression test each: a renamed student with a bound profile losing
+      new-address chats; mixed-case addresses never binding (a block escapable by rename);
+      a claim binding two rows to one subject pair and failing every later request;
+      unblocking by a recycled listed address doing nothing; and blocking a recycled
+      address's new holder failing with a 500 (now 409 — see `identity-backfill.md` §9).
+      The case and duplicate-claim tests were each confirmed to fail with their fix removed. Disposable PostgreSQL 16: `main`'s previous schema populated
+      with conversations, messages, blocks and reports, upgrade run twice — row counts,
+      unread sum and `last_read_at` identical before and after, the second run a no-op,
+      the recycled and the unknown address left unmatched and counted; the jar booted on the
+      upgraded database with `ddl-auto: validate`; `MessagingIdentityTest`,
+      `FeatureFlowsIntegrationTest`, `FrontendEndpointsSmokeTest` and
+      `StudentIdentityServiceTest` green on fresh PostgreSQL databases.
+      **Not verified:** no real Clerk token (tests construct `Jwt` values), no real address
+      change in Clerk, and the upgrade has not been run on the Aiven database.
+      **Not changed:** responses still carry participant, sender and blocked addresses —
+      removing them is S1-07 (invariant 4). The email columns stay until S1-12.
 
 ---
 
@@ -487,6 +524,7 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 011 | Legacy JDBC folded into JPA | Two persistence styles double the review surface and the injection surface | **Proposed** |
 | 012 | **Key identity on the Clerk user ID**, synced by `user.created` webhook | Clerk emails are mutable; email keys orphan rows across 16 entity columns. Supersedes 005 | **Reported carried, minutes not in the checkout** — implemented 2026-09-18 in S1-02 (`V4`, `StudentIdentityService`) on the team's confirmation that #49 passed. Attach the minutes to close Rule 8. Audit and backfill rules: [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) |
 | 013 | Adaptive password hashing discharged by Clerk | The contract requires adaptive hashes; Clerk owns credential storage, so CampusBridge stores none. Recorded so a reader looking for bcrypt understands its absence | **Proposed** |
+| 018 | Messaging rows are claimed for the caller's Clerk subject on first contact, matched by the caller's verified address | Rows written before S1-11, or addressed to someone not yet identified, carry only an address; binding them when their verified holder calls in is what lets an inbox and a block survive a later address change. Differs from identity-backfill rule 1 (student rows never bind by email) because that rule guards seeded demo profiles, and no messaging data is seeded | **Proposed** — implemented in S1-11 (`MessagingIdentity`). Needs a vote (Rule 8) |
 
 ---
 
@@ -605,6 +643,19 @@ Raise at the next weekly meeting. Do not guess these in code.
     unconditionally, so a class-level constraint would have thrown a
     `ClassCastException` — which the catch-all serves as an opaque 500, the exact failure
     mode this area keeps producing. Non-field errors now fall through to the message.
+
+13. **Flyway is gone from `main`, but invariant 7 and the stories still assume it.**
+    `2_architecture.md` lists Flyway as BUILT and invariant 7 says schema changes happen
+    only through a migration, yet `main` has no Flyway dependency and no `V*.sql` files:
+    the schema is one `schema.sql` (built from the former V1, V4–V7) recreated on every
+    start. S1-11 therefore changed `schema.sql` and shipped
+    `scripts/db/messaging-identity-upgrade.sql` for databases that already hold data, such
+    as the Aiven dev database. Restore Flyway (the script becomes a versioned migration),
+    or record `schema.sql` plus upgrade scripts as the mechanism and amend invariant 7?
+    Raised 2026-10-06; affects S1-10 and S1-12 the same way. Related: the email unique
+    constraints (`uk_blocked_user`, `uk_conversation_participant`) are still enforced beside
+    the new subject indexes, which is why blocking a recycled address answers 409 until
+    S1-12 removes the email columns.
 
 ---
 

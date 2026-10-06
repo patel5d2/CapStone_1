@@ -1,6 +1,5 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
-import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,9 +14,11 @@ import java.util.Map;
 public class UserReportController {
 
     private final UserReportRepository userReportRepository;
+    private final MessagingIdentity identity;
 
-    public UserReportController(UserReportRepository userReportRepository) {
+    public UserReportController(UserReportRepository userReportRepository, MessagingIdentity identity) {
         this.userReportRepository = userReportRepository;
+        this.identity = identity;
     }
 
     @PostMapping
@@ -27,9 +28,13 @@ public class UserReportController {
         if (reportedEmail == null || reportedEmail.isBlank() || reason == null || reason.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email and reason are required");
         }
+        Party reporter = identity.caller(clerkSession);
+        Party reported = identity.byAddress(reportedEmail);
         userReportRepository.save(UserReport.builder()
-                .reporterEmail(CurrentUser.emailOf(clerkSession))
-                .reportedEmail(reportedEmail)
+                .reporterEmail(reporter.email())
+                .reporterSubject(reporter.subject())
+                .reportedEmail(reported.email())
+                .reportedSubject(reported.subject())
                 .reason(reason)
                 .build());
         return ResponseEntity.noContent().build();

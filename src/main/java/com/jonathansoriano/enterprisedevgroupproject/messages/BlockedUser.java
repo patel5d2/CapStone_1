@@ -27,6 +27,13 @@ public class BlockedUser {
     @Column(name = "blocked_email", nullable = false)
     private String blockedEmail;
 
+    /** Clerk subjects of both sides; null where that side has not been identified (ADR-012). */
+    @Column(name = "blocker_subject")
+    private String blockerSubject;
+
+    @Column(name = "blocked_subject")
+    private String blockedSubject;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

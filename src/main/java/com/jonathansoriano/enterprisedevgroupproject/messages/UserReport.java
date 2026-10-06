@@ -26,6 +26,11 @@ public class UserReport {
     @Column(nullable = false)
     private String reportedEmail;
 
+    /** Clerk subjects of both sides; null where that side has not been identified (ADR-012). */
+    private String reporterSubject;
+
+    private String reportedSubject;
+
     @Column(nullable = false, length = 1000)
     private String reason;
 
