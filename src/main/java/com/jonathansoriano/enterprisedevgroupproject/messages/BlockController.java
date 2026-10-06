@@ -1,6 +1,5 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
-import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,14 +15,16 @@ import java.util.Map;
 public class BlockController {
 
     private final MessagingService messagingService;
+    private final MessagingIdentity identity;
 
-    public BlockController(MessagingService messagingService) {
+    public BlockController(MessagingService messagingService, MessagingIdentity identity) {
         this.messagingService = messagingService;
+        this.identity = identity;
     }
 
     @GetMapping
     public ResponseEntity<List<String>> listBlocked(@AuthenticationPrincipal Jwt clerkSession) {
-        return ResponseEntity.ok(messagingService.listBlocked(CurrentUser.emailOf(clerkSession)));
+        return ResponseEntity.ok(messagingService.listBlocked(identity.caller(clerkSession)));
     }
 
     @PostMapping
@@ -32,13 +33,13 @@ public class BlockController {
         if (email == null || email.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email is required");
         }
-        messagingService.block(CurrentUser.emailOf(clerkSession), email);
+        messagingService.block(identity.caller(clerkSession), email);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{email}")
     public ResponseEntity<Void> unblock(@PathVariable String email, @AuthenticationPrincipal Jwt clerkSession) {
-        messagingService.unblock(CurrentUser.emailOf(clerkSession), email);
+        messagingService.unblock(identity.caller(clerkSession), email);
         return ResponseEntity.noContent().build();
     }
 }

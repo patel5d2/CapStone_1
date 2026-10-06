@@ -5,6 +5,7 @@ import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationRe
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.MessageResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Conversations, messages and blocks, keyed on the Clerk subject with the address as the
+ * stand-in for anyone not yet identified (ADR-012, messaging slice). Every caller is a
+ * {@link Party} from {@link MessagingIdentity#caller}; stored rows are matched with
+ * {@link Party#is}, so ownership follows the subject through an address change.
+ */
 @Service
 public class MessagingService {
 
@@ -22,47 +29,49 @@ public class MessagingService {
     private final MessageRepository messageRepository;
     private final BlockedUserRepository blockedUserRepository;
     private final ListingRepository listingRepository;
+    private final MessagingIdentity identity;
 
     public MessagingService(ConversationRepository conversationRepository,
                              ConversationParticipantRepository participantRepository,
                              MessageRepository messageRepository,
                              BlockedUserRepository blockedUserRepository,
-                             ListingRepository listingRepository) {
+                             ListingRepository listingRepository,
+                             MessagingIdentity identity) {
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.messageRepository = messageRepository;
         this.blockedUserRepository = blockedUserRepository;
         this.listingRepository = listingRepository;
+        this.identity = identity;
     }
 
     @Transactional
-    public ConversationResponse startConversation(StartConversationRequest request, String requesterEmail) {
-        String recipientEmail;
+    public ConversationResponse startConversation(StartConversationRequest request, Party requester) {
+        Party recipient;
         Long listingId = null;
         ConversationType type;
 
         if (request.getListingId() != null) {
             var listing = listingRepository.findById(request.getListingId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
-            recipientEmail = listing.getSellerEmail();
+            recipient = identity.byAddress(listing.getSellerEmail());
             listingId = listing.getId();
             type = ConversationType.MARKETPLACE;
         } else if (request.getRecipientEmail() != null && !request.getRecipientEmail().isBlank()) {
-            recipientEmail = request.getRecipientEmail();
+            recipient = identity.byAddress(request.getRecipientEmail());
             type = ConversationType.DIRECT;
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Either listingId or recipientEmail is required");
         }
 
-        if (recipientEmail.equalsIgnoreCase(requesterEmail)) {
+        if (recipient.sameAs(requester)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot start a conversation with yourself");
         }
-        if (blockedUserRepository.existsByBlockerEmailAndBlockedEmail(recipientEmail, requesterEmail)
-                || blockedUserRepository.existsByBlockerEmailAndBlockedEmail(requesterEmail, recipientEmail)) {
+        if (isBlocked(recipient, requester) || isBlocked(requester, recipient)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Messaging is blocked between these users");
         }
 
-        Long existingConversationId = findExistingConversation(listingId, requesterEmail, recipientEmail);
+        Long existingConversationId = findExistingConversation(listingId, requester, recipient);
         Long conversationId;
         if (existingConversationId != null) {
             conversationId = existingConversationId;
@@ -72,85 +81,124 @@ public class MessagingService {
                     .listingId(listingId)
                     .build());
             conversationId = conversation.getId();
-            participantRepository.save(ConversationParticipant.builder()
-                    .conversationId(conversationId).userEmail(requesterEmail).unreadCount(0).build());
-            participantRepository.save(ConversationParticipant.builder()
-                    .conversationId(conversationId).userEmail(recipientEmail).unreadCount(0).build());
+            participantRepository.save(participantRow(conversationId, requester));
+            participantRepository.save(participantRow(conversationId, recipient));
         }
 
-        return toConversationResponse(conversationRepository.findById(conversationId).orElseThrow(), requesterEmail);
+        return toConversationResponse(conversationRepository.findById(conversationId).orElseThrow(), requester);
     }
 
-    public List<ConversationResponse> listConversations(String userEmail) {
-        return participantRepository.findByUserEmail(userEmail).stream()
+    public List<ConversationResponse> listConversations(Party caller) {
+        return participationsOf(caller).stream()
                 .map(participant -> conversationRepository.findById(participant.getConversationId()).orElseThrow())
-                .map(conversation -> toConversationResponse(conversation, userEmail))
+                .map(conversation -> toConversationResponse(conversation, caller))
                 .collect(Collectors.toList());
     }
 
-    public List<MessageResponse> listMessages(Long conversationId, String requesterEmail) {
-        requireParticipant(conversationId, requesterEmail);
+    public List<MessageResponse> listMessages(Long conversationId, Party caller) {
+        requireParticipant(conversationId, caller);
         return messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId).stream()
                 .map(this::toMessageResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional
-    public MessageResponse sendMessage(Long conversationId, SendMessageRequest request, String senderEmail) {
-        requireParticipant(conversationId, senderEmail);
+    public MessageResponse sendMessage(Long conversationId, SendMessageRequest request, Party sender) {
+        requireParticipant(conversationId, sender);
+        List<ConversationParticipant> others = participantRepository.findByConversationId(conversationId).stream()
+                .filter(participant -> !isCaller(participant, sender))
+                .toList();
 
-        for (ConversationParticipant participant : participantRepository.findByConversationId(conversationId)) {
-            if (!participant.getUserEmail().equalsIgnoreCase(senderEmail)
-                    && (blockedUserRepository.existsByBlockerEmailAndBlockedEmail(participant.getUserEmail(), senderEmail))) {
+        for (ConversationParticipant participant : others) {
+            if (isBlocked(partyOf(participant), sender)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The recipient has blocked you");
             }
         }
 
         Message message = messageRepository.save(Message.builder()
                 .conversationId(conversationId)
-                .senderEmail(senderEmail)
+                .senderEmail(sender.email())
+                .senderSubject(sender.subject())
                 .content(request.getContent())
                 .imageUrl(request.getImageUrl())
                 .build());
 
-        for (ConversationParticipant participant : participantRepository.findByConversationId(conversationId)) {
-            if (!participant.getUserEmail().equalsIgnoreCase(senderEmail)) {
-                participant.setUnreadCount(participant.getUnreadCount() + 1);
-                participantRepository.save(participant);
-            }
+        for (ConversationParticipant participant : others) {
+            participant.setUnreadCount(participant.getUnreadCount() + 1);
+            participantRepository.save(participant);
         }
 
         return toMessageResponse(message);
     }
 
     @Transactional
-    public void markRead(Long conversationId, String userEmail) {
-        ConversationParticipant participant = requireParticipant(conversationId, userEmail);
+    public void markRead(Long conversationId, Party caller) {
+        ConversationParticipant participant = requireParticipant(conversationId, caller);
         participant.setUnreadCount(0);
         participant.setLastReadAt(Instant.now());
         participantRepository.save(participant);
     }
 
-    public void block(String blockerEmail, String blockedEmail) {
-        if (blockedUserRepository.findByBlockerEmailAndBlockedEmail(blockerEmail, blockedEmail).isEmpty()) {
-            blockedUserRepository.save(BlockedUser.builder().blockerEmail(blockerEmail).blockedEmail(blockedEmail).build());
+    public void block(Party blocker, String blockedEmail) {
+        Party blocked = identity.byAddress(blockedEmail);
+        if (isBlocked(blocker, blocked)) {
+            return;
+        }
+        try {
+            blockedUserRepository.saveAndFlush(BlockedUser.builder()
+                    .blockerEmail(blocker.email()).blockerSubject(blocker.subject())
+                    .blockedEmail(blocked.email()).blockedSubject(blocked.subject())
+                    .build());
+        } catch (DataIntegrityViolationException collision) {
+            // An earlier block of yours sits on this same address but belongs to the account
+            // that held it before (a recycled address). uk_blocked_user still keys on the
+            // address pair, so a second row cannot exist yet — say so instead of a 500.
+            // ponytail: goes away when the email columns and their constraint do (S1-12).
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "You already have a block on this address from a previous account. "
+                            + "Remove it from your blocked list, then block again.");
         }
     }
 
+    /**
+     * Removes the caller's blocks on this person, and on the address as listed: the blocked
+     * list shows addresses, and one may now belong to someone other than the account blocked.
+     */
     @Transactional
-    public void unblock(String blockerEmail, String blockedEmail) {
-        blockedUserRepository.deleteByBlockerEmailAndBlockedEmail(blockerEmail, blockedEmail);
+    public void unblock(Party blocker, String blockedEmail) {
+        Party blocked = identity.byAddress(blockedEmail);
+        blockedUserRepository.deleteAll(blocksBy(blocker).stream()
+                .filter(block -> blocked.is(block.getBlockedSubject(), block.getBlockedEmail())
+                        || blockedEmail.equalsIgnoreCase(block.getBlockedEmail()))
+                .toList());
     }
 
-    public List<String> listBlocked(String blockerEmail) {
-        return blockedUserRepository.findByBlockerEmail(blockerEmail).stream()
+    public List<String> listBlocked(Party blocker) {
+        return blocksBy(blocker).stream()
                 .map(BlockedUser::getBlockedEmail)
                 .collect(Collectors.toList());
     }
 
-    private Long findExistingConversation(Long listingId, String userA, String userB) {
-        List<ConversationParticipant> aParticipations = participantRepository.findByUserEmail(userA);
-        for (ConversationParticipant participation : aParticipations) {
+    /** Whether {@code blocker} has blocked {@code target}, compared on subjects where known. */
+    private boolean isBlocked(Party blocker, Party target) {
+        return blocksBy(blocker).stream()
+                .anyMatch(block -> target.is(block.getBlockedSubject(), block.getBlockedEmail()));
+    }
+
+    private List<BlockedUser> blocksBy(Party blocker) {
+        return blockedUserRepository.findCandidatesByBlocker(blocker.subject(), blocker.email()).stream()
+                .filter(block -> blocker.is(block.getBlockerSubject(), block.getBlockerEmail()))
+                .toList();
+    }
+
+    private List<ConversationParticipant> participationsOf(Party party) {
+        return participantRepository.findCandidates(party.subject(), party.email()).stream()
+                .filter(participant -> isCaller(participant, party))
+                .toList();
+    }
+
+    private Long findExistingConversation(Long listingId, Party userA, Party userB) {
+        for (ConversationParticipant participation : participationsOf(userA)) {
             Conversation conversation = conversationRepository.findById(participation.getConversationId()).orElse(null);
             if (conversation == null) {
                 continue;
@@ -162,7 +210,8 @@ public class MessagingService {
                 continue;
             }
             boolean hasOtherUser = participantRepository.findByConversationId(conversation.getId()).stream()
-                    .anyMatch(p -> p.getUserEmail().equalsIgnoreCase(userB));
+                    .filter(p -> !p.getId().equals(participation.getId()))
+                    .anyMatch(p -> isCaller(p, userB));
             if (hasOtherUser) {
                 return conversation.getId();
             }
@@ -170,15 +219,42 @@ public class MessagingService {
         return null;
     }
 
-    private ConversationParticipant requireParticipant(Long conversationId, String userEmail) {
-        return participantRepository.findByConversationIdAndUserEmail(conversationId, userEmail)
+    /**
+     * Membership is decided here, in the service, by comparing the loaded participants with
+     * the caller (invariant 2): a conversation that does not exist is 404, one that exists
+     * without the caller in it is 403.
+     */
+    private ConversationParticipant requireParticipant(Long conversationId, Party caller) {
+        if (!conversationRepository.existsById(conversationId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
+        }
+        return participantRepository.findByConversationId(conversationId).stream()
+                .filter(participant -> isCaller(participant, caller))
+                .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not part of this conversation"));
     }
 
-    private ConversationResponse toConversationResponse(Conversation conversation, String requesterEmail) {
+    private static boolean isCaller(ConversationParticipant participant, Party party) {
+        return party.is(participant.getUserSubject(), participant.getUserEmail());
+    }
+
+    private static Party partyOf(ConversationParticipant participant) {
+        return new Party(participant.getUserSubject(), participant.getUserEmail());
+    }
+
+    private static ConversationParticipant participantRow(Long conversationId, Party party) {
+        return ConversationParticipant.builder()
+                .conversationId(conversationId)
+                .userEmail(party.email())
+                .userSubject(party.subject())
+                .unreadCount(0)
+                .build();
+    }
+
+    private ConversationResponse toConversationResponse(Conversation conversation, Party caller) {
         List<ConversationParticipant> participants = participantRepository.findByConversationId(conversation.getId());
         int unread = participants.stream()
-                .filter(p -> p.getUserEmail().equalsIgnoreCase(requesterEmail))
+                .filter(p -> isCaller(p, caller))
                 .findFirst()
                 .map(ConversationParticipant::getUnreadCount)
                 .orElse(0);

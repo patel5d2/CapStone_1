@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 /**
  * The verified Clerk identities this application has been told about.
@@ -70,5 +71,15 @@ public class ClerkIdentityRepository {
             // UPDATE's newer-than check decides again against what it wrote.
             return jdbcTemplate.update(ADVANCE_IDENTITY, params);
         }
+    }
+
+    /**
+     * Clerk subjects whose most recent recorded address is {@code email}. More than one
+     * means the address was recycled between accounts, which callers must treat as unknown.
+     */
+    public List<String> subjectsForEmail(String email) {
+        return jdbcTemplate.queryForList(
+                "SELECT clerk_user_id FROM clerk_identity WHERE lower(email) = lower(:email)",
+                new MapSqlParameterSource("email", email), String.class);
     }
 }
