@@ -26,6 +26,9 @@ public class Listing {
     @Column(nullable = false)
     private String sellerEmail;
 
+    /** The seller's Clerk subject (ADR-012); null only on legacy rows not yet claimed. */
+    private String sellerSubject;
+
     @Column(nullable = false)
     private String title;
 
