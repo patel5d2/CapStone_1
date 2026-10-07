@@ -1,9 +1,14 @@
 name: Release
 
+# Two ways in:
+#  - a pushed v*.*.* tag cuts that exact Maven version (pom must match the tag);
+#  - CI calls this after every green push to main (a merged PR), publishing
+#    v<pom version>-main.<CI run number> as the latest release, plus :main/:latest images.
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_call:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -13,12 +18,13 @@ permissions: {}
 
 env:
   REGISTRY: ghcr.io
-  # Configure these public repository variables before cutting a release.
-  # Deployment must supply the same issuer/JWKS/2FA values to the backend.
-  VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
-  VITE_REQUIRE_TWO_FACTOR: ${{ vars.CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR }}
-  CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
-  CLERK_JWKS_URI: ${{ vars.CLERK_JWKS_URI }}
+  # Repository variables override these; the fallbacks are the dev Clerk instance the
+  # deployed site uses (publishable values, not secrets). The backend must use the same
+  # issuer/JWKS/2FA values.
+  VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk' }}
+  VITE_REQUIRE_TWO_FACTOR: ${{ vars.CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR || 'true' }}
+  CLERK_ISSUER: ${{ vars.CLERK_ISSUER || 'https://innocent-macaw-1687.clerk.accounts.dev' }}
+  CLERK_JWKS_URI: ${{ vars.CLERK_JWKS_URI || 'https://innocent-macaw-1687.clerk.accounts.dev/.well-known/jwks.json' }}
 
 jobs:
   build:
@@ -61,14 +67,21 @@ jobs:
         working-directory: frontend
         run: npm run lint && npm run build
 
-      - name: Validate tag against Maven version
+      - name: Resolve release version
         id: version
         shell: bash
         run: |
           set -euo pipefail
           pom_version="$(./mvnw --quiet help:evaluate -Dexpression=project.version -DforceStdout)"
-          tag_version="${GITHUB_REF_NAME#v}"
 
+          if [[ "$GITHUB_REF_TYPE" != tag ]]; then
+            # A merge to main: one release per green CI run; a re-run updates the same one.
+            version="${pom_version%-SNAPSHOT}-main.${GITHUB_RUN_NUMBER}"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          tag_version="${GITHUB_REF_NAME#v}"
           if [[ "$pom_version" == *-SNAPSHOT ]]; then
             echo "Release builds require a non-SNAPSHOT Maven version." >&2
             exit 1
@@ -81,8 +94,9 @@ jobs:
 
           echo "version=$pom_version" >> "$GITHUB_OUTPUT"
 
+      # From main, CI has just run the full suite on this exact commit; a tag gets its own run.
       - name: Build and test release
-        run: ./mvnw --batch-mode verify
+        run: ./mvnw --batch-mode verify ${{ github.ref_type != 'tag' && '-DskipTests' || '' }}
 
       - name: Verify the release JAR contains the SPA and referenced assets
         run: python3 scripts/verify-spa-jar.py
@@ -151,6 +165,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.ref_type != 'tag' }}
+            type=raw,value=main,enable=${{ github.ref_type != 'tag' }}
             type=sha,prefix=sha-
             type=raw,value=latest
 
@@ -244,6 +260,8 @@ jobs:
       contents: write
       attestations: write
       id-token: write
+    env:
+      TAG: v${{ needs.build.outputs.version }}
 
     steps:
       - name: Download application JAR
@@ -276,7 +294,7 @@ jobs:
         run: |
           set -euo pipefail
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="$GITHUB_REF_NAME" \
+            -f tag_name="$TAG" \
             -f target_commitish="$GITHUB_SHA" \
             --jq .body > generated-notes.md
 
@@ -296,18 +314,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/* \
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
-            gh release edit "$GITHUB_REF_NAME" \
+            gh release edit "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "Student Directory $GITHUB_REF_NAME" \
+              --title "CampusBridge $TAG" \
               --notes-file release-notes.md
           else
-            gh release create "$GITHUB_REF_NAME" dist/* \
+            # A pushed tag must already exist; a main build tags the commit CI tested.
+            if [[ "$GITHUB_REF_TYPE" == tag ]]; then where=(--verify-tag); else where=(--target "$GITHUB_SHA"); fi
+            gh release create "$TAG" dist/* \
               --repo "$GITHUB_REPOSITORY" \
-              --verify-tag \
-              --title "Student Directory $GITHUB_REF_NAME" \
+              "${where[@]}" \
+              --latest \
+              --title "CampusBridge $TAG" \
               --notes-file release-notes.md
           fi

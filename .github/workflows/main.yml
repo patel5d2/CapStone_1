@@ -7,9 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A newer push supersedes a PR's run; on main every merge runs to the end (queued), so a
+# deploy or release is never cut off halfway.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -104,6 +106,46 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk
         run: npm run build
 
+  # Everything a visitor reaches without signing in, in Chromium, Firefox and WebKit at
+  # desktop and 375px. e2e/signed-in.spec.ts skips itself here (no Clerk test account).
+  e2e:
+    name: Playwright end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run Playwright
+        working-directory: frontend
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
+
   container-build:
     name: Validate container startup
     runs-on: ubuntu-latest
@@ -165,7 +207,7 @@ jobs:
   deploy-backend:
     name: Deploy backend to VM 104
     runs-on: [self-hosted, linux, campusbridge-vm]
-    needs: [build-and-test, frontend, container-build]
+    needs: [build-and-test, frontend, e2e, container-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 15
     environment:
@@ -214,3 +256,18 @@ jobs:
           done
           echo "::error::https://campusbridge.dharmintech.org/api/schools answered $code, expected 401 from the backend"
           exit 1
+
+  # Every merge to main that passes the checks above becomes a GitHub release (jar, SBOM,
+  # checksums) and a multi-arch GHCR image tagged :main, :latest and its version. It does not
+  # wait for the VM deploy, so an offline VM never holds a release back.
+  release:
+    name: Publish release
+    needs: [build-and-test, frontend, e2e, container-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+      security-events: write
