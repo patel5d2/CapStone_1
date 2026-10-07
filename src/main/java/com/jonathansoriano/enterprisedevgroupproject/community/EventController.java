@@ -2,7 +2,7 @@ package com.jonathansoriano.enterprisedevgroupproject.community;
 
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.EventRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.EventResponse;
-import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +17,11 @@ import java.util.List;
 public class EventController {
 
     private final EventService eventService;
+    private final CallerIdentity identity;
 
-    public EventController(EventService eventService) {
+    public EventController(EventService eventService, CallerIdentity identity) {
         this.eventService = eventService;
+        this.identity = identity;
     }
 
     @GetMapping
@@ -30,7 +32,7 @@ public class EventController {
     @PostMapping
     public ResponseEntity<EventResponse> create(@Valid @RequestBody EventRequest request,
                                                  @AuthenticationPrincipal Jwt clerkSession) {
-        EventResponse created = eventService.create(request, CurrentUser.emailOf(clerkSession));
+        EventResponse created = eventService.create(request, identity.caller(clerkSession));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 }

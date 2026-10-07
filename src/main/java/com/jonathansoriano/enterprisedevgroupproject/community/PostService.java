@@ -4,6 +4,7 @@ import com.jonathansoriano.enterprisedevgroupproject.community.dto.CommentReques
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.CommentResponse;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostResponse;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/** Authorship and likes key on the Clerk subject, never the address (ADR-012). */
 @Service
 public class PostService {
 
@@ -25,58 +27,62 @@ public class PostService {
         this.postLikeRepository = postLikeRepository;
     }
 
-    public List<PostResponse> list(Long groupId, String requesterEmail) {
+    /** {@code viewer} may be null (no session): then nothing shows as liked. */
+    public List<PostResponse> list(Long groupId, Party viewer) {
         List<Post> posts = groupId == null
                 ? postRepository.findByGroupIdIsNullOrderByPinnedDescCreatedAtDesc()
                 : postRepository.findByGroupIdOrderByPinnedDescCreatedAtDesc(groupId);
-        return posts.stream().map(post -> toResponse(post, requesterEmail)).collect(Collectors.toList());
+        return posts.stream().map(post -> toResponse(post, viewer)).collect(Collectors.toList());
     }
 
-    public PostResponse create(PostRequest request, String authorEmail) {
+    public PostResponse create(PostRequest request, Party author) {
         Post post = postRepository.save(Post.builder()
-                .authorEmail(authorEmail)
+                .authorEmail(author.email())
+                .authorSubject(author.subject())
                 .groupId(request.getGroupId())
                 .content(request.getContent())
                 .imageUrl(request.getImageUrl())
                 .pinned(false)
                 .build());
-        return toResponse(post, authorEmail);
+        return toResponse(post, author);
     }
 
-    public void delete(Long postId, String requesterEmail) {
+    public void delete(Long postId, Party caller) {
         Post post = findOrThrow(postId);
-        if (!post.getAuthorEmail().equalsIgnoreCase(requesterEmail)) {
+        if (!caller.owns(post.getAuthorSubject())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the author can delete this post");
         }
         postRepository.delete(post);
     }
 
-    public void togglePin(Long postId, String requesterEmail) {
+    public void togglePin(Long postId, Party caller) {
         Post post = findOrThrow(postId);
-        if (!post.getAuthorEmail().equalsIgnoreCase(requesterEmail)) {
+        if (!caller.owns(post.getAuthorSubject())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the author can pin this post");
         }
         post.setPinned(!post.isPinned());
         postRepository.save(post);
     }
 
-    public void like(Long postId, String userEmail) {
+    public void like(Long postId, Party caller) {
         findOrThrow(postId);
-        if (postLikeRepository.findByPostIdAndUserEmail(postId, userEmail).isEmpty()) {
-            postLikeRepository.save(PostLike.builder().postId(postId).userEmail(userEmail).build());
+        if (!postLikeRepository.existsByPostIdAndUserSubject(postId, caller.subject())) {
+            postLikeRepository.save(PostLike.builder().postId(postId)
+                    .userEmail(caller.email()).userSubject(caller.subject()).build());
         }
     }
 
     @Transactional
-    public void unlike(Long postId, String userEmail) {
-        postLikeRepository.deleteByPostIdAndUserEmail(postId, userEmail);
+    public void unlike(Long postId, Party caller) {
+        postLikeRepository.deleteByPostIdAndUserSubject(postId, caller.subject());
     }
 
-    public CommentResponse comment(Long postId, CommentRequest request, String authorEmail) {
+    public CommentResponse comment(Long postId, CommentRequest request, Party author) {
         findOrThrow(postId);
         Comment comment = commentRepository.save(Comment.builder()
                 .postId(postId)
-                .authorEmail(authorEmail)
+                .authorEmail(author.email())
+                .authorSubject(author.subject())
                 .content(request.getContent())
                 .build());
         return CommentResponse.builder()
@@ -105,9 +111,9 @@ public class PostService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found: " + id));
     }
 
-    private PostResponse toResponse(Post post, String requesterEmail) {
-        boolean likedByMe = requesterEmail != null
-                && postLikeRepository.findByPostIdAndUserEmail(post.getId(), requesterEmail).isPresent();
+    private PostResponse toResponse(Post post, Party viewer) {
+        boolean likedByMe = viewer != null
+                && postLikeRepository.existsByPostIdAndUserSubject(post.getId(), viewer.subject());
         return PostResponse.builder()
                 .id(post.getId())
                 .authorEmail(post.getAuthorEmail())
