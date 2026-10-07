@@ -62,25 +62,25 @@ class FeatureFlowsIntegrationTest {
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("40.00"))
                 .courseCode("MATH 1061")
-                .build(), SELLER);
+                .build(), SELLER_PARTY);
 
         assertThat(created.getId()).isNotNull();
         assertThat(created.getStatus().name()).isEqualTo("AVAILABLE");
 
         // Search by course code, the textbook path the plan calls for
-        assertThat(listingService.search(null, null, null, null, "MATH 1061", null, BUYER))
+        assertThat(listingService.search(null, null, null, null, "MATH 1061", null, BUYER_PARTY))
                 .extracting(ListingResponse::getId)
                 .contains(created.getId());
 
         // PostgreSQL must also handle unfiltered and case-insensitive text searches.
         // H2 previously hid Hibernate's binary binding for a null LOWER parameter.
-        assertThat(listingService.search(null, null, null, null, null, null, BUYER))
+        assertThat(listingService.search(null, null, null, null, null, null, BUYER_PARTY))
                 .extracting(ListingResponse::getId).contains(created.getId());
-        assertThat(listingService.search(null, null, null, null, null, "cAlCuLuS", BUYER))
+        assertThat(listingService.search(null, null, null, null, null, "cAlCuLuS", BUYER_PARTY))
                 .extracting(ListingResponse::getId).contains(created.getId());
-        assertThat(listingService.search(null, null, null, null, "math 1061", "light NOTES", BUYER))
+        assertThat(listingService.search(null, null, null, null, "math 1061", "light NOTES", BUYER_PARTY))
                 .extracting(ListingResponse::getId).contains(created.getId());
-        assertThat(listingService.search(null, null, null, null, null, "phase-zero-no-match", BUYER))
+        assertThat(listingService.search(null, null, null, null, null, "phase-zero-no-match", BUYER_PARTY))
                 .extracting(ListingResponse::getId).doesNotContain(created.getId());
 
         // Editing is restricted to the seller
@@ -90,26 +90,26 @@ class FeatureFlowsIntegrationTest {
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("25.00"))
                 .build();
-        assertThatThrownBy(() -> listingService.update(created.getId(), edit, BUYER))
+        assertThatThrownBy(() -> listingService.update(created.getId(), edit, BUYER_PARTY))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("403");
-        assertThat(listingService.update(created.getId(), edit, SELLER).getTitle())
+        assertThat(listingService.update(created.getId(), edit, SELLER_PARTY).getTitle())
                 .isEqualTo("Calculus textbook (price drop)");
 
         // Favorite toggles both ways — unfavorite is the derived delete query
-        listingService.favorite(created.getId(), BUYER);
-        assertThat(listingService.get(created.getId(), BUYER).isFavorited()).isTrue();
-        assertThat(listingService.myFavorites(BUYER)).extracting(ListingResponse::getId).contains(created.getId());
+        listingService.favorite(created.getId(), BUYER_PARTY);
+        assertThat(listingService.get(created.getId(), BUYER_PARTY).isFavorited()).isTrue();
+        assertThat(listingService.myFavorites(BUYER_PARTY)).extracting(ListingResponse::getId).contains(created.getId());
 
-        listingService.unfavorite(created.getId(), BUYER);
-        assertThat(listingService.get(created.getId(), BUYER).isFavorited()).isFalse();
-        assertThat(listingService.myFavorites(BUYER)).extracting(ListingResponse::getId).doesNotContain(created.getId());
+        listingService.unfavorite(created.getId(), BUYER_PARTY);
+        assertThat(listingService.get(created.getId(), BUYER_PARTY).isFavorited()).isFalse();
+        assertThat(listingService.myFavorites(BUYER_PARTY)).extracting(ListingResponse::getId).doesNotContain(created.getId());
 
-        listingService.markSold(created.getId(), SELLER);
-        assertThat(listingService.get(created.getId(), SELLER).getStatus().name()).isEqualTo("SOLD");
+        listingService.markSold(created.getId(), SELLER_PARTY);
+        assertThat(listingService.get(created.getId(), SELLER_PARTY).getStatus().name()).isEqualTo("SOLD");
 
-        listingService.delete(created.getId(), SELLER);
-        assertThatThrownBy(() -> listingService.get(created.getId(), SELLER))
+        listingService.delete(created.getId(), SELLER_PARTY);
+        assertThatThrownBy(() -> listingService.get(created.getId(), SELLER_PARTY))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404");
     }
@@ -174,7 +174,7 @@ class FeatureFlowsIntegrationTest {
                 .category(ListingCategory.FURNITURE)
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("50.00"))
-                .build(), SELLER);
+                .build(), SELLER_PARTY);
 
         ConversationResponse conversation = messagingService.startConversation(
                 StartConversationRequest.builder().listingId(listing.getId()).build(), BUYER_PARTY);
@@ -213,7 +213,7 @@ class FeatureFlowsIntegrationTest {
         assertThat(messagingService.sendMessage(conversation.getId(), new SendMessageRequest("Still there?", null), BUYER_PARTY))
                 .isNotNull();
 
-        listingService.delete(listing.getId(), SELLER);
+        listingService.delete(listing.getId(), SELLER_PARTY);
     }
 
     @Test

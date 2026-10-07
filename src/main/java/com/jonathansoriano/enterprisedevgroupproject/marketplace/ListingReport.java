@@ -26,6 +26,9 @@ public class ListingReport {
     @Column(nullable = false)
     private String reporterEmail;
 
+    /** The reporter's Clerk subject (ADR-012); null only on legacy rows not yet claimed. */
+    private String reporterSubject;
+
     @Column(nullable = false, length = 1000)
     private String reason;
 

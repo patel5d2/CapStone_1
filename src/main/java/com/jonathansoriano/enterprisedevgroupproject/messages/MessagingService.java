@@ -56,7 +56,10 @@ public class MessagingService {
         if (request.getListingId() != null) {
             var listing = listingRepository.findById(request.getListingId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
-            recipient = identity.byAddress(listing.getSellerEmail());
+            // The seller is whoever the listing records, not whoever holds its address now.
+            recipient = listing.getSellerSubject() != null
+                    ? new Party(listing.getSellerSubject(), listing.getSellerEmail())
+                    : identity.byAddress(listing.getSellerEmail());
             listingId = listing.getId();
             type = ConversationType.MARKETPLACE;
         } else if (request.getRecipientEmail() != null && !request.getRecipientEmail().isBlank()) {
