@@ -6,6 +6,9 @@ import { AppShell } from './components/layout/AppShell'
 import { setTokenGetter } from './lib/authToken'
 import { isInstitutionalEmail } from './lib/institutionalEmail'
 import { useProfileMissing } from './lib/profileGate'
+import { applySchoolTheme, slugForSchool } from './lib/schoolTheme'
+import { api, ApiError } from './lib/api'
+import type { StudentAccountDetails } from './types'
 import { Spinner } from './components/ui/Feedback'
 import Landing from './pages/Landing'
 import SignInPage from './pages/SignInPage'
@@ -25,6 +28,31 @@ function AuthTokenBridge() {
     setTokenGetter(() => getToken())
     return () => setTokenGetter(null)
   }, [getToken])
+  return null
+}
+
+/**
+ * Objective 8: once a student is signed in, their profile's school picks the palette;
+ * signing out (or having no profile yet) returns to the default. Rendered after
+ * AuthTokenBridge so the token getter is in place when the profile is fetched.
+ */
+function SchoolThemeBridge() {
+  const { isLoaded, isSignedIn, userId } = useAuth()
+  useEffect(() => {
+    if (!isLoaded) return
+    if (!isSignedIn) {
+      applySchoolTheme(null)
+      return
+    }
+    let cancelled = false
+    api.get<StudentAccountDetails>('/student/profile')
+      .then((profile) => { if (!cancelled) applySchoolTheme(slugForSchool(profile.universityName)) })
+      .catch((error: unknown) => {
+        // No profile yet: no school to theme by. Any other failure keeps what is showing.
+        if (!cancelled && error instanceof ApiError && error.status === 404) applySchoolTheme(null)
+      })
+    return () => { cancelled = true }
+  }, [isLoaded, isSignedIn, userId])
   return null
 }
 
@@ -127,6 +155,7 @@ export default function App() {
   return (
     <>
       <AuthTokenBridge />
+      <SchoolThemeBridge />
       <Routes>
         {/* Outside AppShell and outside RequireAuth on purpose: a session pending on
             setup-mfa is signed in but not active, and RequireAuth's two-factor gate

@@ -288,6 +288,13 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       **Not verified:** the flow has not been opened in a browser — 375px, keyboard-only,
       Chrome/Safari/Firefox are all outstanding, and they are three of the seven
       Definition-of-Done checks. **Objective 3 does not move.**
+      **Prefilled from Clerk (2026-10-06, by user direction).** A first profile starts from
+      the first and last name the student gave Clerk at sign-up; those fields collapse to a
+      "From your account" summary with **Edit name**, and a validation error on either
+      reopens them. Only the remaining required fields are asked (school, year, major,
+      city, state); graduation year, bio, photo and visibility move under a collapsed
+      "Optional details" section that opens itself on an error. School is still chosen,
+      not derived from the email domain — that is S1-03, blocked on D-SCHOOLS.
 - [x] **Field-level validation responses** (2026-09-18, resolves Open Question 12).
       Backend: `ExceptionWrapper.fieldErrors`, populated by the
       `MethodArgumentNotValidException` handler from a sorted map, with a readable
@@ -347,9 +354,25 @@ Not a scope change: four-tab navigation is already recorded in `1_overview.md` �
 navigation and `4_ui_design.md` §Target navigation, and restated in
 `future-specs/1_design-document.md` §3.2.
 
-**Still Sprint 2, still open:** school theming (objective 8), the user theme override,
-the text-size preference, and the notification centre that shares the sidebar's bottom
-slot.
+**Still Sprint 2, still open:** the user theme override, the text-size preference, and
+the notification centre that shares the sidebar's bottom slot. School theming landed
+early (below).
+
+- [x] **School theming (objective 8)** (2026-10-06, by user direction). `lib/schoolTheme.ts`
+      stamps `data-school` on `<html>` from the signed-in student's profile school
+      (restored before first paint, cleared on sign-out), and `index.css` carries one
+      `:root[data-school]` block per school overriding the primary scale and the decorative
+      accent. Seven palettes — `uc`, `xavier`, `nku`, `miami`, `cincystate`, `msj`,
+      `thomasmore` — each built from the school's brand colour with sources in
+      `4_ui_design.md`; every one passes all ten ledger pairs in both modes, checked by
+      `frontend/scripts/test-school-themes.cjs` against the real stylesheet (now run in
+      CI through `npm test`). Clerk's own screens follow via `ThemedClerkProvider`.
+      Verified 2026-10-06: `npm run lint` clean, `npx tsc -b` clean, `npm test` **28/28**,
+      `npm run build` clean, `./mvnw --batch-mode verify` **161 tests, 0 failures**.
+      **Not verified:** not yet looked at in a browser per school, at 375px or by keyboard.
+      **Open:** Cincinnati State's colour comes from its own website, not a brand guide;
+      Thomas More's guide prints a web-safe `#000099` (a library page lists `#00549E`).
+      Confirm both with the schools. Decision 019 (Proposed).
 
 - [x] **S2-1 Four-tab consolidation.** `AppShell` carries four destinations in the order
       Marketplace, Messages, Community, Support. The student directory is a sub-surface
@@ -384,7 +407,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 5 | Partial-match directory across schools | ⚠️ verified against Postgres 2026-09-16 — `LIKE '%son%'` returned 6 students across 5 schools; browser/demo acceptance still not recorded | Implementation present |
 | 6 | Messaging < 2s, no contacts shared | ⚠️ 5s active-chat polling; multiple DTOs expose personal emails | Sprint 6 |
 | 7 | Post/reply/report on both feed types | ⚠️ post/reply/like exist; no post-report endpoint or separate school/major feeds | Sprint 8 |
-| 8 | School theming automatic on login | ❌ one palette only | Sprint 2 |
+| 8 | School theming automatic on login | ⚠️ seven contrast-checked palettes applied on sign-in from the profile's school; two schools' colours still to confirm; not yet checked in a browser | Sprint 2 |
 | 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
 | 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
 | 11 | 99% availability | ⚠️ Compose parses, Flyway owns the schema, CI now starts the container it builds and smoke-tests health/SPA/monitoring, Grafana dashboard and latency histograms verified. **Remaining: no deployed environment and therefore no uptime evidence** — availability cannot be measured from CI | Sprint 0 |
@@ -525,6 +548,7 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 012 | **Key identity on the Clerk user ID**, synced by `user.created` webhook | Clerk emails are mutable; email keys orphan rows across 16 entity columns. Supersedes 005 | **Reported carried, minutes not in the checkout** — implemented 2026-09-18 in S1-02 (`V4`, `StudentIdentityService`) on the team's confirmation that #49 passed. Attach the minutes to close Rule 8. Audit and backfill rules: [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) |
 | 013 | Adaptive password hashing discharged by Clerk | The contract requires adaptive hashes; Clerk owns credential storage, so CampusBridge stores none. Recorded so a reader looking for bcrypt understands its absence | **Proposed** |
 | 018 | Messaging rows are claimed for the caller's Clerk subject on first contact, matched by the caller's verified address | Rows written before S1-11, or addressed to someone not yet identified, carry only an address; binding them when their verified holder calls in is what lets an inbox and a block survive a later address change. Differs from identity-backfill rule 1 (student rows never bind by email) because that rule guards seeded demo profiles, and no messaging data is seeded | **Proposed** — implemented in S1-11 (`MessagingIdentity`). Needs a vote (Rule 8) |
+| 019 | School themes override the primary scale **and the decorative accent**; a brand colour that cannot carry white text gets an accessible in-app variant at `primary-600` | The accent is decorative only, so a school's second colour (NKU gold, MSJ gold) can show without becoming an action colour. NKU gold is 1.6:1 under white text, so its buttons use a bronze-gold (4.93:1) and dark mode shows the true gold | **Proposed** — implemented 2026-10-06. Needs a vote (Rule 8) |
 
 ---
 

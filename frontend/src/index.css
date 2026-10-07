@@ -97,6 +97,113 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* School theming (objective 8). A signed-in student's school is stamped on <html> as
+   data-school (lib/schoolTheme.ts) and overrides only the primary scale and the
+   decorative accent; surfaces, ink and status stay neutral in both modes. Each palette is
+   built from the school's official brand colour (sources in context/4_ui_design.md) and
+   every pairing in the contrast ledger there is checked for it — the check is
+   frontend/scripts/test-school-themes.cjs. No school, or an unknown one: pine green.
+   In @layer base so it outranks @theme's :root without being unlayered. */
+@layer base {
+  /* University of Cincinnati: brand #E00122 used as the action colour. */
+  :root[data-school="uc"] {
+    --color-primary-50: #fef8f9;
+    --color-primary-100: #fdf0f2;
+    --color-primary-200: #f4a6b2;
+    --color-primary-400: #eb576d;
+    --color-primary-500: #e62c48;
+    --color-primary-600: #e00122;
+    --color-primary-700: #c3011e;
+    --color-primary-900: #5a000e;
+    --color-accent-400: #d1b179;
+    --color-accent-500: #b8964f;
+  }
+
+  /* Xavier University: brand #0C2340 used as the action colour. */
+  :root[data-school="xavier"] {
+    --color-primary-50: #ebedf0;
+    --color-primary-100: #d3d7dd;
+    --color-primary-200: #aab2bc;
+    --color-primary-400: #7f8c9b;
+    --color-primary-500: #7f8c9b;
+    --color-primary-600: #0c2340;
+    --color-primary-700: #040b15;
+    --color-primary-900: #03070e;
+    --color-accent-400: #9ea2a2;
+    --color-accent-500: #848989;
+  }
+
+  /* Northern Kentucky University: brand #FFC72C — too light for white text, so 600 is an accessible variant of it. */
+  :root[data-school="nku"] {
+    --color-primary-50: #fffbee;
+    --color-primary-100: #fff5d9;
+    --color-primary-200: #ffebb5;
+    --color-primary-400: #ffc72c;
+    --color-primary-500: #b48c1f;
+    --color-primary-600: #8b6c18;
+    --color-primary-700: #785d15;
+    --color-primary-900: #382b0a;
+    --color-accent-400: #ffc72c;
+    --color-accent-500: #e6ad12;
+  }
+
+  /* Miami University: brand #C41230 used as the action colour. */
+  :root[data-school="miami"] {
+    --color-primary-50: #fbedf0;
+    --color-primary-100: #f5d7dd;
+    --color-primary-200: #eaacb7;
+    --color-primary-400: #d96578;
+    --color-primary-500: #cf3c54;
+    --color-primary-600: #c41230;
+    --color-primary-700: #a80f29;
+    --color-primary-900: #4e0713;
+    --color-accent-400: #d9c9a6;
+    --color-accent-500: #c4b28a;
+  }
+
+  /* Cincinnati State Technical and Community College: brand #418534 — too light for white text, so 600 is an accessible variant of it. */
+  :root[data-school="cincystate"] {
+    --color-primary-50: #f8fbf8;
+    --color-primary-100: #f0f6ef;
+    --color-primary-200: #bdd4b8;
+    --color-primary-400: #5e9853;
+    --color-primary-500: #4e8b42;
+    --color-primary-600: #3e7e31;
+    --color-primary-700: #366d2a;
+    --color-primary-900: #193214;
+    --color-accent-400: #bec0c2;
+    --color-accent-500: #a5a8ab;
+  }
+
+  /* Mount St. Joseph University: brand #003366 used as the action colour. */
+  :root[data-school="msj"] {
+    --color-primary-50: #eaeef2;
+    --color-primary-100: #d1dae3;
+    --color-primary-200: #a6b8c9;
+    --color-primary-400: #708da9;
+    --color-primary-500: #496e92;
+    --color-primary-600: #003366;
+    --color-primary-700: #002347;
+    --color-primary-900: #001429;
+    --color-accent-400: #ffcc00;
+    --color-accent-500: #fdb913;
+  }
+
+  /* Thomas More University: brand #000099 used as the action colour. */
+  :root[data-school="thomasmore"] {
+    --color-primary-50: #eaeaf7;
+    --color-primary-100: #d1d1ed;
+    --color-primary-200: #a6a6db;
+    --color-primary-400: #8383ce;
+    --color-primary-500: #8383ce;
+    --color-primary-600: #000099;
+    --color-primary-700: #00005f;
+    --color-primary-900: #00003d;
+    --color-accent-400: #bd965c;
+    --color-accent-500: #a57f45;
+  }
+}
+
 /* Anchors inherit their colour by default, but this MUST live in @layer base.
    Unlayered CSS outranks every @layer, so a bare `a { color: inherit }` silently beat
    every text-* utility on a link — `text-white` inside .btn-primary and
