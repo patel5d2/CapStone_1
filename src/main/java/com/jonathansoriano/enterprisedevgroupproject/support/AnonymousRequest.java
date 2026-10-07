@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * {@code requesterEmail} is kept so the requester can see their own submissions,
+ * {@code requesterEmail} and {@code requesterSubject} are kept so the requester can see their own submissions,
  * but it is never included in the public-facing DTO: that is what makes the
  * request anonymous to other students.
  */
@@ -27,6 +27,9 @@ public class AnonymousRequest {
 
     @Column(nullable = false)
     private String requesterEmail;
+
+    /** Clerk subject of the requester, which "my requests" lists by (ADR-012). Never exposed. */
+    private String requesterSubject;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

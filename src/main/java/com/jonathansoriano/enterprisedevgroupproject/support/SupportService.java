@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.support;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.support.dto.AnonymousRequestRequest;
 import com.jonathansoriano.enterprisedevgroupproject.support.dto.AnonymousRequestResponse;
 import com.jonathansoriano.enterprisedevgroupproject.support.dto.SupportResourceResponse;
@@ -28,9 +29,10 @@ public class SupportService {
         return resources.stream().map(this::toResourceResponse).collect(Collectors.toList());
     }
 
-    public AnonymousRequestResponse createRequest(AnonymousRequestRequest request, String requesterEmail) {
+    public AnonymousRequestResponse createRequest(AnonymousRequestRequest request, Party requester) {
         AnonymousRequest saved = requestRepository.save(AnonymousRequest.builder()
-                .requesterEmail(requesterEmail)
+                .requesterEmail(requester.email())
+                .requesterSubject(requester.subject())
                 .category(request.getCategory())
                 .description(request.getDescription())
                 .schoolId(request.getSchoolId())
@@ -45,8 +47,9 @@ public class SupportService {
                 .collect(Collectors.toList());
     }
 
-    public List<AnonymousRequestResponse> listMine(String requesterEmail) {
-        return requestRepository.findByRequesterEmailOrderByCreatedAtDesc(requesterEmail).stream()
+    /** The caller's own requests, by Clerk subject so they survive an address change (ADR-012). */
+    public List<AnonymousRequestResponse> listMine(Party caller) {
+        return requestRepository.findByRequesterSubjectOrderByCreatedAtDesc(caller.subject()).stream()
                 .map(this::toRequestResponse)
                 .collect(Collectors.toList());
     }

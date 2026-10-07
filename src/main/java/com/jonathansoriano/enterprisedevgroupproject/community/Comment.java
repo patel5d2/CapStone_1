@@ -26,6 +26,9 @@ public class Comment {
     @Column(nullable = false)
     private String authorEmail;
 
+    /** Clerk subject of the author; null until they have been identified (ADR-012). */
+    private String authorSubject;
+
     @Column(nullable = false, length = 2000)
     private String content;
 
