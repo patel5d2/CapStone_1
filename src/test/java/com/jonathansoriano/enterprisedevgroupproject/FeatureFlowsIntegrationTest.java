@@ -12,7 +12,7 @@ import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingType;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingRequest;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.MessagingService;
-import com.jonathansoriano.enterprisedevgroupproject.messages.Party;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
