@@ -204,4 +204,26 @@ class CommunityIdentityTest {
         Long commentId = posts.comment(postId, new CommentRequest("hi"), alice).getId();
         assertThat(comments.findById(commentId).orElseThrow().getAuthorSubject()).isEqualTo("user_alice_cm_cc");
     }
+
+    @Test
+    @DisplayName("joining a group on a recycled address the old holder already used answers 409, not 500")
+    void recycledAddressJoinAnswersConflict() {
+        Party oldHolder = identity.caller(token("user_old_jn", "shared.jn@school.edu"));
+        Long groupId = group(oldHolder).getId();
+        groups.join(groupId, oldHolder);
+        Party newHolder = identity.caller(token("user_new_jn", "shared.jn@school.edu"));
+        assertThatThrownBy(() -> groups.join(groupId, newHolder))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("409");
+    }
+
+    @Test
+    @DisplayName("liking a post on a recycled address the old holder already used answers 409, not 500")
+    void recycledAddressLikeAnswersConflict() {
+        Party oldHolder = identity.caller(token("user_old_lk", "shared.lk@school.edu"));
+        Long postId = post(oldHolder).getId();
+        posts.like(postId, oldHolder);
+        Party newHolder = identity.caller(token("user_new_lk", "shared.lk@school.edu"));
+        assertThatThrownBy(() -> posts.like(postId, newHolder))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("409");
+    }
 }

@@ -3,6 +3,7 @@ package com.jonathansoriano.enterprisedevgroupproject.community;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.GroupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.GroupResponse;
 import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,7 +56,15 @@ public class GroupService {
     public void join(Long groupId, Party caller) {
         findOrThrow(groupId);
         if (!membershipRepository.existsByGroupIdAndUserSubject(groupId, caller.subject())) {
-            membershipRepository.save(membership(groupId, caller));
+            try {
+                membershipRepository.saveAndFlush(membership(groupId, caller));
+            } catch (DataIntegrityViolationException collision) {
+            // The same address already has a row here from the account that held it before
+            // (a recycled address); the old email unique constraint still applies. Say so
+            // instead of a 500. ponytail: goes away with the email columns (S1-07/S1-12 follow-up).
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This email address already belongs to a member of this group from a previous account.");
+            }
         }
     }
 
