@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { UserRound, Save, Check } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
 import { markProfileComplete } from '../lib/profileGate'
+import { applySchoolTheme, slugForSchool } from '../lib/schoolTheme'
 import { useToast } from '../components/ui/Toast'
 import { PageHeader } from '../components/ui/Tabs'
 import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback'
@@ -33,6 +34,20 @@ type FieldErrors = Partial<Record<keyof ProfileForm, string>>
 const EMPTY: ProfileForm = {
   firstName: '', lastName: '', residentCity: '', residentState: '', universityId: '',
   grade: 'Freshman', major: '', socialMediaLink: '', graduationYear: '', bio: '',
+}
+
+/**
+ * A first profile starts from what the student already gave Clerk at sign-up, so they are
+ * not asked for their name twice. Clerk knows nothing else the directory needs (school,
+ * year, major, city, state), and the school is not guessed from the email domain: that
+ * mapping is S1-03, blocked on the D-SCHOOLS vote.
+ */
+function fromClerk(firstName?: string | null, lastName?: string | null): ProfileForm {
+  return { ...EMPTY, firstName: firstName?.trim() ?? '', lastName: lastName?.trim() ?? '' }
+}
+
+function accountFields(firstName?: string | null, lastName?: string | null): (keyof ProfileForm)[] {
+  return firstName?.trim() && lastName?.trim() ? ['firstName', 'lastName'] : []
 }
 
 /** UX checks mirror the request DTOs. The server remains authoritative. */
@@ -75,6 +90,9 @@ export default function Profile() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Fields a new profile took from the Clerk account, so the form asks only for the rest.
+  const [fromAccount, setFromAccount] = useState<(keyof ProfileForm)[]>([])
+  const [editAccountFields, setEditAccountFields] = useState(false)
   const [saved, setSaved] = useState(false)
   const errorSummary = useRef<HTMLParagraphElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -99,7 +117,9 @@ export default function Profile() {
           universityId: String(value.universityId ?? ''), grade: value.grade ?? 'Freshman',
           major: value.major ?? '', socialMediaLink: value.socialMediaLink ?? '',
           graduationYear: value.graduationYear == null ? '' : String(value.graduationYear), bio: value.bio ?? '',
-        } : EMPTY)
+        } : fromClerk(user?.firstName, user?.lastName))
+        setFromAccount(value ? [] : accountFields(user?.firstName, user?.lastName))
+        setEditAccountFields(false)
         setVisibility(value?.visibility ?? PRIVATE)
         setPhotoUrl(value?.photoUrl ?? null)
         setSaved(false)
@@ -113,7 +133,7 @@ export default function Profile() {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [reload, user?.id])
+  }, [reload, user?.id, user?.firstName, user?.lastName])
 
   const edit = (key: keyof ProfileForm, value: string) => {
     setForm((previous) => ({ ...previous, [key]: value }))
@@ -155,6 +175,8 @@ export default function Profile() {
     setFieldErrors(errors)
     setSaveError(null)
     setSaved(false)
+    // A problem in a field taken from the account must be visible to be fixed.
+    if (fromAccount.some((key) => errors[key])) setEditAccountFields(true)
     if (Object.keys(errors).length) {
       setSaveError('Your profile was not saved. Check the marked fields below.')
       requestAnimationFrame(() => errorSummary.current?.focus())
@@ -172,6 +194,8 @@ export default function Profile() {
       setIsNew(false)
       setSaved(true)
       markProfileComplete(user?.id)
+      // Their school's colours apply as soon as the school is saved (objective 8).
+      applySchoolTheme(slugForSchool(schools.find((school) => school.id === Number(form.universityId))?.name))
       push('Profile and visibility saved', 'success')
       // First save finishes sign-up: let them into the app.
       if (isNew) navigate('/marketplace')
@@ -203,7 +227,9 @@ export default function Profile() {
       <PageHeader title={isNew ? 'Complete your profile' : 'My profile'}
         subtitle="Add your details and choose what classmates can see." />
       {isNew && <p className="card mb-5 p-4 text-sm" role="status">
-        Your directory profile is not ready yet. Complete the required fields below, then save.
+        {fromAccount.length
+          ? 'We filled in what your account already knows. Add the few details below to join the directory.'
+          : 'Your directory profile is not ready yet. Complete the required fields below, then save.'}
       </p>}
       <form className="card p-4 sm:p-6" noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
         <p className="mb-5 break-words text-sm text-[var(--color-ink-muted)]">
@@ -216,9 +242,18 @@ export default function Profile() {
         <fieldset disabled={busy} className="min-w-0">
           <legend className="mb-4 text-sm font-bold">Profile details</legend>
           <p className="mb-4 text-sm text-[var(--color-ink-muted)]">Fields marked “required” must be completed.</p>
+          {fromAccount.length > 0 && !editAccountFields && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--color-surface-muted)] p-4">
+            <p className="text-sm">
+              <span className="block text-[var(--color-ink-muted)]">From your account</span>
+              <span className="font-semibold">{form.firstName} {form.lastName}</span>
+            </p>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setEditAccountFields(true)}>Edit name</button>
+          </div>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field name="firstName" label="First name" required errors={fieldErrors}><input {...field('firstName')} autoComplete="given-name" required /></Field>
-            <Field name="lastName" label="Last name" required errors={fieldErrors}><input {...field('lastName')} autoComplete="family-name" required /></Field>
+            {(fromAccount.length === 0 || editAccountFields) && <>
+              <Field name="firstName" label="First name" required errors={fieldErrors}><input {...field('firstName')} autoComplete="given-name" required /></Field>
+              <Field name="lastName" label="Last name" required errors={fieldErrors}><input {...field('lastName')} autoComplete="family-name" required /></Field>
+            </>}
             <Field name="universityId" label="School" required errors={fieldErrors}>
               <select {...field('universityId')} disabled={!isNew || busy} required>
                 <option value="">Select your school</option>
@@ -233,13 +268,26 @@ export default function Profile() {
             <Field name="residentState" label="State (two letters)" required errors={fieldErrors}>
               <input {...field('residentState')} autoComplete="address-level1" maxLength={2} required />
             </Field>
+          </div>
+          {!isNew && <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Your school was set when your profile was created.</p>}
+        </fieldset>
+
+        {/* A first profile asks only for what is required; the rest waits here, private by
+            default, and stays one click away. An error in it opens it. */}
+        <details className="mt-6 border-t border-[var(--color-border)] pt-5"
+          open={!isNew || Boolean(fieldErrors.graduationYear || fieldErrors.bio || uploadError) || undefined}>
+          <summary className="cursor-pointer text-sm font-bold">
+            {isNew ? 'Optional details — you can add these later' : 'More about you'}
+          </summary>
+        <fieldset disabled={busy} className="mt-4 min-w-0">
+          <legend className="sr-only">Optional details</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field name="graduationYear" label="Graduation year" errors={fieldErrors}><input {...field('graduationYear')} inputMode="numeric" /></Field>
             <div className="sm:col-span-2">
               <Field name="bio" label="About you" errors={fieldErrors}><textarea {...field('bio')} rows={4} /></Field>
               <p className="mt-1 text-sm text-[var(--color-ink-muted)]">{form.bio.length} / 1000 characters</p>
             </div>
           </div>
-          {!isNew && <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Your school was set when your profile was created.</p>}
         </fieldset>
 
         <fieldset disabled={busy} className="mt-6 min-w-0 border-t border-[var(--color-border)] pt-5">
@@ -282,6 +330,7 @@ export default function Profile() {
             </div>)}
           </div>
         </fieldset>
+        </details>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
           <p role="status" aria-live="polite" className="text-sm text-[var(--color-ink-muted)]">
             {saving ? 'Saving profile and visibility…' : saved ? <span className="flex items-center gap-2"><Check className="h-4 w-4" aria-hidden="true" />Profile and visibility saved</span> : 'Changes are saved when you select Save profile.'}

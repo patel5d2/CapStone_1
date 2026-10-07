@@ -17,6 +17,11 @@ import type { Appearance } from '@clerk/shared/types'
  * Portal, which this object cannot reach: the portal is themed in the Clerk dashboard,
  * not here. Check this the first time a real MFA enrolment renders in-app.
  */
+/** The same appearance with Clerk's primary set to the active school's (objective 8). */
+export function clerkAppearanceWith(colorPrimary: string): Appearance {
+  return { ...clerkAppearance, variables: { ...clerkAppearance.variables, colorPrimary } }
+}
+
 export const clerkAppearance: Appearance = {
   variables: {
     // Literal hex, not var(): Clerk derives hover/active shades from this value, which

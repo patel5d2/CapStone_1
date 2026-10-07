@@ -14,7 +14,7 @@
 | Area | Present in source | Still required |
 |---|---|---|
 | Navigation | Sidebar ≥1024px, icon rail 640–1023px, bottom bar <640px; Directory is a sub-tab of Community | Unread/pending count badges |
-| Palette | Pine-green primary, warm stone neutrals, contrast-checked in both modes | School lookup and per-school palettes |
+| Palette | Pine-green primary, warm stone neutrals, contrast-checked in both modes; seven school palettes applied on sign-in | Browser check per school; confirm Cincinnati State and Thomas More colours |
 | Preferences | Automatic `prefers-color-scheme` dark mode | User theme override and text-size setting |
 | Feedback | Spinner, empty/error states, toasts, modal and button tabs | Consistent error states and accessibility fixes below |
 | Shared features | Profile route and Clerk user button | Notification centre, campus map and home-feed work in the sprint plan |
@@ -214,12 +214,36 @@ white and failed even that.
   `p-4`/`p-6` card padding, `px-4 py-2.5` buttons, `px-3.5 py-2.5` fields. No arbitrary
   values like `p-[13px]`.
 
-## Planned school theming — objective 8
+## School theming — objective 8
+
+**Implemented 2026-10-06.** `lib/schoolTheme.ts` resolves the signed-in student's profile
+school, stamps `data-school="<slug>"` on `<html>` (remembered across reloads, cleared on
+sign-out) and `index.css` holds one `:root[data-school]` block per school. Each block
+overrides the **`primary-*` scale and the decorative `accent-*` pair** (decision 019,
+Proposed); neutral semantic tokens (`surface`, `ink`, `border`, status) still follow
+light/dark mode only. Clerk's components follow through `ThemedClerkProvider`, which
+reads the active `--color-primary-600`.
+
+| Slug | School | Brand colour | `primary-600` | Source |
+|---|---|---|---|---|
+| `uc` | University of Cincinnati | UC Red `#E00122` | brand as-is | uc.edu brand guide, colour page |
+| `xavier` | Xavier University | Xavier Blue `#0C2340` | brand as-is | xavier.edu brand graphic identity |
+| `nku` | Northern Kentucky University | Gold `#FFC72C` | `#8b6c18` accessible variant | nku.edu brand page |
+| `miami` | Miami University | Miami Red `#C41230` | brand as-is | miamioh.edu brand style |
+| `cincystate` | Cincinnati State | Green `#418534` | `#3e7e31` | **unconfirmed** — the college's own site CSS; no public brand guide |
+| `msj` | Mount St. Joseph University | Navy `#003366` | brand as-is | MSJ Brand Standards PDF (Dec 2025) |
+| `thomasmore` | Thomas More University | Blue `#000099` | brand as-is | Visual Standards & Brand Manual (Nov 2024); **confirm** — a library page lists `#00549E` |
+
+Cincinnati Christian University closed in 2019 and has no theme. **Every palette passes
+all ten pairs of the contrast ledger above in both modes**; the ratios are recomputed from
+the real stylesheet by `frontend/scripts/test-school-themes.cjs` on every CI run, so a
+hand-edited hex that breaks invariant 11 fails the build.
+
+The original plan follows, kept for its rules.
 
 **Target mechanism:** school selection changes the **`primary-*` scale**; neutral
 semantic tokens (`surface`, `ink`, `border`) continue to follow light/dark mode. Use
-the shared CSS variables so consumers inherit theme changes. The current CSS contains
-no `data-school` rules and no frontend code sets that attribute.
+the shared CSS variables so consumers inherit theme changes.
 
 1. On login, resolve the signed-in student's school.
 2. Stamp `data-school="<slug>"` on `<html>`.
@@ -229,7 +253,7 @@ no `data-school` rules and no frontend code sets that attribute.
 Proposed selectors follow `:root[data-school="uc"]`. Planned slugs for the six named
 schools: `uc`, `xavier`, `nku`, `miami`, `cincystate`, `msj`. The database currently
 seeds eight schools; the final supported set remains an [open question](5_progress.md).
-Neither the six named schools nor the two additional schools have theme palettes yet.
+Seven of the eight seeded schools now have palettes (table above), including Thomas More as `thomasmore`; Cincinnati Christian, closed in 2019, does not.
 
 **Filling in the palettes is a design task, not a guess.** Each school's values come from
 its official brand guide, and **every one must be contrast-checked before it ships** —
