@@ -295,6 +295,16 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       city, state); graduation year, bio, photo and visibility move under a collapsed
       "Optional details" section that opens itself on an error. School is still chosen,
       not derived from the email domain — that is S1-03, blocked on D-SCHOOLS.
+      **Fixed 2026-10-06 — new sign-ups saw "Two-factor authentication is required"
+      instead of the profile.** Cause: sign-up enrols the second factor in the setup-mfa
+      task but never asks for it, so the new session's `fva` is `[n, -1]` and
+      `InstitutionalAccessPolicy` refuses every API call; sign-in was unaffected because
+      Clerk asks for the factor there. Fix (frontend only, the server check is unchanged):
+      `RequireAuth` detects a two-step-enabled user whose session has never verified the
+      second factor, holds the profile check, and opens Clerk's own reverification modal
+      (`useReverification`, level `second_factor`) once; then the student continues to
+      Complete your profile. Regression test: `frontend/scripts/test-second-factor.cjs`
+      (fails with the gate removed). **Not verified in a browser with a real sign-up.**
 - [x] **Field-level validation responses** (2026-09-18, resolves Open Question 12).
       Backend: `ExceptionWrapper.fieldErrors`, populated by the
       `MethodArgumentNotValidException` handler from a sorted map, with a readable
