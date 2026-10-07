@@ -172,14 +172,14 @@ public class MessagingService {
     @Transactional
     public void unblock(Party blocker, String blockedEmail) {
         Party blocked = identity.byAddress(blockedEmail);
-        blockedUserRepository.deleteAll(blocksBy(blocker).stream()
+        blockedUserRepository.deleteAll(ownBlocks(blocker).stream()
                 .filter(block -> blocked.is(block.getBlockedSubject(), block.getBlockedEmail())
                         || blockedEmail.equalsIgnoreCase(block.getBlockedEmail()))
                 .toList());
     }
 
     public List<String> listBlocked(Party blocker) {
-        return blocksBy(blocker).stream()
+        return ownBlocks(blocker).stream()
                 .map(BlockedUser::getBlockedEmail)
                 .collect(Collectors.toList());
     }
@@ -190,6 +190,14 @@ public class MessagingService {
                 .anyMatch(block -> target.is(block.getBlockedSubject(), block.getBlockedEmail()));
     }
 
+    /** Blocks the caller made, by subject only (listing and removing their own blocks). */
+    private List<BlockedUser> ownBlocks(Party caller) {
+        return blockedUserRepository.findCandidatesByBlocker(caller.subject(), caller.email()).stream()
+                .filter(block -> caller.owns(block.getBlockerSubject()))
+                .toList();
+    }
+
+    /** Blocks made by anyone, who may be known only by address — used to enforce a block. */
     private List<BlockedUser> blocksBy(Party blocker) {
         return blockedUserRepository.findCandidatesByBlocker(blocker.subject(), blocker.email()).stream()
                 .filter(block -> blocker.is(block.getBlockerSubject(), block.getBlockerEmail()))
@@ -216,7 +224,7 @@ public class MessagingService {
             }
             boolean hasOtherUser = participantRepository.findByConversationId(conversation.getId()).stream()
                     .filter(p -> !p.getId().equals(participation.getId()))
-                    .anyMatch(p -> isCaller(p, userB));
+                    .anyMatch(p -> names(p, userB));
             if (hasOtherUser) {
                 return conversation.getId();
             }
@@ -239,7 +247,16 @@ public class MessagingService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not part of this conversation"));
     }
 
-    private static boolean isCaller(ConversationParticipant participant, Party party) {
+    /**
+     * The caller's own rows, by subject only. Their address-only rows were bound to their
+     * subject by CallerIdentity before this runs, so an address never grants access.
+     */
+    private static boolean isCaller(ConversationParticipant participant, Party caller) {
+        return caller.owns(participant.getUserSubject());
+    }
+
+    /** Someone else, who may be known only by address (a recipient). */
+    private static boolean names(ConversationParticipant participant, Party party) {
         return party.is(participant.getUserSubject(), participant.getUserEmail());
     }
 

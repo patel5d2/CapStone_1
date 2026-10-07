@@ -5,6 +5,7 @@ import com.jonathansoriano.enterprisedevgroupproject.community.dto.CommentRespon
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostResponse;
 import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,8 +68,16 @@ public class PostService {
     public void like(Long postId, Party caller) {
         findOrThrow(postId);
         if (!postLikeRepository.existsByPostIdAndUserSubject(postId, caller.subject())) {
-            postLikeRepository.save(PostLike.builder().postId(postId)
-                    .userEmail(caller.email()).userSubject(caller.subject()).build());
+            try {
+                postLikeRepository.saveAndFlush(PostLike.builder().postId(postId)
+                        .userEmail(caller.email()).userSubject(caller.subject()).build());
+            } catch (DataIntegrityViolationException collision) {
+            // The same address already has a row here from the account that held it before
+            // (a recycled address); the old email unique constraint still applies. Say so
+            // instead of a 500. ponytail: goes away with the email columns (S1-07/S1-12 follow-up).
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This email address already liked this post from a previous account.");
+            }
         }
     }
 
