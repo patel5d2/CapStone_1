@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
@@ -22,13 +24,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * ADR-012, messaging slice: participant, sender, blocker/blocked and reporter/reported
  * identities follow the Clerk subject, against the real schema and the real resolution
- * path ({@link MessagingIdentity#caller}), not hand-built parties.
+ * path ({@link CallerIdentity#caller}), not hand-built parties.
  */
 @SpringBootTest
 @Transactional
 class MessagingIdentityTest {
 
-    @Autowired private MessagingIdentity identity;
+    @Autowired private CallerIdentity identity;
     @Autowired private MessagingService messaging;
     @Autowired private ConversationParticipantRepository participants;
     @Autowired private MessageRepository messages;

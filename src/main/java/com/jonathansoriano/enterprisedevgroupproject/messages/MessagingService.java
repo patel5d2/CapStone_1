@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingRepository;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.MessageResponse;
@@ -18,7 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Conversations, messages and blocks, keyed on the Clerk subject with the address as the
  * stand-in for anyone not yet identified (ADR-012, messaging slice). Every caller is a
- * {@link Party} from {@link MessagingIdentity#caller}; stored rows are matched with
+ * {@link Party} from {@link CallerIdentity#caller}; stored rows are matched with
  * {@link Party#is}, so ownership follows the subject through an address change.
  */
 @Service
@@ -29,14 +31,14 @@ public class MessagingService {
     private final MessageRepository messageRepository;
     private final BlockedUserRepository blockedUserRepository;
     private final ListingRepository listingRepository;
-    private final MessagingIdentity identity;
+    private final CallerIdentity identity;
 
     public MessagingService(ConversationRepository conversationRepository,
                              ConversationParticipantRepository participantRepository,
                              MessageRepository messageRepository,
                              BlockedUserRepository blockedUserRepository,
                              ListingRepository listingRepository,
-                             MessagingIdentity identity) {
+                             CallerIdentity identity) {
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.messageRepository = messageRepository;
