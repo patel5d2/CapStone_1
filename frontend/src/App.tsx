@@ -1,6 +1,7 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { SignOutButton, useAuth, useClerk, useSession, useUser } from '@clerk/clerk-react'
+import { SignOutButton, useAuth, useClerk, useReverification, useSession, useUser } from '@clerk/clerk-react'
+import { isReverificationCancelledError } from '@clerk/clerk-react/errors'
 import { GraduationCap, ShieldCheck } from 'lucide-react'
 import { AppShell } from './components/layout/AppShell'
 import { setTokenGetter } from './lib/authToken'
@@ -127,11 +128,82 @@ function TwoFactorRequired() {
  * Signed in, allowed, and — except on the profile page itself — has completed their
  * profile. A new student is sent to /profile from every page until they save it.
  */
-function RequireAuth({ children, allowIncompleteProfile = false }: { children: ReactNode; allowIncompleteProfile?: boolean }) {
+/** Clerk's reverification hint (the shape `reverificationError()` builds), for its modal. */
+const SECOND_FACTOR_HINT = {
+  clerk_error: {
+    type: 'forbidden',
+    reason: 'reverification-error',
+    metadata: { reverification: { level: 'second_factor', afterMinutes: 10 } },
+  },
+}
+
+/** The session has never used its second factor: `fva` second element is -1. */
+function secondFactorUnverified(age: [number, number] | null | undefined) {
+  return Array.isArray(age) && age[1] < 0
+}
+
+/**
+ * Sign-up enrols the second factor but never asks for it, so the new session's token says
+ * "second factor never verified" and the API refuses every request (the server requires a
+ * verified one, `InstitutionalAccessPolicy`). Sign-in never lands here: Clerk asks for the
+ * factor there. Ask once, in Clerk's own verification modal, then continue.
+ */
+function ConfirmSecondFactor() {
+  const clerk = useClerk()
+  const { getToken } = useAuth()
+  const [error, setError] = useState<string | null>(null)
+  const opened = useRef(false)
+  const verify = useReverification(async () => {
+    if (secondFactorUnverified(clerk.session?.factorVerificationAge)) return SECOND_FACTOR_HINT
+    // A fresh token, so the very next API call carries the updated claim.
+    await getToken({ skipCache: true })
+    return true
+  })
+  const start = async () => {
+    setError(null)
+    try {
+      await verify()
+    } catch (e) {
+      if (!isReverificationCancelledError(e)) setError('That did not work. Try again, or sign out and sign in.')
+    }
+  }
+  useEffect(() => {
+    if (opened.current) return
+    opened.current = true
+    void start()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <div className="mx-auto max-w-md py-16 text-center">
+      <div className="card flex flex-col items-center gap-4 px-6 py-12">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
+          <ShieldCheck className="h-6 w-6" />
+        </span>
+        <h1 className="text-xl font-extrabold tracking-tight">Confirm your two-step verification</h1>
+        <p className="text-sm text-[var(--color-ink-muted)]">
+          You just set it up. Enter a code from it once to finish signing up — after that you go straight to your
+          profile.
+        </p>
+        {error && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}
+        <button className="btn-primary" onClick={() => void start()}>Verify now</button>
+        <SignOutButton>
+          <button className="btn-ghost btn-sm">Sign out</button>
+        </SignOutButton>
+      </div>
+    </div>
+  )
+}
+
+export function RequireAuth({ children, allowIncompleteProfile = false }: { children: ReactNode; allowIncompleteProfile?: boolean }) {
   const { isLoaded, isSignedIn } = useAuth()
   const { isLoaded: sessionLoaded, session } = useSession()
   const { user } = useUser()
-  const profileMissing = useProfileMissing(isSignedIn && !allowIncompleteProfile ? user?.id : undefined)
+  const needsSecondFactor = REQUIRE_TWO_FACTOR && Boolean(user?.twoFactorEnabled)
+    && secondFactorUnverified(session?.factorVerificationAge)
+  // Held back until the second factor is verified: before then every API call is refused,
+  // and the profile check would read that refusal as "profile exists".
+  const profileMissing = useProfileMissing(
+    isSignedIn && !allowIncompleteProfile && !needsSecondFactor ? user?.id : undefined)
   if (!isLoaded || !sessionLoaded) return <Spinner />
   if (session?.currentTask?.key === 'setup-mfa') {
     return <Navigate to="/session-tasks/setup-mfa" replace />
@@ -143,6 +215,7 @@ function RequireAuth({ children, allowIncompleteProfile = false }: { children: R
   // rejection then would flash it at students who are perfectly entitled to be here.
   if (user && !isInstitutionalEmail(email)) return <NotInstitutional email={email} />
   if (REQUIRE_TWO_FACTOR && user && !user.twoFactorEnabled) return <TwoFactorRequired />
+  if (needsSecondFactor) return <ConfirmSecondFactor />
   if (!allowIncompleteProfile) {
     if (profileMissing === null) return <Spinner />
     if (profileMissing) return <Navigate to="/profile" replace />
