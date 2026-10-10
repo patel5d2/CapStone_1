@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,9 +16,9 @@ import java.util.Map;
 public class UserReportController {
 
     private final UserReportRepository userReportRepository;
-    private final MessagingIdentity identity;
+    private final CallerIdentity identity;
 
-    public UserReportController(UserReportRepository userReportRepository, MessagingIdentity identity) {
+    public UserReportController(UserReportRepository userReportRepository, CallerIdentity identity) {
         this.userReportRepository = userReportRepository;
         this.identity = identity;
     }

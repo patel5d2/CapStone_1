@@ -1,6 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.marketplace;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -8,7 +9,15 @@ import java.util.List;
 
 public interface ListingRepository extends JpaRepository<Listing, Long> {
 
-    List<Listing> findBySellerEmailOrderByCreatedAtDesc(String sellerEmail);
+    List<Listing> findBySellerSubjectOrderByCreatedAtDesc(String sellerSubject);
+
+    /** Binds the caller's subject to listings they posted while known only by address. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE listing SET seller_subject = :subject
+            WHERE seller_subject IS NULL AND lower(seller_email) = lower(:email)
+            """)
+    int claim(@Param("email") String email, @Param("subject") String subject);
 
     @Query("""
             SELECT l FROM Listing l

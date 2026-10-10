@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.MessageResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
@@ -18,9 +19,9 @@ import java.util.List;
 public class ConversationController {
 
     private final MessagingService messagingService;
-    private final MessagingIdentity identity;
+    private final CallerIdentity identity;
 
-    public ConversationController(MessagingService messagingService, MessagingIdentity identity) {
+    public ConversationController(MessagingService messagingService, CallerIdentity identity) {
         this.messagingService = messagingService;
         this.identity = identity;
     }

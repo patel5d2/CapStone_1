@@ -1,6 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.profile;
 
-import com.jonathansoriano.enterprisedevgroupproject.messages.MessagingIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
 import com.jonathansoriano.enterprisedevgroupproject.messages.MessagingService;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
 import org.springframework.http.HttpStatus;
@@ -15,9 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class DirectoryContactController {
     private final ProfileRecordRepository records;
     private final MessagingService messages;
-    private final MessagingIdentity identity;
+    private final CallerIdentity identity;
     public DirectoryContactController(ProfileRecordRepository records, MessagingService messages,
-            MessagingIdentity identity) {
+            CallerIdentity identity) {
         this.records = records;
         this.messages = messages;
         this.identity = identity;
