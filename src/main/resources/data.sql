@@ -81,3 +81,7 @@ JOIN university u ON u.name = v.university_name;
 -- invariant so a seeded email is not treated as an unclaimed profile.
 INSERT INTO app_user (role, email)
 SELECT 'USER', s.email FROM student s;
+ -- All mock students default to fully public profiles so directory and listing
+-- flows have visible data to exercise out of the box.
+INSERT INTO profile_privacy (student_id, show_major, show_graduation_year, show_bio, show_photo)
+SELECT id, true, true, true, true FROM student;
