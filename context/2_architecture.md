@@ -150,6 +150,9 @@ changed email orphans that user's rows.
 
 **Current state:** ownership is keyed on **email** across 16 entity columns and 37
 `CurrentUser.emailOf(...)` call sites. Migrating this is Sprint 1 (ADR-005 reversal).
+Messaging (S1-11, 2026-10-06) is cut over: its six identity columns have a subject beside
+the address and are matched subject-first through `MessagingIdentity`; marketplace and
+community/support (S1-10, S1-12) are not.
 
 ## Database schema
 

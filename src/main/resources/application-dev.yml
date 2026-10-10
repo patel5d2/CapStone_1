@@ -9,6 +9,12 @@ spring:
     url: jdbc:postgresql://campus-bridge-dev-jonathan-7163.d.aivencloud.com:11945/campus_bridge_development?sslmode=require
     username: avnadmin
     password: ${DATABASE_PASSWORD}
+    # Aiven closes idle connections, and a sleeping laptop drops them too; both showed up as
+    # "Failed to validate connection ... closed" warnings. Retire connections before that
+    # happens and ping idle ones so they stay open.
+    hikari:
+      max-lifetime: 300000   # 5 min
+      keepalive-time: 120000 # 2 min
   sql:
     init:
       mode: never

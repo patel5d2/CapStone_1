@@ -27,6 +27,10 @@ public class ConversationParticipant {
     @Column(name = "user_email", nullable = false)
     private String userEmail;
 
+    /** Clerk subject of this participant; null until they have been identified (ADR-012). */
+    @Column(name = "user_subject")
+    private String userSubject;
+
     @Builder.Default
     private int unreadCount = 0;
 

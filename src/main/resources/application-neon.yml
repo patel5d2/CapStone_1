@@ -1,0 +1,19 @@
+# Test profile on Neon (project campusbridge-test, Postgres 18), separate from the Aiven
+# dev database. Run with -Dspring-boot.run.profiles=neon. The connection comes from the
+# git-ignored .env at the project root: NEON_DB_URL, NEON_DB_USERNAME, NEON_DB_PASSWORD.
+# The schema is loaded once from schema.sql/data.sql, not on every start.
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${NEON_DB_URL}
+    username: ${NEON_DB_USERNAME}
+    password: ${NEON_DB_PASSWORD}
+    hikari:
+      # Neon scales an idle compute to zero; keep connections short-lived so a resumed
+      # compute is reached with fresh ones.
+      max-lifetime: 300000   # 5 min
+      keepalive-time: 120000 # 2 min
+  sql:
+    init:
+      mode: never

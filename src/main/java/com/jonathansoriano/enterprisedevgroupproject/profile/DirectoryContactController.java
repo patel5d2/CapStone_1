@@ -1,8 +1,8 @@
 package com.jonathansoriano.enterprisedevgroupproject.profile;
 
+import com.jonathansoriano.enterprisedevgroupproject.messages.MessagingIdentity;
 import com.jonathansoriano.enterprisedevgroupproject.messages.MessagingService;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
-import com.jonathansoriano.enterprisedevgroupproject.service.StudentIdentityService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -15,9 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class DirectoryContactController {
     private final ProfileRecordRepository records;
     private final MessagingService messages;
-    private final StudentIdentityService identity;
+    private final MessagingIdentity identity;
     public DirectoryContactController(ProfileRecordRepository records, MessagingService messages,
-            StudentIdentityService identity) {
+            MessagingIdentity identity) {
         this.records = records;
         this.messages = messages;
         this.identity = identity;
@@ -28,7 +28,7 @@ public class DirectoryContactController {
         var recipient = records.findById(studentId).orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Student not found."));
         var conversation = messages.startConversation(StartConversationRequest.builder()
-                .recipientEmail(recipient.getEmail()).build(), identity.ownerEmailFor(jwt));
+                .recipientEmail(recipient.getEmail()).build(), identity.caller(jwt));
         return new ContactResponse(conversation.getId());
     }
 }

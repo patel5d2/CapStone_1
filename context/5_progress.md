@@ -288,6 +288,23 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       **Not verified:** the flow has not been opened in a browser — 375px, keyboard-only,
       Chrome/Safari/Firefox are all outstanding, and they are three of the seven
       Definition-of-Done checks. **Objective 3 does not move.**
+      **Prefilled from Clerk (2026-10-06, by user direction).** A first profile starts from
+      the first and last name the student gave Clerk at sign-up; those fields collapse to a
+      "From your account" summary with **Edit name**, and a validation error on either
+      reopens them. Only the remaining required fields are asked (school, year, major,
+      city, state); graduation year, bio, photo and visibility move under a collapsed
+      "Optional details" section that opens itself on an error. School is still chosen,
+      not derived from the email domain — that is S1-03, blocked on D-SCHOOLS.
+      **Fixed 2026-10-06 — new sign-ups saw "Two-factor authentication is required"
+      instead of the profile.** Cause: sign-up enrols the second factor in the setup-mfa
+      task but never asks for it, so the new session's `fva` is `[n, -1]` and
+      `InstitutionalAccessPolicy` refuses every API call; sign-in was unaffected because
+      Clerk asks for the factor there. Fix (frontend only, the server check is unchanged):
+      `RequireAuth` detects a two-step-enabled user whose session has never verified the
+      second factor, holds the profile check, and opens Clerk's own reverification modal
+      (`useReverification`, level `second_factor`) once; then the student continues to
+      Complete your profile. Regression test: `frontend/scripts/test-second-factor.cjs`
+      (fails with the gate removed). **Not verified in a browser with a real sign-up.**
 - [x] **Field-level validation responses** (2026-09-18, resolves Open Question 12).
       Backend: `ExceptionWrapper.fieldErrors`, populated by the
       `MethodArgumentNotValidException` handler from a sorted map, with a readable
@@ -300,6 +317,43 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       pinning the response shape — `fieldErrors.title`, `fieldErrors.category`,
       `fieldErrors['photoUrls[0]']`, and `message` asserted to contain no `{`);
       `npm run lint` and `npm run build` clean.
+- [x] **S1-11 Messaging identity (ADR-012 slice)** (2026-10-06). `conversation_participant`,
+      `message`, `blocked_user` and `user_report` carry a nullable Clerk-subject column beside
+      each address (`user_subject`, `sender_subject`, `blocker_subject`/`blocked_subject`,
+      `reporter_subject`/`reported_subject`); `(conversation_id, user_subject)` and
+      `(blocker_subject, blocked_subject)` are unique alongside the unchanged email
+      constraints. `MessagingIdentity` is the one place a messaging caller is resolved —
+      subject from the verified token, address from `ownerEmailFor` — and rows still keyed
+      only on that verified address are claimed for the subject on first contact
+      (decision 018, **Proposed**). `MessagingService` matches stored rows subject-first
+      (`Party.is`), so an address change keeps inbox membership, unread counts and blocks in
+      both directions, and a second account on a recycled address matches nothing.
+      Membership is decided in the service: a missing conversation is **404**, a
+      conversation without the caller **403** (invariant 2). Existing databases:
+      `scripts/db/messaging-identity-upgrade.sql` (idempotent) adds the columns and backfills
+      only addresses held by exactly one known subject; every other row is counted and stays
+      on its address until its owner signs in (rule 5).
+      **Disagreement with the story, stated rather than resolved:** it asks for a new Flyway
+      migration, and `main` no longer has Flyway — `schema.sql` is rebuilt on every start, so
+      the columns are in `schema.sql` and the upgrade is a script. See Open Question 13.
+      Verified 2026-10-06: `./mvnw --batch-mode verify` **161 tests, 0 failures** (13 new in
+      `MessagingIdentityTest`). An adversarial review before commit found five defects, all
+      fixed with a regression test each: a renamed student with a bound profile losing
+      new-address chats; mixed-case addresses never binding (a block escapable by rename);
+      a claim binding two rows to one subject pair and failing every later request;
+      unblocking by a recycled listed address doing nothing; and blocking a recycled
+      address's new holder failing with a 500 (now 409 — see `identity-backfill.md` §9).
+      The case and duplicate-claim tests were each confirmed to fail with their fix removed. Disposable PostgreSQL 16: `main`'s previous schema populated
+      with conversations, messages, blocks and reports, upgrade run twice — row counts,
+      unread sum and `last_read_at` identical before and after, the second run a no-op,
+      the recycled and the unknown address left unmatched and counted; the jar booted on the
+      upgraded database with `ddl-auto: validate`; `MessagingIdentityTest`,
+      `FeatureFlowsIntegrationTest`, `FrontendEndpointsSmokeTest` and
+      `StudentIdentityServiceTest` green on fresh PostgreSQL databases.
+      **Not verified:** no real Clerk token (tests construct `Jwt` values), no real address
+      change in Clerk, and the upgrade has not been run on the Aiven database.
+      **Not changed:** responses still carry participant, sender and blocked addresses —
+      removing them is S1-07 (invariant 4). The email columns stay until S1-12.
 
 ---
 
@@ -310,9 +364,25 @@ Not a scope change: four-tab navigation is already recorded in `1_overview.md` �
 navigation and `4_ui_design.md` §Target navigation, and restated in
 `future-specs/1_design-document.md` §3.2.
 
-**Still Sprint 2, still open:** school theming (objective 8), the user theme override,
-the text-size preference, and the notification centre that shares the sidebar's bottom
-slot.
+**Still Sprint 2, still open:** the user theme override, the text-size preference, and
+the notification centre that shares the sidebar's bottom slot. School theming landed
+early (below).
+
+- [x] **School theming (objective 8)** (2026-10-06, by user direction). `lib/schoolTheme.ts`
+      stamps `data-school` on `<html>` from the signed-in student's profile school
+      (restored before first paint, cleared on sign-out), and `index.css` carries one
+      `:root[data-school]` block per school overriding the primary scale and the decorative
+      accent. Seven palettes — `uc`, `xavier`, `nku`, `miami`, `cincystate`, `msj`,
+      `thomasmore` — each built from the school's brand colour with sources in
+      `4_ui_design.md`; every one passes all ten ledger pairs in both modes, checked by
+      `frontend/scripts/test-school-themes.cjs` against the real stylesheet (now run in
+      CI through `npm test`). Clerk's own screens follow via `ThemedClerkProvider`.
+      Verified 2026-10-06: `npm run lint` clean, `npx tsc -b` clean, `npm test` **28/28**,
+      `npm run build` clean, `./mvnw --batch-mode verify` **161 tests, 0 failures**.
+      **Not verified:** not yet looked at in a browser per school, at 375px or by keyboard.
+      **Open:** Cincinnati State's colour comes from its own website, not a brand guide;
+      Thomas More's guide prints a web-safe `#000099` (a library page lists `#00549E`).
+      Confirm both with the schools. Decision 019 (Proposed).
 
 - [x] **S2-1 Four-tab consolidation.** `AppShell` carries four destinations in the order
       Marketplace, Messages, Community, Support. The student directory is a sub-surface
@@ -347,7 +417,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 5 | Partial-match directory across schools | ⚠️ verified against Postgres 2026-09-16 — `LIKE '%son%'` returned 6 students across 5 schools; browser/demo acceptance still not recorded | Implementation present |
 | 6 | Messaging < 2s, no contacts shared | ⚠️ 5s active-chat polling; multiple DTOs expose personal emails | Sprint 6 |
 | 7 | Post/reply/report on both feed types | ⚠️ post/reply/like exist; no post-report endpoint or separate school/major feeds | Sprint 8 |
-| 8 | School theming automatic on login | ❌ one palette only | Sprint 2 |
+| 8 | School theming automatic on login | ⚠️ seven contrast-checked palettes applied on sign-in from the profile's school; two schools' colours still to confirm; not yet checked in a browser | Sprint 2 |
 | 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
 | 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
 | 11 | 99% availability | ⚠️ Compose parses, Flyway owns the schema, CI now starts the container it builds and smoke-tests health/SPA/monitoring, Grafana dashboard and latency histograms verified. **Remaining: no deployed environment and therefore no uptime evidence** — availability cannot be measured from CI | Sprint 0 |
@@ -487,6 +557,8 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 011 | Legacy JDBC folded into JPA | Two persistence styles double the review surface and the injection surface | **Proposed** |
 | 012 | **Key identity on the Clerk user ID**, synced by `user.created` webhook | Clerk emails are mutable; email keys orphan rows across 16 entity columns. Supersedes 005 | **Reported carried, minutes not in the checkout** — implemented 2026-09-18 in S1-02 (`V4`, `StudentIdentityService`) on the team's confirmation that #49 passed. Attach the minutes to close Rule 8. Audit and backfill rules: [`docs/phase-1/identity-backfill.md`](../docs/phase-1/identity-backfill.md) |
 | 013 | Adaptive password hashing discharged by Clerk | The contract requires adaptive hashes; Clerk owns credential storage, so CampusBridge stores none. Recorded so a reader looking for bcrypt understands its absence | **Proposed** |
+| 018 | Messaging rows are claimed for the caller's Clerk subject on first contact, matched by the caller's verified address | Rows written before S1-11, or addressed to someone not yet identified, carry only an address; binding them when their verified holder calls in is what lets an inbox and a block survive a later address change. Differs from identity-backfill rule 1 (student rows never bind by email) because that rule guards seeded demo profiles, and no messaging data is seeded | **Proposed** — implemented in S1-11 (`MessagingIdentity`). Needs a vote (Rule 8) |
+| 019 | School themes override the primary scale **and the decorative accent**; a brand colour that cannot carry white text gets an accessible in-app variant at `primary-600` | The accent is decorative only, so a school's second colour (NKU gold, MSJ gold) can show without becoming an action colour. NKU gold is 1.6:1 under white text, so its buttons use a bronze-gold (4.93:1) and dark mode shows the true gold | **Proposed** — implemented 2026-10-06. Needs a vote (Rule 8) |
 
 ---
 
@@ -605,6 +677,19 @@ Raise at the next weekly meeting. Do not guess these in code.
     unconditionally, so a class-level constraint would have thrown a
     `ClassCastException` — which the catch-all serves as an opaque 500, the exact failure
     mode this area keeps producing. Non-field errors now fall through to the message.
+
+13. **Flyway is gone from `main`, but invariant 7 and the stories still assume it.**
+    `2_architecture.md` lists Flyway as BUILT and invariant 7 says schema changes happen
+    only through a migration, yet `main` has no Flyway dependency and no `V*.sql` files:
+    the schema is one `schema.sql` (built from the former V1, V4–V7) recreated on every
+    start. S1-11 therefore changed `schema.sql` and shipped
+    `scripts/db/messaging-identity-upgrade.sql` for databases that already hold data, such
+    as the Aiven dev database. Restore Flyway (the script becomes a versioned migration),
+    or record `schema.sql` plus upgrade scripts as the mechanism and amend invariant 7?
+    Raised 2026-10-06; affects S1-10 and S1-12 the same way. Related: the email unique
+    constraints (`uk_blocked_user`, `uk_conversation_participant`) are still enforced beside
+    the new subject indexes, which is why blocking a recycled address answers 409 until
+    S1-12 removes the email columns.
 
 ---
 
