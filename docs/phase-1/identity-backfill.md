@@ -352,3 +352,55 @@ address and **0** of the signature. What it logs is the subject and the delivery
 Svix scheme from a fabricated local secret, so what is proven is the scheme as documented,
 not this project's Clerk endpoint — which has not been created, since that is dashboard
 work with a real secret.
+
+---
+
+## 9. S1-11 — messaging identity (added 2026-10-06)
+
+The six messaging columns from §1 (`conversation_participant.user_email`,
+`message.sender_email`, `blocked_user.blocker_email`/`blocked_email`,
+`user_report.reporter_email`/`reported_email`) each gain a nullable Clerk-subject column
+beside them. The email columns and their constraints are untouched until S1-12 (rule 5).
+
+**How a row gets a subject.**
+
+- *New rows:* the caller's subject from the verified token; for the other side (recipient,
+  seller, block or report target), the subject of the **single** known identity holding
+  that address — a bound `student` row or the webhook's `clerk_identity` record. Two
+  subjects on one address count as unknown.
+- *Existing rows, at upgrade:* `scripts/db/messaging-identity-upgrade.sql` applies the same
+  single-subject rule and prints, per column, how many rows it left on the address.
+- *Existing rows, at runtime:* `MessagingIdentity.caller` binds rows still keyed only on the
+  caller's **verified** address to the caller's subject on first contact (decision 018,
+  Proposed). Unlike rule 1 for `student`, this does bind on an address match: a messaging
+  row on an address has always meant "whoever holds that address", there are no seeded
+  messaging rows to hand out, and the verified token is that holder.
+- *A renamed student with a bound profile* is keyed on the profile's stored address, but
+  others now reach them on the token's current one. Rows on that current address are
+  claimed too — unless a different known account (bound profile or webhook record) holds
+  it, in which case they are left alone rather than guessed at.
+
+**Matching.** A stored row is the caller when the subjects are equal; the address decides
+only when either side has no subject yet. So a renamed student keeps their inbox, unread
+counts and blocks, and a second account presenting a recycled address matches nothing.
+
+**Addresses compare case-insensitively** everywhere in this slice — `Party.is`, the claim
+queries, the `clerk_identity` lookup and the upgrade script — so `Bob@uc.edu` and
+`bob@uc.edu` bind to the same subject.
+
+**Known gaps, recorded rather than closed here.**
+
+- A block placed on an address no known identity held at the time stays address-keyed until
+  its holder uses messaging under that address. If they change address first, the block
+  does not follow them. A live webhook narrows this (new blocks then resolve the subject at
+  once), but nothing re-binds a block that already exists when the webhook later learns the
+  address — that would mean claiming rows from `ClerkWebhookController`, which is S1-04's
+  code and not this story's.
+- `uk_blocked_user (blocker_email, blocked_email)` is still enforced. After an address is
+  recycled, blocking its new holder collides with an earlier block on the same address
+  belonging to the previous holder; the API answers **409** and asks the student to remove
+  the old entry first. It disappears with the email columns (S1-12) — see Open Question 13.
+- The claim queries compare `lower(...)`, which no index serves, so each messaging request
+  scans `conversation_participant` and `blocked_user`. Negligible at current volume;
+  PostgreSQL expression indexes are the upgrade path (H2, used in tests, has none).
+

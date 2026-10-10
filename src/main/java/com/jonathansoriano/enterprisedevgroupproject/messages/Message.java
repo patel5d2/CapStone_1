@@ -26,6 +26,9 @@ public class Message {
     @Column(nullable = false)
     private String senderEmail;
 
+    /** Clerk subject of the sender, taken from the verified token (ADR-012). */
+    private String senderSubject;
+
     @Column(nullable = false, length = 4000)
     private String content;
 

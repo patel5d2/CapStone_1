@@ -93,6 +93,11 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # Auth/session flows and the school palettes' contrast ledger (invariant 11).
+      - name: Test
+        working-directory: frontend
+        run: npm test
+
       - name: Type-check and build
         working-directory: frontend
         env:
