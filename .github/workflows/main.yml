@@ -305,11 +305,12 @@ jobs:
         run: |
           set -euo pipefail
           dir=/opt/campusbridge
-          jar=$(ls artifact/EnterpriseDevGroupProject-*.jar | grep -v plain | head -1)
           cp "$dir/app.jar" "$dir/app.jar.prev"
-          cp "$jar" "$dir/app.jar.new" && mv "$dir/app.jar.new" "$dir/app.jar"
+          # Fails unless the artifact holds exactly one jar (cp refuses several sources).
+          cp artifact/EnterpriseDevGroupProject-*.jar "$dir/app.jar.new"
+          mv "$dir/app.jar.new" "$dir/app.jar"
           sudo systemctl restart campusbridge
-          for i in $(seq 1 90); do
+          for _ in $(seq 1 90); do
             if curl -sf http://localhost:8080/actuator/health >/dev/null; then
               echo "Backend healthy on $(hostname)"; exit 0
             fi
@@ -328,7 +329,7 @@ jobs:
           echo
           # Through the Worker, /api must come back from Spring (401 without a token),
           # not as the SPA's index.html (200), which means the proxy is not wired.
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' https://campusbridge.dharmintech.org/api/schools)
             [ "$code" = 401 ] && { echo "Frontend -> backend proxy OK"; exit 0; }
             sleep 10
