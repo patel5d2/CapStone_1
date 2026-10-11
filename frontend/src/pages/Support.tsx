@@ -81,7 +81,7 @@ function Resources() {
   return (
     <>
       <div className="mb-5 max-w-sm">
-        <select className="field" value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
+        <select aria-label="Filter by school" className="field" value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
           <option value="">All schools</option>
           {schools.map((s) => (
             <option key={s.id} value={s.id}>
@@ -249,7 +249,7 @@ function OpenRequests() {
         }
       >
         <div className="space-y-3">
-          <select
+          <select aria-label="Kind of help"
             className="field"
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value as SupportCategory })}
@@ -260,7 +260,7 @@ function OpenRequests() {
               </option>
             ))}
           </select>
-          <select
+          <select aria-label="School"
             className="field"
             value={form.schoolId}
             onChange={(e) => setForm({ ...form, schoolId: e.target.value })}
@@ -272,7 +272,7 @@ function OpenRequests() {
               </option>
             ))}
           </select>
-          <textarea
+          <textarea aria-label="What you need"
             className="field min-h-28"
             placeholder="Describe what you need."
             value={form.description}

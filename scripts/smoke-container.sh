@@ -33,6 +33,11 @@ cleanup() {
     cat "$artifacts/compose-ps.txt" >&2
     tail -n 200 "$artifacts/compose.log" >&2
   fi
+  # CI keeps a healthy stack up for the ZAP scan; its own cleanup step removes it.
+  if [[ "$status" -eq 0 && "${CI_KEEP_STACK:-false}" == true ]]; then
+    echo "Container smoke diagnostics: $artifacts (stack left running)"
+    exit 0
+  fi
   # The unique project contains only this script's disposable fixture resources.
   if ! "${compose[@]}" down --volumes --remove-orphans; then
     status=1

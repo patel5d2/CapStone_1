@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { Users, Heart, MessageSquare, Trash2, CalendarDays, Plus, MapPin, Send, Pin } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
@@ -58,6 +59,9 @@ export default function Community() {
 
 function Feed() {
   const { push } = useToast()
+  // Only the author may pin or delete (the server enforces it); hide what would only fail.
+  const { user } = useUser()
+  const myEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [draft, setDraft] = useState('')
@@ -133,7 +137,7 @@ function Feed() {
   return (
     <div className="space-y-4">
       <div className="card p-4">
-        <textarea
+        <textarea aria-label="New post"
           className="field min-h-20"
           placeholder="Share something with students across all six schools…"
           value={draft}
@@ -178,25 +182,31 @@ function Feed() {
               <button
                 className={`btn-sm ${post.likedByMe ? 'btn-secondary' : 'btn-ghost'}`}
                 onClick={() => toggleLike(post)}
+                aria-pressed={post.likedByMe}
+                aria-label={`${post.likedByMe ? 'Unlike' : 'Like'} post, ${post.likeCount} ${post.likeCount === 1 ? 'like' : 'likes'}`}
               >
                 <Heart className={`h-3.5 w-3.5 ${post.likedByMe ? 'fill-current' : ''}`} /> {post.likeCount}
               </button>
               <button
                 className="btn-ghost btn-sm"
                 onClick={() => setOpenComments(openComments === post.id ? null : post.id)}
+                aria-expanded={openComments === post.id}
+                aria-label={`Comments, ${post.commentCount}`}
               >
                 <MessageSquare className="h-3.5 w-3.5" /> {post.commentCount}
               </button>
-              <button
-                className={`btn-sm ${post.pinned ? 'btn-secondary' : 'btn-ghost'}`}
-                onClick={() => togglePin(post)}
-                title={post.pinned ? 'Unpin this post' : 'Pin this post to the top'}
-              >
-                <Pin className="h-3.5 w-3.5" /> {post.pinned ? 'Unpin' : 'Pin'}
-              </button>
-              <button className="btn-danger btn-sm ml-auto" onClick={() => remove(post)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {post.authorEmail.toLowerCase() === myEmail && <>
+                <button
+                  className={`btn-sm ${post.pinned ? 'btn-secondary' : 'btn-ghost'}`}
+                  onClick={() => togglePin(post)}
+                  title={post.pinned ? 'Unpin this post' : 'Pin this post to the top'}
+                >
+                  <Pin className="h-3.5 w-3.5" aria-hidden="true" /> {post.pinned ? 'Unpin' : 'Pin'}
+                </button>
+                <button className="btn-danger btn-sm ml-auto" onClick={() => remove(post)} aria-label="Delete post">
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </>}
             </div>
 
             {openComments === post.id && <Comments postId={post.id} onChanged={load} />}
@@ -253,7 +263,7 @@ function Comments({ postId, onChanged }: { postId: number; onChanged: () => void
         ))
       )}
       <div className="flex gap-2">
-        <input
+        <input aria-label="Write a comment"
           className="field"
           placeholder="Write a comment…"
           value={draft}
@@ -404,13 +414,13 @@ function Groups() {
         }
       >
         <div className="space-y-3">
-          <input
+          <input aria-label="Group name"
             className="field"
             placeholder="Group name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-          <select
+          <select aria-label="Group type"
             className="field"
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value as GroupType })}
@@ -421,13 +431,13 @@ function Groups() {
               </option>
             ))}
           </select>
-          <input
+          <input aria-label="Related to"
             className="field"
             placeholder={GROUP_TYPES.find((t) => t.value === form.type)?.hint}
             value={form.relatedValue}
             onChange={(e) => setForm({ ...form, relatedValue: e.target.value })}
           />
-          <select
+          <select aria-label="School"
             className="field"
             value={form.schoolId}
             onChange={(e) => setForm({ ...form, schoolId: e.target.value })}
@@ -439,7 +449,7 @@ function Groups() {
               </option>
             ))}
           </select>
-          <textarea
+          <textarea aria-label="Group description"
             className="field min-h-24"
             placeholder="What is this group for?"
             value={form.description}
@@ -571,25 +581,25 @@ function Events() {
         }
       >
         <div className="space-y-3">
-          <input
+          <input aria-label="Event title"
             className="field"
             placeholder="Event title"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
-          <input
+          <input aria-label="Starts at"
             className="field"
             type="datetime-local"
             value={form.startsAt}
             onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
           />
-          <input
+          <input aria-label="Location"
             className="field"
             placeholder="Location"
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
           />
-          <select
+          <select aria-label="School"
             className="field"
             value={form.schoolId}
             onChange={(e) => setForm({ ...form, schoolId: e.target.value })}
@@ -601,7 +611,7 @@ function Events() {
               </option>
             ))}
           </select>
-          <textarea
+          <textarea aria-label="Event details"
             className="field min-h-24"
             placeholder="Details"
             value={form.description}
