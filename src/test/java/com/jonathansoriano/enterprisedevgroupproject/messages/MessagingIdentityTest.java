@@ -45,7 +45,22 @@ class MessagingIdentityTest {
     }
 
     private ConversationResponse direct(Party from, String toEmail) {
+        ensureStudentProfile(from.email(), "Test", "Sender");
+        ensureStudentProfile(toEmail, "Test", "Recipient");
         return messaging.startConversation(StartConversationRequest.builder().recipientEmail(toEmail).build(), from);
+    }
+
+    private void ensureStudentProfile(String email, String firstName, String lastName) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM student WHERE email = ?", Integer.class, email);
+        if (count == null || count == 0) {
+            jdbc.update("""
+                    INSERT INTO student (first_name, last_name, resident_city, resident_state,
+                                         university_id, grade, major, email)
+                    VALUES (?, ?, 'Cincinnati', 'OH',
+                            (SELECT id FROM university WHERE name = 'University of Cincinnati'),
+                            'Senior', 'Computer Science', ?)
+                    """, firstName, lastName, email);
+        }
     }
 
     @Test
@@ -244,6 +259,27 @@ class MessagingIdentityTest {
         assertThatThrownBy(() -> participants.saveAndFlush(ConversationParticipant.builder()
                 .conversationId(chat.getId()).userEmail("alice.uq@other.edu").userSubject("user_alice_uq").build()))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("conversation loads include participant display names")
+    void conversationLoadsIncludeParticipantNames() {
+        String aliceEmail = "alice.names@school.edu";
+        String bobEmail = "bob.names@school.edu";
+        Party alice = identity.caller(token("user_alice_names", aliceEmail));
+        ensureStudentProfile(aliceEmail, "Alice", "Sender");
+        ensureStudentProfile(bobEmail, "Bob", "Recipient");
+
+        ConversationResponse started = direct(alice, bobEmail);
+        assertThat(started.getParticipantNames())
+                .containsExactlyInAnyOrder("Alice Sender", "Bob Recipient")
+                .doesNotContain(aliceEmail, bobEmail);
+
+        assertThat(messaging.listConversations(alice))
+                .singleElement()
+                .satisfies(conversation -> assertThat(conversation.getParticipantNames())
+                        .containsExactlyInAnyOrder("Alice Sender", "Bob Recipient")
+                        .doesNotContain(aliceEmail, bobEmail));
     }
 
     @Test
