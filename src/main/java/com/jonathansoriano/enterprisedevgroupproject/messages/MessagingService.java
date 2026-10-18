@@ -1,10 +1,13 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.dto.StudentAccountDetailsDto;
+import com.jonathansoriano.enterprisedevgroupproject.exception.SearchNotFoundException;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingRepository;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.MessageResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
+import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,19 +34,22 @@ public class MessagingService {
     private final BlockedUserRepository blockedUserRepository;
     private final ListingRepository listingRepository;
     private final MessagingIdentity identity;
+    private final StudentRepository students;
 
     public MessagingService(ConversationRepository conversationRepository,
                              ConversationParticipantRepository participantRepository,
                              MessageRepository messageRepository,
                              BlockedUserRepository blockedUserRepository,
                              ListingRepository listingRepository,
-                             MessagingIdentity identity) {
+                             MessagingIdentity identity,
+                            StudentRepository students) {
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.messageRepository = messageRepository;
         this.blockedUserRepository = blockedUserRepository;
         this.listingRepository = listingRepository;
         this.identity = identity;
+        this.students = students;
     }
 
     @Transactional
@@ -259,11 +266,18 @@ public class MessagingService {
                 .map(ConversationParticipant::getUnreadCount)
                 .orElse(0);
 
+        List<String> messengerNames = new ArrayList<>();
+        participants.forEach(participant -> {
+            StudentAccountDetailsDto accountDetailsDto = students.findByEmail(participant.getUserEmail()).orElseThrow(() -> new SearchNotFoundException("Student Not found!"));
+            messengerNames.add(accountDetailsDto.getFirstName() + " " + accountDetailsDto.getLastName());
+        });
+
         return ConversationResponse.builder()
                 .id(conversation.getId())
                 .type(conversation.getType())
                 .listingId(conversation.getListingId())
                 .participantEmails(participants.stream().map(ConversationParticipant::getUserEmail).collect(Collectors.toList()))
+                .participantNames(messengerNames)
                 .unreadCount(unread)
                 .createdAt(conversation.getCreatedAt())
                 .build();
