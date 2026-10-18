@@ -20,6 +20,7 @@ import com.jonathansoriano.enterprisedevgroupproject.support.SupportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -52,6 +53,8 @@ class FeatureFlowsIntegrationTest {
     private MessagingService messagingService;
     @Autowired
     private SupportService supportService;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void listing_createSearchUpdateFavoriteAndDelete() {
@@ -169,6 +172,9 @@ class FeatureFlowsIntegrationTest {
 
     @Test
     void messaging_startFromListingSendReadBlockAndUnblock() {
+        ensureStudentProfile(SELLER, "Seller", "Profile");
+        ensureStudentProfile(BUYER, "Buyer", "Profile");
+
         ListingResponse listing = listingService.create(ListingRequest.builder()
                 .title("Mini fridge")
                 .category(ListingCategory.FURNITURE)
@@ -180,7 +186,14 @@ class FeatureFlowsIntegrationTest {
                 StartConversationRequest.builder().listingId(listing.getId()).build(), BUYER_PARTY);
 
         assertThat(conversation.getParticipantEmails()).containsExactlyInAnyOrder(SELLER, BUYER);
+        assertThat(conversation.getParticipantNames()).containsExactlyInAnyOrder("Seller Profile", "Buyer Profile");
         assertThat(conversation.getListingId()).isEqualTo(listing.getId());
+
+        assertThat(messagingService.listConversations(BUYER_PARTY))
+                .filteredOn(c -> c.getId().equals(conversation.getId()))
+                .singleElement()
+                .satisfies(c -> assertThat(c.getParticipantNames())
+                        .containsExactlyInAnyOrder("Seller Profile", "Buyer Profile"));
 
         // Starting again reuses the same thread instead of piling up duplicates
         ConversationResponse again = messagingService.startConversation(
@@ -259,5 +272,18 @@ class FeatureFlowsIntegrationTest {
                 .findFirst()
                 .map(ConversationResponse::getUnreadCount)
                 .orElseThrow();
+    }
+
+    private void ensureStudentProfile(String email, String firstName, String lastName) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM student WHERE email = ?", Integer.class, email);
+        if (count == null || count == 0) {
+            jdbc.update("""
+                    INSERT INTO student (first_name, last_name, resident_city, resident_state,
+                                         university_id, grade, major, email)
+                    VALUES (?, ?, 'Cincinnati', 'OH',
+                            (SELECT id FROM university WHERE name = 'University of Cincinnati'),
+                            'Senior', 'Computer Science', ?)
+                    """, firstName, lastName, email);
+        }
     }
 }
