@@ -11,6 +11,7 @@ export default function Messages() {
   const { user } = useUser()
   const { push } = useToast()
   const myEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase() ?? ''
+  const myName = user?.fullName?.toLocaleLowerCase() ?? ''
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [activeId, setActiveId] = useState<number | null>(null)
@@ -23,9 +24,22 @@ export default function Messages() {
   const [blocked, setBlocked] = useState<string[]>([])
   const threadRef = useRef<HTMLDivElement>(null)
 
+/**
+ * Fetches the current user's message conversations from the server and loads them into component state.
+ *
+ * Behavior:
+ * - Performs a GET request to `/api/messages/conversations` and expects an array of ConversationSummary objects.
+ * - Stores the returned array into the `conversations` state via `setConversations`.
+ * - Errors are treated as transient and swallowed (the poll/retry will attempt again).
+ * - Always sets the `loading` flag to false in the finally block so the UI exits the loading state whether the request succeeded or failed.
+ *
+ * @returns {Promise<void>} Resolves once the conversations state and loading flag have been updated.
+ */
   const loadConversations = useCallback(async () => {
     try {
-      setConversations(await api.get<ConversationSummary[]>('/api/messages/conversations'))
+      // data from our server is stored in 'data' variable for better debugging session. Then we set setConversation with our data variable
+      const data = await api.get<ConversationSummary[]>('/api/messages/conversations')
+      setConversations(data)
     } catch {
       /* transient — the poll will retry */
     } finally {
@@ -69,6 +83,35 @@ export default function Messages() {
     (conversation: ConversationSummary) =>
       conversation.participantEmails.find((e) => e.toLowerCase() !== myEmail) ?? 'Conversation',
     [myEmail],
+  )
+  /**
+ * Return the conversation partner's display name for a given ConversationSummary.
+ *
+ * Behavior:
+ * - Looks through `conversation.participantNames` and returns the first name
+ *   that does not match the current user's name (`myName`), using a
+ *   case-insensitive comparison.
+ * - If no other participant name is found, returns the fallback string
+ *   "Conversation".
+ *
+ * Usage:
+ * - Use this when you want to show the partner's display name in the UI
+ *   (for example, in the thread header) instead of their email.
+ * - Call it with a ConversationSummary object; it is pure and has no side effects.
+ *
+ * Notes:
+ * - Ensure the comparison value (`myName`) is the current user's display name
+ *   (lowercased if you match case-insensitively).
+ * - If you wrap this in `useCallback`, make sure the dependency array includes
+ *   `myName` (not `myEmail`) so it updates when the user's display name changes.
+ *
+ * @param {ConversationSummary} conversation - Conversation object containing participantNames.
+ * @returns {string} The other participant's display name, or "Conversation" if none found.
+ */
+  const partnerNameOf = useCallback(
+    (conversation: ConversationSummary) =>
+      conversation.participantNames.find((name) => name.toLowerCase() !== myName) ?? 'Conversation',
+    [myName],
   )
 
   const openConversation = async (conversationId: number) => {
@@ -180,7 +223,7 @@ export default function Messages() {
 
           {conversations.length === 0 ? (
             <div className="p-6 text-center text-sm text-[var(--color-ink-muted)]">
-              No conversations yet. Message a seller from the Marketplace to start one.
+              No conversations yet.
             </div>
           ) : (
             conversations.map((conversation) => (
@@ -192,7 +235,7 @@ export default function Messages() {
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-semibold">{partnerOf(conversation)}</span>
+                  <span className="truncate text-sm font-semibold">{partnerNameOf(conversation)}</span>
                   {conversation.unreadCount > 0 && (
                     <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-bold text-white">
                       {conversation.unreadCount}
