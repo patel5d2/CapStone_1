@@ -7,6 +7,7 @@ import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationRe
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.MessageResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
+import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,19 +33,22 @@ public class MessagingService {
     private final BlockedUserRepository blockedUserRepository;
     private final ListingRepository listingRepository;
     private final CallerIdentity identity;
+    private final StudentRepository students;
 
     public MessagingService(ConversationRepository conversationRepository,
                              ConversationParticipantRepository participantRepository,
                              MessageRepository messageRepository,
                              BlockedUserRepository blockedUserRepository,
                              ListingRepository listingRepository,
-                             CallerIdentity identity) {
+                             CallerIdentity identity,
+                             StudentRepository students) {
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.messageRepository = messageRepository;
         this.blockedUserRepository = blockedUserRepository;
         this.listingRepository = listingRepository;
         this.identity = identity;
+        this.students = students;
     }
 
     @Transactional
@@ -281,11 +285,20 @@ public class MessagingService {
                 .map(ConversationParticipant::getUnreadCount)
                 .orElse(0);
 
+        // A participant without a student profile (e.g. a seller who never finished sign-up)
+        // shows by address rather than failing the whole inbox.
+        List<String> messengerNames = participants.stream()
+                .map(participant -> students.findByEmail(participant.getUserEmail())
+                        .map(student -> student.getFirstName() + " " + student.getLastName())
+                        .orElse(participant.getUserEmail()))
+                .collect(Collectors.toList());
+
         return ConversationResponse.builder()
                 .id(conversation.getId())
                 .type(conversation.getType())
                 .listingId(conversation.getListingId())
                 .participantEmails(participants.stream().map(ConversationParticipant::getUserEmail).collect(Collectors.toList()))
+                .participantNames(messengerNames)
                 .unreadCount(unread)
                 .createdAt(conversation.getCreatedAt())
                 .build();

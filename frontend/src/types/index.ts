@@ -126,6 +126,7 @@ export interface ConversationSummary {
   type: ConversationType
   listingId: number | null
   participantEmails: string[]
+  participantNames: string[]
   unreadCount: number
   createdAt: string
 }
