@@ -3,23 +3,23 @@ const { resolve } = require('node:path')
 const { runInNewContext } = require('node:vm')
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const ts = require('typescript')
+const { transformSync } = require('esbuild')
 
 // Exercise the components with controlled Clerk session states, without credentials.
 function load(file, mocks) {
   const source = readFileSync(resolve(__dirname, '../src', file), 'utf8')
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  })
-  const exports = {}
+  // TypeScript 7 has no transpileModule; esbuild strips types and emits CommonJS + react-jsx.
+  const { code: outputText } = transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' })
+  const module = { exports: {} }
   const jsx = (type, props) => ({ type, props })
   runInNewContext(outputText, {
-    exports,
+    module,
+    exports: module.exports,
     require: (name) => name === 'react/jsx-runtime'
       ? { jsx, jsxs: jsx, Fragment: 'Fragment' }
       : name === 'react' ? { useEffect: () => {}, ...mocks[name] } : mocks[name] ?? {},
   })
-  return exports
+  return module.exports
 }
 
 for (const [label, state, destination] of [
