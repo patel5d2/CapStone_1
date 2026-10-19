@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.SendMessageRequest;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.StartConversationRequest;
@@ -22,13 +24,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * ADR-012, messaging slice: participant, sender, blocker/blocked and reporter/reported
  * identities follow the Clerk subject, against the real schema and the real resolution
- * path ({@link MessagingIdentity#caller}), not hand-built parties.
+ * path ({@link CallerIdentity#caller}), not hand-built parties.
  */
 @SpringBootTest
 @Transactional
 class MessagingIdentityTest {
 
-    @Autowired private MessagingIdentity identity;
+    @Autowired private CallerIdentity identity;
     @Autowired private MessagingService messaging;
     @Autowired private ConversationParticipantRepository participants;
     @Autowired private MessageRepository messages;
@@ -254,5 +256,19 @@ class MessagingIdentityTest {
         assertThatThrownBy(() -> blocks.saveAndFlush(BlockedUser.builder().blockerEmail("a.uq@new.edu")
                 .blockerSubject("user_a_uq").blockedEmail("b.uq@new.edu").blockedSubject("user_b_uq").build()))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("an address alone never opens a conversation: an unbound row on it stays closed")
+    void addressAloneGrantsNoAccess() {
+        Party bob = identity.caller(token("user_bob_ad", "bob.ad@school.edu"));
+        ConversationResponse chat = direct(bob, "held.ad@school.edu"); // nobody known holds it yet
+        // Later Clerk records that address for a different account than the next caller,
+        // so the caller's claim skips the row and it stays address-only.
+        clerkIdentities.record("user_other_ad", "held.ad@school.edu", "msg_ad", Instant.now());
+        Party caller = identity.caller(token("user_caller_ad", "held.ad@school.edu"));
+
+        assertThat(messaging.listConversations(caller)).isEmpty();
+        assertThatThrownBy(() -> messaging.listMessages(chat.getId(), caller)).hasMessageContaining("403");
     }
 }

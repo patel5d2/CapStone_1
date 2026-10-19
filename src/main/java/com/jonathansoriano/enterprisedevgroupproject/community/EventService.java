@@ -2,6 +2,7 @@ package com.jonathansoriano.enterprisedevgroupproject.community;
 
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.EventRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.EventResponse;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,7 +24,7 @@ public class EventService {
                 .collect(Collectors.toList());
     }
 
-    public EventResponse create(EventRequest request, String creatorEmail) {
+    public EventResponse create(EventRequest request, Party creator) {
         Event event = eventRepository.save(Event.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -31,7 +32,8 @@ public class EventService {
                 .location(request.getLocation())
                 .schoolId(request.getSchoolId())
                 .listingId(request.getListingId())
-                .createdByEmail(creatorEmail)
+                .createdByEmail(creator.email())
+                .createdBySubject(creator.subject())
                 .build());
         return toResponse(event);
     }

@@ -1,9 +1,18 @@
 name: Release
 
+# Nothing is compiled here: CI builds the JAR once and every release ships that file.
+#  - CI calls this after every green push to main: the JAR it tested becomes the
+#    v<pom version>-main.<CI run number> pre-release, and an image wrapping it is scanned,
+#    then published as :main, :<that version> and :sha-<commit>.
+#  - A pushed vX.Y.Z tag promotes an earlier main build. The tag must sit on main, the CI
+#    run for that commit must have passed, and the pom must say X.Y.Z. That run's JAR and
+#    image digest are re-labelled, not rebuilt. :latest and the "latest" GitHub release
+#    move only when this is the highest vX.Y.Z tag. Only admins may push v* tags (ruleset).
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_call:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -13,101 +22,76 @@ permissions: {}
 
 env:
   REGISTRY: ghcr.io
-  # Configure these public repository variables before cutting a release.
-  # Deployment must supply the same issuer/JWKS/2FA values to the backend.
-  VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
-  VITE_REQUIRE_TWO_FACTOR: ${{ vars.CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR }}
-  CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
-  CLERK_JWKS_URI: ${{ vars.CLERK_JWKS_URI }}
 
 jobs:
-  build:
-    name: Build release artifact
+  resolve:
+    name: Resolve release
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.resolve.outputs.version }}
+      run-id: ${{ steps.resolve.outputs.run-id }}
+      latest: ${{ steps.resolve.outputs.latest }}
+      image: ${{ steps.resolve.outputs.image }}
 
     steps:
-      - name: Checkout release tag
-        uses: actions/checkout@v7
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v6
+      - name: Checkout source with history and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          java-version: "21"
-          distribution: temurin
-          cache: maven
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Make Maven wrapper executable
-        run: chmod +x mvnw
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Validate matching release Clerk configuration
-        run: node scripts/validate-release-config.mjs
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Lint and build the release SPA
-        working-directory: frontend
-        run: npm run lint && npm run build
-
-      - name: Validate tag against Maven version
-        id: version
+      - name: Resolve version, source CI run and latest
+        id: resolve
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          pom_version="$(./mvnw --quiet help:evaluate -Dexpression=project.version -DforceStdout)"
-          tag_version="${GITHUB_REF_NAME#v}"
+          pom_version="$(python3 -c 'import xml.etree.ElementTree as E; print(E.parse("pom.xml").getroot().find("{http://maven.apache.org/POM/4.0.0}version").text)')"
+          echo "image=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
-          if [[ "$pom_version" == *-SNAPSHOT ]]; then
-            echo "Release builds require a non-SNAPSHOT Maven version." >&2
-            exit 1
+          if [[ "$GITHUB_REF_TYPE" != tag ]]; then
+            # A merge to main: one pre-release per green CI run; a re-run updates the same one.
+            {
+              echo "version=${pom_version%-SNAPSHOT}-main.${GITHUB_RUN_NUMBER}"
+              echo "run-id=${GITHUB_RUN_ID}"
+              echo "latest=false"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          if [[ "$tag_version" != "$pom_version" ]]; then
-            echo "Tag $GITHUB_REF_NAME does not match Maven version $pom_version." >&2
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$pom_version" != "$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Maven version $pom_version."
             exit 1
           fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main."
+            exit 1
+          fi
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow main.yml --branch main \
+            --event push --commit "$GITHUB_SHA" --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful CI run on main for $GITHUB_SHA. Wait for it (and its deploy approval), then re-run."
+            exit 1
+          fi
+          highest="$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+          {
+            echo "version=$version"
+            echo "run-id=$run_id"
+            echo "latest=$([[ "$GITHUB_REF_NAME" == "$highest" ]] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
 
-          echo "version=$pom_version" >> "$GITHUB_OUTPUT"
-
-      - name: Build and test release
-        run: ./mvnw --batch-mode verify
-
-      - name: Verify the release JAR contains the SPA and referenced assets
-        run: python3 scripts/verify-spa-jar.py
-
-      - name: Stage versioned JAR
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          jar_path="$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*.original' -print -quit)"
-          test -n "$jar_path"
-          cp "$jar_path" "dist/student-directory-${{ steps.version.outputs.version }}.jar"
-
-      - name: Upload application JAR
-        uses: actions/upload-artifact@v7
-        with:
-          name: application-jar
-          path: dist/*.jar
-          if-no-files-found: error
-          retention-days: 90
-
+  # Main only: wrap the tested JAR, refuse to publish it with fixable CRITICAL/HIGH CVEs.
   container:
     name: Publish container package
     runs-on: ubuntu-latest
-    needs: build
+    needs: resolve
+    if: github.ref_type != 'tag'
     permissions:
       contents: read
       packages: write
@@ -115,29 +99,74 @@ jobs:
       id-token: write
       security-events: write
     outputs:
-      image: ${{ steps.image.outputs.image }}
       digest: ${{ steps.push.outputs.digest }}
+    env:
+      IMAGE: ${{ needs.resolve.outputs.image }}
 
     steps:
-      - name: Checkout release tag
-        uses: actions/checkout@v7
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Resolve repository package name
-        id: image
-        shell: bash
-        run: |
-          set -euo pipefail
-          image_name="${GITHUB_REPOSITORY,,}"
-          echo "image=${REGISTRY}/${image_name}" >> "$GITHUB_OUTPUT"
+      - name: Download the JAR CI tested
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: backend-jar
+          path: artifact
+
+      - name: Stage it as the image's app-jar stage
+        run: mkdir -p app-jar && cp artifact/EnterpriseDevGroupProject-*.jar app-jar/app.jar
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the image locally for scanning
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          build-contexts: app-jar=app-jar
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: release-scan:${{ github.sha }}
+
+      - name: Generate Trivy SARIF report
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: release-scan:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 0
+          severity: CRITICAL,HIGH,MEDIUM
+          scan-type: image
+          scanners: vuln
+
+      - name: Upload Trivy SARIF report
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: trivy-results.sarif
+
+      # The gate: nothing below runs, so nothing is pushed, while a fixable CRITICAL or
+      # HIGH vulnerability remains. Fix by bumping the pinned base image or the dependency.
+      - name: Block fixable CRITICAL and HIGH vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          image-ref: release-scan:${{ github.sha }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          scan-type: image
+          scanners: vuln
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -145,34 +174,29 @@ jobs:
 
       - name: Generate container metadata
         id: metadata
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ steps.image.outputs.image }}
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ needs.resolve.outputs.version }}
+            type=raw,value=main
             type=sha,prefix=sha-
-            type=raw,value=latest
 
       - name: Build and push container image
         id: push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          build-contexts: app-jar=app-jar
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-          build-args: |
-            VITE_CLERK_PUBLISHABLE_KEY=${{ env.VITE_CLERK_PUBLISHABLE_KEY }}
-            VITE_REQUIRE_TWO_FACTOR=${{ env.VITE_REQUIRE_TWO_FACTOR }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Verify published platforms
         shell: bash
         env:
-          IMAGE: ${{ steps.image.outputs.image }}
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
@@ -188,102 +212,129 @@ jobs:
           done
 
       - name: Attest container provenance
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-name: ${{ steps.image.outputs.image }}
+          subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      - name: Scan container image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ steps.image.outputs.image }}@${{ steps.push.outputs.digest }}
-          format: table
-          exit-code: 0
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
-          scan-type: image
-          scanners: vuln
-
-      - name: Generate Trivy SARIF report
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ steps.image.outputs.image }}@${{ steps.push.outputs.digest }}
-          format: sarif
-          output: trivy-results.sarif
-          exit-code: 0
-          severity: CRITICAL,HIGH,MEDIUM
-          scan-type: image
-          scanners: vuln
-
-      - name: Upload Trivy SARIF report
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-results.sarif
-
       - name: Generate CycloneDX image SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
-          image: ${{ steps.image.outputs.image }}@${{ steps.push.outputs.digest }}
+          image: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
           format: cyclonedx-json
           output-file: image-sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
 
       - name: Upload image SBOM
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-sbom
           path: image-sbom.cdx.json
           if-no-files-found: error
           retention-days: 90
 
+  # Tags only: point the version tags (and maybe :latest) at the digest main already
+  # scanned, attested and published for this commit. Same bytes, same attestation.
+  promote:
+    name: Promote container package
+    runs-on: ubuntu-latest
+    needs: resolve
+    if: github.ref_type == 'tag'
+    permissions:
+      packages: write
+    outputs:
+      digest: ${{ steps.promote.outputs.digest }}
+
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-tag the image CI published for this commit
+        id: promote
+        shell: bash
+        env:
+          IMAGE: ${{ needs.resolve.outputs.image }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          LATEST: ${{ needs.resolve.outputs.latest }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "${IMAGE}:sha-${GITHUB_SHA::7}" --format '{{json .Manifest}}' | jq -r .digest)"
+          tags=(-t "${IMAGE}:${VERSION}" -t "${IMAGE}:${VERSION%.*}")
+          if [[ "$LATEST" == true ]]; then tags+=(-t "${IMAGE}:latest"); fi
+          docker buildx imagetools create "${tags[@]}" "${IMAGE}@${digest}"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
   release:
     name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: [build, container]
+    needs: [resolve, container, promote]
+    if: >-
+      always() && needs.resolve.result == 'success' &&
+      (needs.container.result == 'success' || needs.promote.result == 'success')
     permissions:
+      actions: read
       contents: write
       attestations: write
       id-token: write
+    env:
+      TAG: v${{ needs.resolve.outputs.version }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      LATEST: ${{ needs.resolve.outputs.latest }}
+      IMAGE: ${{ needs.resolve.outputs.image }}
+      DIGEST: ${{ needs.container.outputs.digest || needs.promote.outputs.digest }}
 
     steps:
-      - name: Download application JAR
-        uses: actions/download-artifact@v8
+      - name: Download the JAR CI tested
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: application-jar
-          path: dist
+          name: backend-jar
+          path: artifact
+          run-id: ${{ needs.resolve.outputs.run-id }}
+          github-token: ${{ github.token }}
 
       - name: Download image SBOM
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: image-sbom
           path: dist
+          run-id: ${{ needs.resolve.outputs.run-id }}
+          github-token: ${{ github.token }}
 
-      - name: Generate checksums
-        working-directory: dist
-        run: shasum -a 256 * > SHA256SUMS
+      - name: Stage versioned JAR and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp artifact/EnterpriseDevGroupProject-*.jar "dist/student-directory-${VERSION}.jar"
+          cd dist && shasum -a 256 -- * > SHA256SUMS
 
+      # A tag re-labels bytes main already attested, so only main builds attest.
       - name: Attest JAR provenance
-        uses: actions/attest-build-provenance@v4
+        if: github.ref_type != 'tag'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*.jar
 
       - name: Generate release notes
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE: ${{ needs.container.outputs.image }}
-          DIGEST: ${{ needs.container.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="$GITHUB_REF_NAME" \
+            -f tag_name="$TAG" \
             -f target_commitish="$GITHUB_SHA" \
             --jq .body > generated-notes.md
 
           {
             echo "## Container package"
             echo
-            echo "\`${IMAGE}:${{ needs.build.outputs.version }}\`"
+            echo "\`${IMAGE}:${VERSION}\`"
             echo
             echo "Digest: \`${DIGEST}\`"
             echo
@@ -293,21 +344,21 @@ jobs:
       - name: Create or update GitHub release
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --clobber
-            gh release edit "$GITHUB_REF_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Student Directory $GITHUB_REF_NAME" \
-              --notes-file release-notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "CampusBridge $TAG" --notes-file release-notes.md
           else
-            gh release create "$GITHUB_REF_NAME" dist/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --verify-tag \
-              --title "Student Directory $GITHUB_REF_NAME" \
-              --notes-file release-notes.md
+            # A pushed tag must already exist; a main build tags the commit CI tested and
+            # is a pre-release, so "latest" always means the highest vX.Y.Z.
+            if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+              where=(--verify-tag "--latest=${LATEST}")
+            else
+              where=(--target "$GITHUB_SHA" --prerelease --latest=false)
+            fi
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" "${where[@]}" \
+              --title "CampusBridge $TAG" --notes-file release-notes.md
           fi

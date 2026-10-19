@@ -7,68 +7,49 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A newer push supersedes a PR's run; on main every merge runs to the end (queued), so a
+# deploy or release is never cut off halfway.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
+# Build once: the SPA is compiled here a single time with the release Clerk settings, then
+# the same files go into the JAR, the image and the Cloudflare deploy. Repository variables
+# override these; the fallbacks are the dev Clerk instance the deployed site uses
+# (publishable values, not secrets). The backend must use the same issuer/JWKS/2FA values.
+env:
+  VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk' }}
+  VITE_REQUIRE_TWO_FACTOR: ${{ vars.CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR || 'true' }}
+  CLERK_ISSUER: ${{ vars.CLERK_ISSUER || 'https://innocent-macaw-1687.clerk.accounts.dev' }}
+  CLERK_JWKS_URI: ${{ vars.CLERK_JWKS_URI || 'https://innocent-macaw-1687.clerk.accounts.dev/.well-known/jwks.json' }}
+
 jobs:
-  build-and-test:
-    name: Build and test
+  # Every action is pinned to a full commit SHA (the repository requires it); Dependabot
+  # bumps the SHA and its version comment together.
+  lint-workflows:
+    name: Lint workflows
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          java-version: "21"
-          distribution: temurin
-          cache: maven
+          persist-credentials: false
 
-      - name: Make Maven wrapper executable
-        run: chmod +x mvnw
+      - name: actionlint
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+          -color
 
-      - name: Validate release workflow policy
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f .github/workflows/release.yml
-          grep -Fq 'image_name="${GITHUB_REPOSITORY,,}"' .github/workflows/release.yml
-          grep -Fq 'uses: docker/setup-qemu-action@v4' .github/workflows/release.yml
-          grep -Fq 'platforms: linux/amd64,linux/arm64' .github/workflows/release.yml
-          if grep -Fqi '/enterprisedevgroupproject' .github/workflows/release.yml; then
-            echo "Release workflow must publish to the current repository package name." >&2
-            exit 1
-          fi
-          if grep -Fqi 'CREDENTIALS.txt' .github/workflows/release.yml; then
-            echo "Release workflow must not publish generated credentials." >&2
-            exit 1
-          fi
-
-      - name: Verify application
-        run: ./mvnw --batch-mode verify
-
-      - name: Upload backend jar for deployment
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v7
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
-          name: backend-jar
-          path: target/EnterpriseDevGroupProject-*.jar
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload JaCoCo coverage report
-        if: always() && hashFiles('target/site/jacoco/**') != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: jacoco-report
-          path: target/site/jacoco/
-          retention-days: 14
+          version: 1.30.1
+          advanced-security: false
 
   frontend:
     name: Build frontend
@@ -76,14 +57,19 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate matching release Clerk configuration
+        run: node scripts/validate-release-config.mjs
 
       - name: Install dependencies
         working-directory: frontend
@@ -98,58 +84,175 @@ jobs:
         working-directory: frontend
         run: npm test
 
+      # Writes to src/main/resources/static (vite.config.ts build.outDir).
       - name: Type-check and build
         working-directory: frontend
-        env:
-          VITE_CLERK_PUBLISHABLE_KEY: pk_test_aW5ub2NlbnQtbWFjYXctMTY4Ny5jbGVyay5hY2NvdW50cy5kZXYk
         run: npm run build
+
+      - name: Upload SPA
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spa
+          path: src/main/resources/static/
+          if-no-files-found: error
+          retention-days: 7
+
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    needs: frontend
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Download SPA
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spa
+          path: src/main/resources/static
+
+      - name: Verify application
+        run: ./mvnw --batch-mode verify
+
+      - name: Verify the JAR contains the SPA and referenced assets
+        run: python3 scripts/verify-spa-jar.py
+
+      # The one backend artifact: the container job, the release and the VM deploy all use
+      # it. Kept 90 days on main so a later vX.Y.Z tag can promote it without a rebuild.
+      - name: Upload backend jar
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-jar
+          path: target/EnterpriseDevGroupProject-*.jar
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'push' && 90 || 7 }}
+
+      - name: Upload JaCoCo coverage report
+        if: always() && hashFiles('target/site/jacoco/**') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 14
+
+  # Everything a visitor reaches without signing in, in Chromium, Firefox and WebKit at
+  # desktop and 375px. e2e/signed-in.spec.ts skips itself here (no Clerk test account).
+  e2e:
+    name: Playwright end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run Playwright
+        working-directory: frontend
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
 
   container-build:
     name: Validate container startup
     runs-on: ubuntu-latest
-    needs: [build-and-test, frontend]
-    timeout-minutes: 20
+    needs: build-and-test
+    timeout-minutes: 25
     env:
       CI_IMAGE: capstone-1:ci
       CI_COMPOSE_PROJECT: campusbridge-smoke-${{ github.run_id }}-${{ github.run_attempt }}
       CI_SMOKE_ARTIFACTS: reports/container-smoke
       CI_MONITORING: "true"
+      CI_KEEP_STACK: "true"
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download backend jar
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: backend-jar
+          path: artifact
+
+      - name: Stage the tested JAR as the image's app-jar stage
+        run: mkdir -p app-jar && cp artifact/EnterpriseDevGroupProject-*.jar app-jar/app.jar
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Load the native image into Docker so Compose tests this exact artifact.
-      # The release workflow still publishes both amd64 and arm64.
+      # The release workflow wraps the same JAR for amd64 and arm64.
       - name: Build and load container without publishing
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          build-contexts: app-jar=app-jar
           platforms: linux/amd64
           push: false
           load: true
           tags: capstone-1:ci
-          build-args: |
-            VITE_REQUIRE_TWO_FACTOR=false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Start built container and verify health, SPA, and monitoring
         run: bash scripts/smoke-container.sh
 
+      # Passive scan of the running container. .zap/rules.tsv turns missing security
+      # headers into failures; everything else is reported as a warning.
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: http://127.0.0.1:18080
+          docker_name: ghcr.io/zaproxy/zaproxy:stable@sha256:7aaa659b0d43078febd82e29bad112285c370727e86ab8340444220e17d9f0d2
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -I
+          fail_action: true
+          allow_issue_writing: false
+          artifact_name: zap-baseline
+
       - name: Upload container diagnostics
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-smoke-diagnostics
           path: reports/container-smoke/
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Clean up disposable stack after cancellation or failure
+      - name: Remove the disposable stack
         if: always()
         env:
           METRICS_PASSWORD: disposable-ci-metrics
@@ -157,15 +260,33 @@ jobs:
           docker compose --env-file /dev/null -f docker-compose.ci.yml
           -p "$CI_COMPOSE_PROJECT" --profile monitoring down --volumes --remove-orphans
 
-  # Ships the tested jar to Proxmox VM 104 (192.168.0.93), which serves
+  # Every merge to main that passes the checks above becomes a GitHub pre-release (jar,
+  # SBOM, checksums) and a multi-arch GHCR image tagged :main, its version and sha-<commit>.
+  # The image is scanned before it is pushed. It does not wait for the deploys, so an
+  # offline VM never holds a release back.
+  release:
+    name: Publish release
+    needs: [lint-workflows, build-and-test, frontend, e2e, container-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+      security-events: write
+
+  # Ships the released jar to Proxmox VM 104 (192.168.0.93), which serves
   # https://api.dharmintech.org through the Cloudflare Tunnel. GitHub's hosted runners
   # cannot reach that LAN, so this job runs on a self-hosted runner on the VM itself.
   # The runner user owns /opt/campusbridge and may only `systemctl restart campusbridge`.
-  # The frontend is deployed separately by Cloudflare Workers Builds on the same push.
+  # It waits for the release, so only a scanned, attested build reaches the VM, and for a
+  # reviewer to approve the production environment.
   deploy-backend:
     name: Deploy backend to VM 104
     runs-on: [self-hosted, linux, campusbridge-vm]
-    needs: [build-and-test, frontend, container-build]
+    needs: release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 15
     environment:
@@ -174,7 +295,7 @@ jobs:
 
     steps:
       - name: Download backend jar
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: backend-jar
           path: artifact
@@ -184,11 +305,12 @@ jobs:
         run: |
           set -euo pipefail
           dir=/opt/campusbridge
-          jar=$(ls artifact/EnterpriseDevGroupProject-*.jar | grep -v plain | head -1)
           cp "$dir/app.jar" "$dir/app.jar.prev"
-          cp "$jar" "$dir/app.jar.new" && mv "$dir/app.jar.new" "$dir/app.jar"
+          # Fails unless the artifact holds exactly one jar (cp refuses several sources).
+          cp artifact/EnterpriseDevGroupProject-*.jar "$dir/app.jar.new"
+          mv "$dir/app.jar.new" "$dir/app.jar"
           sudo systemctl restart campusbridge
-          for i in $(seq 1 90); do
+          for _ in $(seq 1 90); do
             if curl -sf http://localhost:8080/actuator/health >/dev/null; then
               echo "Backend healthy on $(hostname)"; exit 0
             fi
@@ -207,10 +329,53 @@ jobs:
           echo
           # Through the Worker, /api must come back from Spring (401 without a token),
           # not as the SPA's index.html (200), which means the proxy is not wired.
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' https://campusbridge.dharmintech.org/api/schools)
             [ "$code" = 401 ] && { echo "Frontend -> backend proxy OK"; exit 0; }
             sleep 10
           done
           echo "::error::https://campusbridge.dharmintech.org/api/schools answered $code, expected 401 from the backend"
           exit 1
+
+  # Replaces Cloudflare Workers Builds, which deployed on every push whether or not CI
+  # passed. Publishes the SPA built above with worker.js and wrangler.jsonc. Needs the
+  # CLOUDFLARE_API_TOKEN secret (the "Edit Cloudflare Workers" token template, which also
+  # covers the custom-domain route) and the CLOUDFLARE_ACCOUNT_ID variable, both on the
+  # production environment so only an approved deploy can read them.
+  deploy-frontend:
+    name: Deploy frontend to Cloudflare
+    runs-on: ubuntu-latest
+    needs: release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://campusbridge.dharmintech.org
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.node-version
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Download SPA
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spa
+          path: frontend/dist
+
+      - name: Deploy worker and assets
+        working-directory: frontend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy

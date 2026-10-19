@@ -26,6 +26,10 @@ public class ListingFavorite {
     @Column(name = "user_email", nullable = false)
     private String userEmail;
 
+    /** The favoriter's Clerk subject (ADR-012); null only on legacy rows not yet claimed. */
+    @Column(name = "user_subject")
+    private String userSubject;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

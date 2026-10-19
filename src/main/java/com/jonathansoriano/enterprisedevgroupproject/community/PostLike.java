@@ -26,6 +26,10 @@ public class PostLike {
     @Column(name = "user_email", nullable = false)
     private String userEmail;
 
+    /** Clerk subject of whoever liked it; null until they have been identified (ADR-012). */
+    @Column(name = "user_subject")
+    private String userSubject;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
