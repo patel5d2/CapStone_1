@@ -1,3 +1,12 @@
+# Every service drops all Linux capabilities (Postgres adds back only what its entrypoint
+# needs to hand the data directory to the postgres user), cannot gain privileges, and runs
+# on a read-only root filesystem with tmpfs where it writes scratch files (Prometheus is the
+# one exception; see below). Published ports bind to loopback only.
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
 services:
 
   # PostgreSQL Database
@@ -8,8 +17,13 @@ services:
       POSTGRES_USER: ${DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
       POSTGRES_DB: ${DATABASE_NAME:-${DEV_DATABASE_NAME}}
+    <<: *hardened
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    tmpfs:
+      - /var/run/postgresql
+      - /tmp
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -34,8 +48,11 @@ services:
         VITE_REQUIRE_TWO_FACTOR: "${CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR:-true}"
     image: ghcr.io/patel5d2/capstone_1:local
     container_name: enterprisedevgroupproject
+    <<: *hardened
+    tmpfs:
+      - /tmp
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       JAVA_OPTS: "${JAVA_OPTS}"
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE}"
@@ -72,6 +89,10 @@ services:
   prometheus:
     image: prom/prometheus:v3.2.1
     container_name: enterprise-prometheus
+    <<: *hardened
+    # Compose writes the environment-sourced metrics_password secret into the container
+    # at start, which a read-only root filesystem refuses.
+    read_only: false
     ports:
       - "127.0.0.1:9090:9090"
     secrets:
@@ -91,6 +112,10 @@ services:
   grafana:
     image: grafana/grafana:11.5.2
     container_name: enterprise-grafana
+    <<: *hardened
+    tmpfs:
+      - /tmp
+      - /var/log/grafana:mode=1777
     ports:
       - "127.0.0.1:3000:3000"
     environment:

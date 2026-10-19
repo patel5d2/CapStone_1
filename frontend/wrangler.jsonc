@@ -16,5 +16,13 @@
   "vars": {
     // Spring Boot API: Proxmox VM 104, published through the Cloudflare Tunnel.
     "BACKEND_URL": "https://api.dharmintech.org"
+  },
+  // PR branches: Workers Builds runs `wrangler preview`, which does not inherit "vars" and
+  // refuses to run without this block. There is no staging API, so previews use the live
+  // one; every call still needs the viewer's own Clerk token, exactly as on the real site.
+  "previews": {
+    "vars": {
+      "BACKEND_URL": "https://api.dharmintech.org"
+    }
   }
 }
