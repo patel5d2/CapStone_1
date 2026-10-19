@@ -65,10 +65,10 @@ export default function Directory() {
     <>
       <div className="card mb-6 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <input className="field" placeholder="First name" value={filters.firstName} onChange={set('firstName')} />
-          <input className="field" placeholder="Last name" value={filters.lastName} onChange={set('lastName')} />
-          <input className="field" placeholder="Major" value={filters.major} onChange={set('major')} />
-          <select className="field" value={filters.universityName} onChange={set('universityName')}>
+          <input aria-label="First name" className="field" placeholder="First name" value={filters.firstName} onChange={set('firstName')} />
+          <input aria-label="Last name" className="field" placeholder="Last name" value={filters.lastName} onChange={set('lastName')} />
+          <input aria-label="Major" className="field" placeholder="Major" value={filters.major} onChange={set('major')} />
+          <select aria-label="School" className="field" value={filters.universityName} onChange={set('universityName')}>
             <option value="">All schools</option>
             {schools.map((s) => (
               <option key={s.id} value={s.name}>
@@ -76,7 +76,7 @@ export default function Directory() {
               </option>
             ))}
           </select>
-          <select className="field" value={filters.grade} onChange={set('grade')}>
+          <select aria-label="Year of study" className="field" value={filters.grade} onChange={set('grade')}>
             <option value="">Any year</option>
             {GRADES.map((g) => (
               <option key={g} value={g}>
@@ -84,7 +84,7 @@ export default function Directory() {
               </option>
             ))}
           </select>
-          <input className="field" placeholder="City" value={filters.city} onChange={set('city')} />
+          <input aria-label="City" className="field" placeholder="City" value={filters.city} onChange={set('city')} />
         </div>
         <div className="mt-3 flex justify-end gap-2">
           <button

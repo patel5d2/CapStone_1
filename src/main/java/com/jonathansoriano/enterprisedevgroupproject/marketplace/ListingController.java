@@ -1,9 +1,10 @@
 package com.jonathansoriano.enterprisedevgroupproject.marketplace;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingRequest;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingResponse;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ReportRequest;
-import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +19,11 @@ import java.util.List;
 public class ListingController {
 
     private final ListingService listingService;
+    private final CallerIdentity identity;
 
-    public ListingController(ListingService listingService) {
+    public ListingController(ListingService listingService, CallerIdentity identity) {
         this.listingService = listingService;
+        this.identity = identity;
     }
 
     @GetMapping("/listings")
@@ -32,66 +35,70 @@ public class ListingController {
             @RequestParam(required = false) String courseCode,
             @RequestParam(required = false) String q,
             @AuthenticationPrincipal Jwt clerkSession) {
-        String requesterEmail = clerkSession == null ? null : clerkSession.getClaimAsString("email");
-        return ResponseEntity.ok(listingService.search(category, listingType, status, schoolId, courseCode, q, requesterEmail));
+        return ResponseEntity.ok(listingService.search(category, listingType, status, schoolId, courseCode, q,
+                callerOrNull(clerkSession)));
     }
 
     @GetMapping("/listings/{id}")
     public ResponseEntity<ListingResponse> get(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        String requesterEmail = clerkSession == null ? null : clerkSession.getClaimAsString("email");
-        return ResponseEntity.ok(listingService.get(id, requesterEmail));
+        return ResponseEntity.ok(listingService.get(id, callerOrNull(clerkSession)));
     }
 
     @GetMapping("/my-listings")
     public ResponseEntity<List<ListingResponse>> myListings(@AuthenticationPrincipal Jwt clerkSession) {
-        return ResponseEntity.ok(listingService.myListings(CurrentUser.emailOf(clerkSession)));
+        return ResponseEntity.ok(listingService.myListings(identity.caller(clerkSession)));
     }
 
     @GetMapping("/favorites")
     public ResponseEntity<List<ListingResponse>> myFavorites(@AuthenticationPrincipal Jwt clerkSession) {
-        return ResponseEntity.ok(listingService.myFavorites(CurrentUser.emailOf(clerkSession)));
+        return ResponseEntity.ok(listingService.myFavorites(identity.caller(clerkSession)));
     }
 
     @PostMapping("/listings")
     public ResponseEntity<ListingResponse> create(@Valid @RequestBody ListingRequest request,
                                                    @AuthenticationPrincipal Jwt clerkSession) {
-        ListingResponse created = listingService.create(request, CurrentUser.emailOf(clerkSession));
+        ListingResponse created = listingService.create(request, identity.caller(clerkSession));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @PutMapping("/listings/{id}")
     public ResponseEntity<ListingResponse> update(@PathVariable Long id, @Valid @RequestBody ListingRequest request,
                                                    @AuthenticationPrincipal Jwt clerkSession) {
-        return ResponseEntity.ok(listingService.update(id, request, CurrentUser.emailOf(clerkSession)));
+        return ResponseEntity.ok(listingService.update(id, request, identity.caller(clerkSession)));
     }
 
     @DeleteMapping("/listings/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        listingService.delete(id, CurrentUser.emailOf(clerkSession));
+        listingService.delete(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/listings/{id}/sold")
     public ResponseEntity<ListingResponse> markSold(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        return ResponseEntity.ok(listingService.markSold(id, CurrentUser.emailOf(clerkSession)));
+        return ResponseEntity.ok(listingService.markSold(id, identity.caller(clerkSession)));
     }
 
     @PostMapping("/listings/{id}/favorite")
     public ResponseEntity<Void> favorite(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        listingService.favorite(id, CurrentUser.emailOf(clerkSession));
+        listingService.favorite(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/listings/{id}/favorite")
     public ResponseEntity<Void> unfavorite(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        listingService.unfavorite(id, CurrentUser.emailOf(clerkSession));
+        listingService.unfavorite(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/listings/{id}/report")
     public ResponseEntity<Void> report(@PathVariable Long id, @Valid @RequestBody ReportRequest request,
                                         @AuthenticationPrincipal Jwt clerkSession) {
-        listingService.report(id, request, CurrentUser.emailOf(clerkSession));
+        listingService.report(id, request, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
+    }
+
+    /** Browsing works without a session; with one, the caller's favorites are marked. */
+    private Party callerOrNull(Jwt clerkSession) {
+        return clerkSession == null ? null : identity.caller(clerkSession);
     }
 }

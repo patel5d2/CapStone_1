@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,9 +16,9 @@ import java.util.Map;
 public class BlockController {
 
     private final MessagingService messagingService;
-    private final MessagingIdentity identity;
+    private final CallerIdentity identity;
 
-    public BlockController(MessagingService messagingService, MessagingIdentity identity) {
+    public BlockController(MessagingService messagingService, CallerIdentity identity) {
         this.messagingService = messagingService;
         this.identity = identity;
     }

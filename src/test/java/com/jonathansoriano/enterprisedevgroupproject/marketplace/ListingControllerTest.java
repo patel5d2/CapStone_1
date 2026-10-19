@@ -43,6 +43,8 @@ class ListingControllerTest {
 
     @MockitoBean
     private ListingService listingService;
+    @MockitoBean
+    private com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity identity;
     @Autowired
     private MockMvc mockMvc;
 

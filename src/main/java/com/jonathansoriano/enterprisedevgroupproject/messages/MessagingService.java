@@ -1,7 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.messages;
 
-import com.jonathansoriano.enterprisedevgroupproject.dto.StudentAccountDetailsDto;
-import com.jonathansoriano.enterprisedevgroupproject.exception.SearchNotFoundException;
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingRepository;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.ConversationResponse;
 import com.jonathansoriano.enterprisedevgroupproject.messages.dto.MessageResponse;
@@ -15,14 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Conversations, messages and blocks, keyed on the Clerk subject with the address as the
  * stand-in for anyone not yet identified (ADR-012, messaging slice). Every caller is a
- * {@link Party} from {@link MessagingIdentity#caller}; stored rows are matched with
+ * {@link Party} from {@link CallerIdentity#caller}; stored rows are matched with
  * {@link Party#is}, so ownership follows the subject through an address change.
  */
 @Service
@@ -33,7 +32,7 @@ public class MessagingService {
     private final MessageRepository messageRepository;
     private final BlockedUserRepository blockedUserRepository;
     private final ListingRepository listingRepository;
-    private final MessagingIdentity identity;
+    private final CallerIdentity identity;
     private final StudentRepository students;
 
     public MessagingService(ConversationRepository conversationRepository,
@@ -41,8 +40,8 @@ public class MessagingService {
                              MessageRepository messageRepository,
                              BlockedUserRepository blockedUserRepository,
                              ListingRepository listingRepository,
-                             MessagingIdentity identity,
-                            StudentRepository students) {
+                             CallerIdentity identity,
+                             StudentRepository students) {
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.messageRepository = messageRepository;
@@ -61,7 +60,10 @@ public class MessagingService {
         if (request.getListingId() != null) {
             var listing = listingRepository.findById(request.getListingId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
-            recipient = identity.byAddress(listing.getSellerEmail());
+            // The seller is whoever the listing records, not whoever holds its address now.
+            recipient = listing.getSellerSubject() != null
+                    ? new Party(listing.getSellerSubject(), listing.getSellerEmail())
+                    : identity.byAddress(listing.getSellerEmail());
             listingId = listing.getId();
             type = ConversationType.MARKETPLACE;
         } else if (request.getRecipientEmail() != null && !request.getRecipientEmail().isBlank()) {
@@ -174,14 +176,14 @@ public class MessagingService {
     @Transactional
     public void unblock(Party blocker, String blockedEmail) {
         Party blocked = identity.byAddress(blockedEmail);
-        blockedUserRepository.deleteAll(blocksBy(blocker).stream()
+        blockedUserRepository.deleteAll(ownBlocks(blocker).stream()
                 .filter(block -> blocked.is(block.getBlockedSubject(), block.getBlockedEmail())
                         || blockedEmail.equalsIgnoreCase(block.getBlockedEmail()))
                 .toList());
     }
 
     public List<String> listBlocked(Party blocker) {
-        return blocksBy(blocker).stream()
+        return ownBlocks(blocker).stream()
                 .map(BlockedUser::getBlockedEmail)
                 .collect(Collectors.toList());
     }
@@ -192,6 +194,14 @@ public class MessagingService {
                 .anyMatch(block -> target.is(block.getBlockedSubject(), block.getBlockedEmail()));
     }
 
+    /** Blocks the caller made, by subject only (listing and removing their own blocks). */
+    private List<BlockedUser> ownBlocks(Party caller) {
+        return blockedUserRepository.findCandidatesByBlocker(caller.subject(), caller.email()).stream()
+                .filter(block -> caller.owns(block.getBlockerSubject()))
+                .toList();
+    }
+
+    /** Blocks made by anyone, who may be known only by address — used to enforce a block. */
     private List<BlockedUser> blocksBy(Party blocker) {
         return blockedUserRepository.findCandidatesByBlocker(blocker.subject(), blocker.email()).stream()
                 .filter(block -> blocker.is(block.getBlockerSubject(), block.getBlockerEmail()))
@@ -218,7 +228,7 @@ public class MessagingService {
             }
             boolean hasOtherUser = participantRepository.findByConversationId(conversation.getId()).stream()
                     .filter(p -> !p.getId().equals(participation.getId()))
-                    .anyMatch(p -> isCaller(p, userB));
+                    .anyMatch(p -> names(p, userB));
             if (hasOtherUser) {
                 return conversation.getId();
             }
@@ -241,7 +251,16 @@ public class MessagingService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not part of this conversation"));
     }
 
-    private static boolean isCaller(ConversationParticipant participant, Party party) {
+    /**
+     * The caller's own rows, by subject only. Their address-only rows were bound to their
+     * subject by CallerIdentity before this runs, so an address never grants access.
+     */
+    private static boolean isCaller(ConversationParticipant participant, Party caller) {
+        return caller.owns(participant.getUserSubject());
+    }
+
+    /** Someone else, who may be known only by address (a recipient). */
+    private static boolean names(ConversationParticipant participant, Party party) {
         return party.is(participant.getUserSubject(), participant.getUserEmail());
     }
 
@@ -266,11 +285,13 @@ public class MessagingService {
                 .map(ConversationParticipant::getUnreadCount)
                 .orElse(0);
 
-        List<String> messengerNames = new ArrayList<>();
-        participants.forEach(participant -> {
-            StudentAccountDetailsDto accountDetailsDto = students.findByEmail(participant.getUserEmail()).orElseThrow(() -> new SearchNotFoundException("Student Not found!"));
-            messengerNames.add(accountDetailsDto.getFirstName() + " " + accountDetailsDto.getLastName());
-        });
+        // A participant without a student profile (e.g. a seller who never finished sign-up)
+        // shows by address rather than failing the whole inbox.
+        List<String> messengerNames = participants.stream()
+                .map(participant -> students.findByEmail(participant.getUserEmail())
+                        .map(student -> student.getFirstName() + " " + student.getLastName())
+                        .orElse(participant.getUserEmail()))
+                .collect(Collectors.toList());
 
         return ConversationResponse.builder()
                 .id(conversation.getId())

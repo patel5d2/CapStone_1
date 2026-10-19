@@ -23,6 +23,9 @@ public class Post {
     @Column(nullable = false)
     private String authorEmail;
 
+    /** Clerk subject of the author, which delete and pin check (ADR-012). */
+    private String authorSubject;
+
     /** Null means it belongs to the general community feed rather than one group. */
     private Long groupId;
 

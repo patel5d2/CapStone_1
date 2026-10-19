@@ -228,7 +228,7 @@ export default function Marketplace() {
         <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
           <div className="relative">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--color-ink-faint)]" />
-            <input
+            <input aria-label="Search listings"
               className="field pl-9"
               placeholder="Search listings…"
               value={keyword}
@@ -236,7 +236,7 @@ export default function Marketplace() {
               onKeyDown={(e) => e.key === 'Enter' && load()}
             />
           </div>
-          <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <select aria-label="Filter by category" className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">All categories</option>
             {CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -244,7 +244,7 @@ export default function Marketplace() {
               </option>
             ))}
           </select>
-          <select className="field" value={listingType} onChange={(e) => setListingType(e.target.value)}>
+          <select aria-label="Filter by listing type" className="field" value={listingType} onChange={(e) => setListingType(e.target.value)}>
             <option value="">Any type</option>
             {LISTING_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -259,7 +259,7 @@ export default function Marketplace() {
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <div className="relative">
             <BookOpen className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--color-ink-faint)]" />
-            <input
+            <input aria-label="Filter by course code"
               className="field pl-9"
               placeholder="Course code (e.g. CS 2021)"
               value={courseCode}
@@ -267,7 +267,7 @@ export default function Marketplace() {
               onKeyDown={(e) => e.key === 'Enter' && load()}
             />
           </div>
-          <select className="field" value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
+          <select aria-label="Filter by school" className="field" value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
             <option value="">All schools</option>
             {schools.map((s) => (
               <option key={s.id} value={s.id}>
@@ -345,20 +345,20 @@ export default function Marketplace() {
         }
       >
         <div className="space-y-3">
-          <input
+          <input aria-label="Title"
             className="field"
             placeholder="Title"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
-          <textarea
+          <textarea aria-label="Description"
             className="field min-h-24"
             placeholder="Describe the condition, pickup spot, and anything else worth knowing."
             value={form.description ?? ''}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
           <div className="grid gap-3 sm:grid-cols-2">
-            <select
+            <select aria-label="Category"
               className="field"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value as ListingCategory })}
@@ -369,7 +369,7 @@ export default function Marketplace() {
                 </option>
               ))}
             </select>
-            <select
+            <select aria-label="Listing type"
               className="field"
               value={form.listingType}
               onChange={(e) => setForm({ ...form, listingType: e.target.value as ListingType })}
@@ -382,7 +382,7 @@ export default function Marketplace() {
             </select>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <input
+            <input aria-label="Price in dollars"
               className="field"
               type="number"
               min="0"
@@ -392,14 +392,14 @@ export default function Marketplace() {
               value={form.price ?? ''}
               onChange={(e) => setForm({ ...form, price: e.target.value ? Number(e.target.value) : null })}
             />
-            <input
+            <input aria-label="Course code"
               className="field"
               placeholder="Course code (optional)"
               value={form.courseCode ?? ''}
               onChange={(e) => setForm({ ...form, courseCode: e.target.value })}
             />
           </div>
-          <select
+          <select aria-label="School"
             className="field"
             value={form.schoolId ?? ''}
             onChange={(e) => setForm({ ...form, schoolId: e.target.value ? Number(e.target.value) : null })}
@@ -411,7 +411,7 @@ export default function Marketplace() {
               </option>
             ))}
           </select>
-          <input
+          <input aria-label="Photo URL"
             className="field"
             placeholder="Photo URL (optional)"
             value={photoUrl}

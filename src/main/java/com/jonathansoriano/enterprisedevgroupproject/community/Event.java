@@ -39,6 +39,9 @@ public class Event {
     @Column(nullable = false)
     private String createdByEmail;
 
+    /** Clerk subject of the creator; null until they have been identified (ADR-012). */
+    private String createdBySubject;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
