@@ -4,7 +4,8 @@ import com.jonathansoriano.enterprisedevgroupproject.community.dto.CommentReques
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.CommentResponse;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostResponse;
-import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
+import com.jonathansoriano.enterprisedevgroupproject.identity.CallerIdentity;
+import com.jonathansoriano.enterprisedevgroupproject.identity.Party;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,46 +20,49 @@ import java.util.List;
 public class PostController {
 
     private final PostService postService;
+    private final CallerIdentity identity;
 
-    public PostController(PostService postService) {
+    public PostController(PostService postService, CallerIdentity identity) {
         this.postService = postService;
+        this.identity = identity;
     }
 
     @GetMapping
     public ResponseEntity<List<PostResponse>> list(@RequestParam(required = false) Long groupId,
                                                      @AuthenticationPrincipal Jwt clerkSession) {
-        String requesterEmail = clerkSession == null ? null : clerkSession.getClaimAsString("email");
-        return ResponseEntity.ok(postService.list(groupId, requesterEmail));
+        // Identity comes from the verified token only (invariant 1); no session, no viewer.
+        Party viewer = clerkSession == null ? null : identity.caller(clerkSession);
+        return ResponseEntity.ok(postService.list(groupId, viewer));
     }
 
     @PostMapping
     public ResponseEntity<PostResponse> create(@Valid @RequestBody PostRequest request,
                                                 @AuthenticationPrincipal Jwt clerkSession) {
-        PostResponse created = postService.create(request, CurrentUser.emailOf(clerkSession));
+        PostResponse created = postService.create(request, identity.caller(clerkSession));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        postService.delete(id, CurrentUser.emailOf(clerkSession));
+        postService.delete(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/pin")
     public ResponseEntity<Void> togglePin(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        postService.togglePin(id, CurrentUser.emailOf(clerkSession));
+        postService.togglePin(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/like")
     public ResponseEntity<Void> like(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        postService.like(id, CurrentUser.emailOf(clerkSession));
+        postService.like(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}/like")
     public ResponseEntity<Void> unlike(@PathVariable Long id, @AuthenticationPrincipal Jwt clerkSession) {
-        postService.unlike(id, CurrentUser.emailOf(clerkSession));
+        postService.unlike(id, identity.caller(clerkSession));
         return ResponseEntity.noContent().build();
     }
 
@@ -70,7 +74,7 @@ public class PostController {
     @PostMapping("/{id}/comments")
     public ResponseEntity<CommentResponse> comment(@PathVariable Long id, @Valid @RequestBody CommentRequest request,
                                                      @AuthenticationPrincipal Jwt clerkSession) {
-        CommentResponse created = postService.comment(id, request, CurrentUser.emailOf(clerkSession));
+        CommentResponse created = postService.comment(id, request, identity.caller(clerkSession));
         return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 }

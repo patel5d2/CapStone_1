@@ -259,7 +259,7 @@ export default function Messages() {
               </div>
 
               <div className="flex gap-2 border-t border-[var(--color-border)] p-3">
-                <input
+                <input aria-label="Message"
                   className="field"
                   placeholder="Type a message…"
                   value={draft}
@@ -299,7 +299,7 @@ export default function Messages() {
           </>
         }
       >
-        <input
+        <input aria-label="Recipient email"
           className="field"
           placeholder="student@example.com"
           value={recipient}

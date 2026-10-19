@@ -1,27 +1,47 @@
 version: 2
+# Version updates wait 7 days after a release, so a hijacked or yanked version is usually
+# caught before it is proposed here. Security updates are not delayed.
 updates:
   # Maven dependencies
   - package-ecosystem: "maven"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 15
 
-  # Docker base images
+  # Frontend (React SPA, Playwright, wrangler)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+
+  # Docker base images (tag and digest are bumped together)
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     ignore:
       # The app targets Java 21 (pom.xml java.version, smoke-container.sh, VM 104).
       # A new major JDK is a deliberate upgrade, not a weekly bump.
       - dependency-name: "eclipse-temurin"
         update-types: ["version-update:semver-major"]
+      # Node's major must move together with frontend/.node-version (CI, Cloudflare).
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
-  # GitHub Actions versions
+  # GitHub Actions, pinned by SHA: Dependabot bumps the SHA and its version comment.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10

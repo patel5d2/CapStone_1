@@ -1,0 +1,8 @@
+rules:
+  # ponytail: GitHub's `uses: $/...` self-repository form (July 2026) is stricter, but
+  # actionlint 1.7.12 still rejects it. main.yml's `./` call is a job-level reusable
+  # workflow with no earlier steps, so nothing can be planted for it to load. Switch to
+  # `$/` and delete this once actionlint accepts it.
+  self-repository:
+    ignore:
+      - main.yml

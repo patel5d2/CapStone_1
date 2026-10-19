@@ -1,7 +1,12 @@
+# Every base image is pinned by digest, so rebuilding a commit pulls the same bytes.
+# Dependabot (docker ecosystem) bumps the tag and the digest together; nothing in this
+# file upgrades packages at build time, which would make two builds of one commit differ.
+
 # ============================================================
 # Stage 1a: Frontend build (React + TypeScript SPA)
 # ============================================================
-FROM node:26-alpine AS frontend
+# Node 22 everywhere: frontend/.node-version drives CI and Cloudflare to the same major.
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS frontend
 WORKDIR /frontend
 
 # Install dependencies first so this layer caches on lockfile changes only
@@ -22,16 +27,8 @@ RUN npm run build
 # ============================================================
 # Stage 1b: Build
 # ============================================================
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:21-jdk-alpine@sha256:0bfc69a4758a86710e5c474032d28400a8bd00874766f9e8b1642ac2fd293159 AS build
 WORKDIR /app
-
-# Fix vulnerabilities by updating Alpine packages
-RUN apk update && apk upgrade --no-cache
-
-# Add metadata labels
-LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,shamakpatel,jessicapham" \
-    version="0.1.1" \
-    description="EnterpriseDevGroupProject Spring Boot Application"
 
 # Copy the Maven wrapper and pom.xml first to leverage Docker layer caching
 COPY .mvn/ .mvn
@@ -50,19 +47,28 @@ RUN --mount=type=cache,target=/root/.m2/repository \
     ./mvnw clean package -DskipTests -q
 
 # ============================================================
+# The application JAR. A local `docker build` / `docker compose up --build` compiles it
+# from source above. CI replaces this whole stage with the JAR it already tested
+# (`--build-context app-jar=<dir holding app.jar>`), so the stages above never run there
+# and the image, the GitHub release and the VM deploy all ship that one artifact.
+# ============================================================
+FROM scratch AS app-jar
+COPY --from=build /app/target/*.jar /app.jar
+
+# ============================================================
 # Stage 2: Runtime
 # ============================================================
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:21-jre-alpine@sha256:51ab5e3302e7141ce665ca3ea85e8b5cd648eafbc3c0c90dd79d6537684e4555 AS runtime
 WORKDIR /app
 
-# Fix vulnerabilities
-RUN apk update && apk upgrade --no-cache
+# Version, revision and source labels are added by docker/metadata-action at release.
+LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,shamakpatel,jessicapham" \
+    description="EnterpriseDevGroupProject Spring Boot Application"
 
 # Create a non-root group and user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy only the compiled JAR from the build stage
-COPY --from=build --chown=appuser:appgroup /app/target/*.jar app.jar
+COPY --from=app-jar --chown=appuser:appgroup /app.jar app.jar
 
 # Switch to the non-root user
 USER appuser
