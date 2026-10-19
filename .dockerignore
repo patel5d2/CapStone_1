@@ -4,7 +4,9 @@
 .idea
 .vscode
 target/
-*.png
+# Screenshots and docs only; a bare *.png would also drop images the frontend imports.
+/*.png
+docs/
 README.md
 .dockerignore
 Dockerfile

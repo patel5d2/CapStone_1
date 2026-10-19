@@ -1,6 +1,7 @@
 # Every base image is pinned by digest, so rebuilding a commit pulls the same bytes.
-# Dependabot (docker ecosystem) bumps the tag and the digest together; nothing in this
-# file upgrades packages at build time, which would make two builds of one commit differ.
+# Dependabot (docker ecosystem) bumps the tag and the digest together. Packages are not
+# upgraded at build time, which would make two builds of one commit differ, except for a
+# fixed CVE the pinned base has not picked up yet (see the runtime stage).
 
 # ============================================================
 # Stage 1a: Frontend build (React + TypeScript SPA)
@@ -64,6 +65,12 @@ WORKDIR /app
 # Version, revision and source labels are added by docker/metadata-action at release.
 LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,shamakpatel,jessicapham" \
     description="EnterpriseDevGroupProject Spring Boot Application"
+
+# ponytail: CVE-2026-77214 (HIGH) is fixed in Alpine 3.24's libexpat 2.9.0-r0, but no
+# eclipse-temurin:21-jre-alpine digest ships it yet, so the release gate fails. The version
+# constraint makes the build fail rather than silently keep the vulnerable library. Drop
+# this once Dependabot bumps the base to a digest that already has libexpat >= 2.9.0.
+RUN apk add --no-cache 'libexpat>=2.9.0-r0'
 
 # Create a non-root group and user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
