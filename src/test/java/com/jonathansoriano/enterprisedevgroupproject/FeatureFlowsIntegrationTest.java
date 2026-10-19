@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -171,6 +172,7 @@ class FeatureFlowsIntegrationTest {
     }
 
     @Test
+    @Transactional // rolls back the student profiles it adds; other tests count the seeded ones
     void messaging_startFromListingSendReadBlockAndUnblock() {
         ensureStudentProfile(SELLER, "Seller", "Profile");
         ensureStudentProfile(BUYER, "Buyer", "Profile");
