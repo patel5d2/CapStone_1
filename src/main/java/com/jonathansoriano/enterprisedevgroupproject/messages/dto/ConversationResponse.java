@@ -18,6 +18,7 @@ public class ConversationResponse {
     private ConversationType type;
     private Long listingId;
     private List<String> participantEmails;
+    private List<String> participantNames;
     private int unreadCount;
     private Instant createdAt;
 }
