@@ -3,7 +3,7 @@ const { resolve } = require('node:path')
 const { runInNewContext } = require('node:vm')
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const ts = require('typescript')
+const { transformSync } = require('esbuild')
 
 // A new sign-up enrols the second factor without verifying it, so the session's fva is
 // [n, -1] and the API refuses every call. RequireAuth must ask for the factor first and
@@ -11,16 +11,16 @@ const ts = require('typescript')
 function loadApp(mocks) {
   const source = readFileSync(resolve(__dirname, '../src/App.tsx'), 'utf8')
     .replace(/import\.meta\.env\.VITE_REQUIRE_TWO_FACTOR/g, 'undefined') // default: required
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  })
-  const exports = {}
+  // TypeScript 7 has no transpileModule; esbuild strips types and emits CommonJS + react-jsx.
+  const { code: outputText } = transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' })
+  const module = { exports: {} }
   const jsx = (type, props) => ({ type, props })
   runInNewContext(outputText, {
-    exports,
+    module,
+    exports: module.exports,
     require: (name) => name === 'react/jsx-runtime' ? { jsx, jsxs: jsx, Fragment: 'Fragment' } : mocks[name] ?? {},
   })
-  return exports
+  return module.exports
 }
 
 function render(factorVerificationAge) {
