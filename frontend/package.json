@@ -14,15 +14,15 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.61.9",
     "@tailwindcss/vite": "^4.3.3",
-    "lucide-react": "^1.46.0",
+    "lucide-react": "^1.55.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.4",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@clerk/testing": "^2.2.45",
-    "@playwright/test": "^1.63.0",
+    "@clerk/testing": "^2.2.43",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
