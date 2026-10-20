@@ -11,7 +11,6 @@ export default function Messages() {
   const { user } = useUser()
   const { push } = useToast()
   const myEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase() ?? ''
-  const myName = user?.fullName?.toLocaleLowerCase() ?? ''
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [activeId, setActiveId] = useState<number | null>(null)
@@ -84,34 +83,16 @@ export default function Messages() {
       conversation.participantEmails.find((e) => e.toLowerCase() !== myEmail) ?? 'Conversation',
     [myEmail],
   )
-  /**
- * Return the conversation partner's display name for a given ConversationSummary.
- *
- * Behavior:
- * - Looks through `conversation.participantNames` and returns the first name
- *   that does not match the current user's name (`myName`), using a
- *   case-insensitive comparison.
- * - If no other participant name is found, returns the fallback string
- *   "Conversation".
- *
- * Usage:
- * - Use this when you want to show the partner's display name in the UI
- *   (for example, in the thread header) instead of their email.
- * - Call it with a ConversationSummary object; it is pure and has no side effects.
- *
- * Notes:
- * - Ensure the comparison value (`myName`) is the current user's display name
- *   (lowercased if you match case-insensitively).
- * - If you wrap this in `useCallback`, make sure the dependency array includes
- *   `myName` (not `myEmail`) so it updates when the user's display name changes.
- *
- * @param {ConversationSummary} conversation - Conversation object containing participantNames.
- * @returns {string} The other participant's display name, or "Conversation" if none found.
- */
+  // The partner's profile name. participantNames lines up with participantEmails, so find the
+  // partner by address (which the caller's Clerk session gives exactly) and take the name at
+  // the same position; comparing names would pick yourself whenever your Clerk name differs
+  // from your profile name.
   const partnerNameOf = useCallback(
-    (conversation: ConversationSummary) =>
-      conversation.participantNames.find((name) => name.toLowerCase() !== myName) ?? 'Conversation',
-    [myName],
+    (conversation: ConversationSummary) => {
+      const i = conversation.participantEmails.findIndex((e) => e.toLowerCase() !== myEmail)
+      return conversation.participantNames?.[i] ?? partnerOf(conversation)
+    },
+    [myEmail, partnerOf],
   )
 
   const openConversation = async (conversationId: number) => {
@@ -265,7 +246,7 @@ export default function Messages() {
                   <button className="btn-ghost btn-sm md:hidden" onClick={() => setActiveId(null)} aria-label="Back">
                     <ArrowLeft className="h-4 w-4" />
                   </button>
-                  <span className="truncate text-sm font-bold">{partnerOf(activeConversation)}</span>
+                  <span className="truncate text-sm font-bold">{partnerNameOf(activeConversation)}</span>
                 </div>
                 <div className="flex gap-2">
                   <button className="btn-ghost btn-sm" onClick={blockPartner}>
