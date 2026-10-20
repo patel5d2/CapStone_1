@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -282,6 +283,25 @@ class MessagingIdentityTest {
                 .satisfies(conversation -> assertThat(conversation.getParticipantNames())
                         .containsExactlyInAnyOrder("Alice Sender", "Bob Recipient")
                         .doesNotContain(aliceEmail, bobEmail));
+    }
+
+    @Test
+    @DisplayName("the inbox lists the newest activity first, with a preview of the last message")
+    void inboxIsNewestFirstWithLastMessagePreview() {
+        Party alice = identity.caller(token("user_alice_inbox", "alice.inbox@school.edu"));
+        ConversationResponse withBob = direct(alice, "bob.inbox@school.edu");
+        ConversationResponse withCarol = direct(alice, "carol.inbox@school.edu");
+
+        assertThat(withBob.getLastMessage()).isNull();
+        messaging.sendMessage(withBob.getId(), new SendMessageRequest("first", null), alice);
+        messaging.sendMessage(withCarol.getId(), new SendMessageRequest("second", null), alice);
+        messaging.sendMessage(withBob.getId(), new SendMessageRequest("  latest  ", null), alice);
+
+        List<ConversationResponse> inbox = messaging.listConversations(alice);
+        assertThat(inbox).extracting(ConversationResponse::getId).containsExactly(withBob.getId(), withCarol.getId());
+        assertThat(inbox.get(0).getLastMessage()).isEqualTo("latest");
+        assertThat(inbox.get(0).getLastMessageSenderEmail()).isEqualTo("alice.inbox@school.edu");
+        assertThat(inbox.get(0).getLastMessageAt()).isAfterOrEqualTo(inbox.get(1).getLastMessageAt());
     }
 
     @Test

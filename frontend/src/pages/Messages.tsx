@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { MessageCircle, Send, ArrowLeft, Ban, Flag, Plus, Tag } from 'lucide-react'
 import { api } from '../lib/api'
@@ -69,9 +69,12 @@ export default function Messages() {
     return () => clearInterval(timer)
   }, [activeId, loadMessages])
 
+  // Scroll to the bottom only when a new message arrives, not on every poll, so reading
+  // older messages is not yanked back down every few seconds.
+  const lastMessageId = messages.at(-1)?.id
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
-  }, [messages])
+  }, [lastMessageId])
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId) ?? null,
@@ -90,20 +93,28 @@ export default function Messages() {
   const partnerNameOf = useCallback(
     (conversation: ConversationSummary) => {
       const i = conversation.participantEmails.findIndex((e) => e.toLowerCase() !== myEmail)
+      if (i === -1) return 'Just you' // older threads could be started with yourself
       return conversation.participantNames?.[i] ?? partnerOf(conversation)
     },
     [myEmail, partnerOf],
   )
 
-  const openConversation = async (conversationId: number) => {
+  // A message that arrives while its thread is open has been seen: the open thread never shows
+  // a badge (unreadOf), and the server's count is cleared instead of waiting for another click.
+  const unreadOf = (conversation: ConversationSummary) =>
+    conversation.id === activeId ? 0 : conversation.unreadCount
+  const activeUnread = activeConversation?.unreadCount ?? 0
+  useEffect(() => {
+    if (activeId == null || activeUnread === 0) return
+    api.post(`/api/messages/conversations/${activeId}/read`).catch(() => {
+      /* marking read is best-effort */
+    })
+  }, [activeId, activeUnread])
+
+  // Marking it read is the effect above, which also covers messages arriving while it is open.
+  const openConversation = (conversationId: number) => {
     setActiveId(conversationId)
     setMessages([])
-    try {
-      await api.post(`/api/messages/conversations/${conversationId}/read`)
-      setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)))
-    } catch {
-      /* marking read is best-effort */
-    }
   }
 
   const send = async () => {
@@ -113,6 +124,7 @@ export default function Messages() {
     try {
       const sent = await api.post<ChatMessage>(`/api/messages/conversations/${activeId}/messages`, { content })
       setMessages((prev) => [...prev, sent])
+      void loadConversations() // move this thread to the top with its new preview
     } catch (e) {
       push(e instanceof Error ? e.message : 'Could not send message', 'error')
       setDraft(content)
@@ -129,7 +141,7 @@ export default function Messages() {
       setNewChatOpen(false)
       setRecipient('')
       await loadConversations()
-      void openConversation(conversation.id)
+      openConversation(conversation.id)
     } catch (e) {
       push(e instanceof Error ? e.message : 'Could not start conversation', 'error')
     }
@@ -217,21 +229,34 @@ export default function Messages() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-semibold">{partnerNameOf(conversation)}</span>
-                  {conversation.unreadCount > 0 && (
-                    <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {conversation.unreadCount}
+                  <time
+                    className="shrink-0 text-[11px] text-[var(--color-ink-faint)]"
+                    dateTime={conversation.lastMessageAt ?? conversation.createdAt}
+                  >
+                    {inboxTime(conversation.lastMessageAt ?? conversation.createdAt)}
+                  </time>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`flex min-w-0 items-center gap-1 text-xs ${
+                      unreadOf(conversation) > 0
+                        ? 'font-semibold text-[var(--color-ink)]'
+                        : 'text-[var(--color-ink-faint)]'
+                    }`}
+                  >
+                    {conversation.type === 'MARKETPLACE' && <Tag className="h-3 w-3 shrink-0" aria-label="Listing chat" />}
+                    <span className="truncate">
+                      {conversation.lastMessage == null
+                        ? conversation.type === 'MARKETPLACE' ? 'Listing chat' : 'No messages yet'
+                        : `${conversation.lastMessageSenderEmail?.toLowerCase() === myEmail ? 'You: ' : ''}${conversation.lastMessage}`}
+                    </span>
+                  </span>
+                  {unreadOf(conversation) > 0 && (
+                    <span className="shrink-0 rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      {unreadOf(conversation)}
                     </span>
                   )}
                 </div>
-                <span className="flex items-center gap-1 text-xs text-[var(--color-ink-faint)]">
-                  {conversation.type === 'MARKETPLACE' ? (
-                    <>
-                      <Tag className="h-3 w-3" /> Listing chat
-                    </>
-                  ) : (
-                    'Direct message'
-                  )}
-                </span>
               </button>
             ))
           )}
@@ -264,19 +289,34 @@ export default function Messages() {
                     No messages yet — say hello.
                   </p>
                 ) : (
-                  messages.map((message) => {
+                  messages.map((message, index) => {
                     const mine = message.senderEmail.toLowerCase() === myEmail
+                    const sent = new Date(message.createdAt)
+                    const newDay =
+                      index === 0 || new Date(messages[index - 1].createdAt).toDateString() !== sent.toDateString()
                     return (
-                      <div
-                        key={message.id}
-                        className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                          mine
-                            ? 'self-end rounded-br-sm bg-primary-600 text-white'
-                            : 'self-start rounded-bl-sm border border-[var(--color-border)] bg-[var(--color-surface-muted)]'
-                        }`}
-                      >
-                        {message.content}
-                      </div>
+                      <Fragment key={message.id}>
+                        {newDay && (
+                          <p className="my-1 self-center text-[11px] font-medium text-[var(--color-ink-faint)]">
+                            {dayLabel(sent)}
+                          </p>
+                        )}
+                        <div
+                          className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
+                            mine
+                              ? 'self-end rounded-br-sm bg-primary-600 text-white'
+                              : 'self-start rounded-bl-sm border border-[var(--color-border)] bg-[var(--color-surface-muted)]'
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                          <time
+                            dateTime={message.createdAt}
+                            className={`mt-0.5 block text-right text-[10px] ${mine ? 'text-white/75' : 'text-[var(--color-ink-faint)]'}`}
+                          >
+                            {sent.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          </time>
+                        </div>
+                      </Fragment>
                     )
                   })
                 )}
@@ -365,4 +405,24 @@ export default function Messages() {
       </Modal>
     </>
   )
+}
+
+const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
+
+// Inbox timestamp: the time today, the weekday within a week, otherwise the date.
+function inboxTime(iso: string) {
+  const date = new Date(iso)
+  const now = new Date()
+  if (isSameDay(date, now)) return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  if (now.getTime() - date.getTime() < 6 * 86_400_000) return date.toLocaleDateString(undefined, { weekday: 'short' })
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// Divider between days in a thread.
+function dayLabel(date: Date) {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (isSameDay(date, new Date())) return 'Today'
+  if (isSameDay(date, yesterday)) return 'Yesterday'
+  return date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
 }

@@ -21,4 +21,8 @@ public class ConversationResponse {
     private List<String> participantNames;
     private int unreadCount;
     private Instant createdAt;
+    // The newest message, for the inbox preview; all null before the first message.
+    private String lastMessage;
+    private String lastMessageSenderEmail;
+    private Instant lastMessageAt;
 }
