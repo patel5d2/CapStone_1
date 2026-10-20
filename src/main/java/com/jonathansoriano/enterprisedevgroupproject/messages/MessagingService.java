@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -98,9 +99,11 @@ public class MessagingService {
     }
 
     public List<ConversationResponse> listConversations(Party caller) {
+        // Newest activity first, like any inbox: the last message, or creation for an empty thread.
         return participationsOf(caller).stream()
                 .map(participant -> conversationRepository.findById(participant.getConversationId()).orElseThrow())
                 .map(conversation -> toConversationResponse(conversation, caller))
+                .sorted(Comparator.comparing(MessagingService::lastActivity, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
     }
 
@@ -293,6 +296,9 @@ public class MessagingService {
                         .orElse(participant.getUserEmail()))
                 .collect(Collectors.toList());
 
+        Message last = messageRepository.findFirstByConversationIdOrderByCreatedAtDescIdDesc(conversation.getId())
+                .orElse(null);
+
         return ConversationResponse.builder()
                 .id(conversation.getId())
                 .type(conversation.getType())
@@ -301,7 +307,22 @@ public class MessagingService {
                 .participantNames(messengerNames)
                 .unreadCount(unread)
                 .createdAt(conversation.getCreatedAt())
+                .lastMessage(last == null ? null : preview(last))
+                .lastMessageSenderEmail(last == null ? null : last.getSenderEmail())
+                .lastMessageAt(last == null ? null : last.getCreatedAt())
                 .build();
+    }
+
+    private static Instant lastActivity(ConversationResponse conversation) {
+        return conversation.getLastMessageAt() != null ? conversation.getLastMessageAt() : conversation.getCreatedAt();
+    }
+
+    private static String preview(Message message) {
+        String text = message.getContent() == null ? "" : message.getContent().strip();
+        if (text.isEmpty()) {
+            return message.getImageUrl() != null ? "Photo" : "";
+        }
+        return text.length() > 120 ? text.substring(0, 120) + "…" : text;
     }
 
     private MessageResponse toMessageResponse(Message message) {

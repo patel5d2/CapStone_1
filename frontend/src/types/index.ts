@@ -129,6 +129,10 @@ export interface ConversationSummary {
   participantNames: string[]
   unreadCount: number
   createdAt: string
+  // The newest message, for the inbox preview; null before the first message.
+  lastMessage: string | null
+  lastMessageSenderEmail: string | null
+  lastMessageAt: string | null
 }
 
 export interface ChatMessage {
