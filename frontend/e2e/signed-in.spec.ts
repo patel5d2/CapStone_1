@@ -123,3 +123,12 @@ for (const path of ['/marketplace', '/support']) {
     await expect(page.locator('[data-school="miami"]').filter({ has: page.getByLabel('Filter by school') })).toHaveCount(0)
   })
 }
+
+test("community directory: picking a school shows that school's colours", async ({ page }) => {
+  await page.goto('/community?tab=directory')
+  await page.getByLabel('School', { exact: true }).selectOption('Miami University')
+  const section = page.locator('[data-school="miami"]').filter({ has: page.getByLabel('School', { exact: true }) })
+  expect(await section.evaluate((el) => getComputedStyle(el).getPropertyValue('--color-primary-600').trim())).toBe('#c41230')
+  await page.getByLabel('School', { exact: true }).selectOption('')
+  await expect(section).toHaveCount(0)
+})
