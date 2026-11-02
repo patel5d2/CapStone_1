@@ -66,11 +66,12 @@ WORKDIR /app
 LABEL maintainer="dharminpatel,jonathansoriano,matthewbrown,shamakpatel,jessicapham" \
     description="EnterpriseDevGroupProject Spring Boot Application"
 
-# ponytail: CVE-2026-77214 (HIGH) is fixed in Alpine 3.24's libexpat 2.9.0-r0, but no
-# eclipse-temurin:21-jre-alpine digest ships it yet, so the release gate fails. The version
-# constraint makes the build fail rather than silently keep the vulnerable library. Drop
-# this once Dependabot bumps the base to a digest that already has libexpat >= 2.9.0.
-RUN apk add --no-cache 'libexpat>=2.9.0-r0'
+# ponytail: CVE-2026-77214 (HIGH) is fixed in Alpine 3.24's libexpat 2.9.0-r0 and
+# CVE-2026-111497 (CRITICAL) in brotli-libs 1.2.1-r0, but no eclipse-temurin:21-jre-alpine
+# digest ships either yet, so the release gate fails. The version constraints make the
+# build fail rather than silently keep a vulnerable library. Drop each once Dependabot
+# bumps the base to a digest that already has it.
+RUN apk add --no-cache 'libexpat>=2.9.0-r0' 'brotli-libs>=1.2.1-r0'
 
 # Create a non-root group and user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
