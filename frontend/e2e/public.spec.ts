@@ -105,3 +105,17 @@ test('every school palette resolves its own primary colour', async ({ page }) =>
     expect(value, slug).toBe(hex)
   }
 })
+
+test('a school palette can colour one part of the page without touching the rest', async ({ page }) => {
+  // Support and Marketplace stamp data-school on a section or a card, not on <html>.
+  await page.goto('/')
+  const [scoped, root] = await page.evaluate(() => {
+    const section = document.createElement('div')
+    section.dataset.school = 'miami'
+    document.body.append(section)
+    const read = (el: Element) => getComputedStyle(el).getPropertyValue('--color-primary-600').trim()
+    return [read(section), read(document.documentElement)]
+  })
+  expect(scoped).toBe('#c41230')
+  expect(root).toBe('#2c6a4d')
+})
