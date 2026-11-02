@@ -3,6 +3,7 @@ import { Search, MapPin, GraduationCap, MessageCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { api, toQueryString, ApiError } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
+import { slugForSchool } from '../lib/schoolTheme'
 import { useToast } from '../components/ui/Toast'
 import { EmptyState, Spinner } from '../components/ui/Feedback'
 import type { Student } from '../types'
@@ -60,9 +61,10 @@ export default function Directory() {
   const set = (key: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setFilters({ ...filters, [key]: e.target.value })
 
-  // Rendered as a sub-surface of Community, which owns the page heading.
+  // Rendered as a sub-surface of Community, which owns the page heading. Picking a school
+  // gives the directory that school's colours; "All schools" keeps the viewer's own.
   return (
-    <>
+    <div data-school={slugForSchool(filters.universityName) ?? undefined}>
       <div className="card mb-6 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <input aria-label="First name" className="field" placeholder="First name" value={filters.firstName} onChange={set('firstName')} />
@@ -120,7 +122,12 @@ export default function Directory() {
           </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {students.map((student) => (
-              <article key={student.id} className="card card-hover animate-fade-in-up flex flex-col p-5">
+              // Each card wears its student's school colours.
+              <article
+                key={student.id}
+                data-school={slugForSchool(student.universityName) ?? undefined}
+                className="card card-hover animate-fade-in-up flex flex-col border-t-4 border-t-primary-600 p-5 dark:border-t-primary-400"
+              >
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-100 text-base font-bold text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
                     {student.photoUrl ? (
@@ -162,6 +169,6 @@ export default function Directory() {
         <GraduationCap className="h-3.5 w-3.5" />
         Only verified students appear in the directory.
       </p>
-    </>
+    </div>
   )
 }

@@ -4,6 +4,7 @@ import { useUser } from '@clerk/clerk-react'
 import { Users, Heart, MessageSquare, Trash2, CalendarDays, Plus, MapPin, Send, Pin } from 'lucide-react'
 import { api } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
+import { slugForSchool } from '../lib/schoolTheme'
 import { useToast } from '../components/ui/Toast'
 import { Modal } from '../components/ui/Modal'
 import { PageHeader, Tabs } from '../components/ui/Tabs'
@@ -280,7 +281,7 @@ function Comments({ postId, onChanged }: { postId: number; onChanged: () => void
 
 function Groups() {
   const { push } = useToast()
-  const { schools } = useSchools()
+  const { schools, nameOf } = useSchools()
   const [groups, setGroups] = useState<CommunityGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [scope, setScope] = useState<'all' | 'mine'>('all')
@@ -374,7 +375,12 @@ function Groups() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((group) => (
-            <article key={group.id} className="card card-hover animate-fade-in-up flex flex-col p-5">
+            // Groups and events tied to a school wear its colours; the rest keep the viewer's.
+            <article
+              key={group.id}
+              data-school={slugForSchool(nameOf(group.schoolId)) ?? undefined}
+              className="card card-hover animate-fade-in-up flex flex-col border-t-4 border-t-primary-600 p-5 dark:border-t-primary-400"
+            >
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-base font-bold">{group.name}</h3>
                 <span className="badge-primary">{group.type.replace('_', ' ').toLowerCase()}</span>
@@ -530,7 +536,11 @@ function Events() {
           {events.map((event) => {
             const start = new Date(event.startsAt)
             return (
-              <article key={event.id} className="card card-hover animate-fade-in-up flex gap-4 p-5">
+              <article
+                key={event.id}
+                data-school={slugForSchool(nameOf(event.schoolId)) ?? undefined}
+                className="card card-hover animate-fade-in-up flex gap-4 border-t-4 border-t-primary-600 p-5 dark:border-t-primary-400"
+              >
                 <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
                   <span className="text-[11px] font-bold uppercase">
                     {start.toLocaleString(undefined, { month: 'short' })}
