@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Store, Plus, Heart, Flag, Trash2, CheckCircle2, MessageCircle, Search, BookOpen, Pencil } from 'lucide-react'
 import { api, toQueryString } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
+import { slugForSchool } from '../lib/schoolTheme'
 import { useToast } from '../components/ui/Toast'
 import { Modal } from '../components/ui/Modal'
 import { PageHeader, Tabs } from '../components/ui/Tabs'
@@ -26,6 +27,26 @@ const LISTING_TYPES: { value: ListingType; label: string }[] = [
   { value: 'FREE', label: 'Free / donate' },
   { value: 'LOOKING_FOR', label: 'Looking for' },
 ]
+
+// Which listing types make sense per category: you can rent a textbook, not furniture or
+// an event ticket. Mirrors ListingCategory.java, which rejects anything else with a 400.
+const NOT_RENTABLE: ListingType[] = ['SELL', 'FREE', 'LOOKING_FOR']
+const ALLOWED_TYPES: Record<ListingCategory, ListingType[]> = {
+  BOOKS: ['SELL', 'RENT', 'FREE', 'LOOKING_FOR'],
+  CLOTHES: NOT_RENTABLE,
+  EVENT_TICKETS: NOT_RENTABLE,
+  FURNITURE: NOT_RENTABLE,
+  ELECTRONICS: ['SELL', 'RENT', 'FREE', 'LOOKING_FOR'],
+  OTHER: ['SELL', 'RENT', 'FREE', 'LOOKING_FOR'],
+}
+
+/** The types offered for a category; every type when no category is chosen. */
+const typesFor = (category: string) =>
+  category ? LISTING_TYPES.filter((t) => ALLOWED_TYPES[category as ListingCategory].includes(t.value)) : LISTING_TYPES
+
+/** Keeps the type if the category allows it, otherwise falls back to the first allowed one. */
+const fitType = (category: ListingCategory, type: ListingType) =>
+  ALLOWED_TYPES[category].includes(type) ? type : ALLOWED_TYPES[category][0]
 
 const EMPTY_FORM: ListingRequest = {
   title: '',
@@ -108,7 +129,9 @@ export default function Marketplace() {
         title: fresh.title,
         description: fresh.description ?? '',
         category: fresh.category,
-        listingType: fresh.listingType,
+        // A listing saved before the category rules may hold a type that is no longer
+        // allowed; start the form on a valid one so saving it is not rejected.
+        listingType: fitType(fresh.category, fresh.listingType),
         price: fresh.price,
         courseCode: fresh.courseCode ?? '',
         schoolId: fresh.schoolId,
@@ -212,8 +235,11 @@ export default function Marketplace() {
     }
   }
 
+  // Browsing with a school picked takes that school's colours; otherwise the viewer's own.
+  const schoolSlug = view === 'all' && schoolId ? slugForSchool(nameOf(Number(schoolId))) : null
+
   return (
-    <>
+    <div data-school={schoolSlug ?? undefined}>
       <PageHeader
         title="Marketplace"
         subtitle="Textbooks, dorm gear, tickets and giveaways from verified students nearby."
@@ -236,7 +262,14 @@ export default function Marketplace() {
               onKeyDown={(e) => e.key === 'Enter' && load()}
             />
           </div>
-          <select aria-label="Filter by category" className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <select aria-label="Filter by category" className="field" value={category}
+            onChange={(e) => {
+              const next = e.target.value
+              setCategory(next)
+              // Drop a type filter the new category cannot have (e.g. "For rent" on Furniture).
+              if (listingType && !typesFor(next).some((t) => t.value === listingType)) setListingType('')
+            }}
+          >
             <option value="">All categories</option>
             {CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -246,7 +279,7 @@ export default function Marketplace() {
           </select>
           <select aria-label="Filter by listing type" className="field" value={listingType} onChange={(e) => setListingType(e.target.value)}>
             <option value="">Any type</option>
-            {LISTING_TYPES.map((t) => (
+            {typesFor(category).map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
@@ -361,7 +394,10 @@ export default function Marketplace() {
             <select aria-label="Category"
               className="field"
               value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value as ListingCategory })}
+              onChange={(e) => {
+                const next = e.target.value as ListingCategory
+                setForm({ ...form, category: next, listingType: fitType(next, form.listingType) })
+              }}
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -374,7 +410,7 @@ export default function Marketplace() {
               value={form.listingType}
               onChange={(e) => setForm({ ...form, listingType: e.target.value as ListingType })}
             >
-              {LISTING_TYPES.map((t) => (
+              {typesFor(form.category).map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
                 </option>
@@ -419,7 +455,7 @@ export default function Marketplace() {
           />
         </div>
       </Modal>
-    </>
+    </div>
   )
 }
 
@@ -457,7 +493,11 @@ function ListingCard({
     listing.status === 'AVAILABLE' ? 'badge-success' : listing.status === 'PENDING' ? 'badge-warning' : 'badge-danger'
 
   return (
-    <article className="card card-hover animate-fade-in-up flex flex-col overflow-hidden">
+    // Each card wears its own school's colours, so mixed results read at a glance.
+    <article
+      data-school={slugForSchool(schoolName) ?? undefined}
+      className="card card-hover animate-fade-in-up flex flex-col overflow-hidden border-t-4 border-t-primary-600 dark:border-t-primary-400"
+    >
       {listing.photoUrls?.[0] && (
         <img
           src={listing.photoUrls[0]}

@@ -17,7 +17,7 @@ const over = (fg, bg, alpha) => '#' + rgb(fg).map((v, i) => Math.round(rgb(bg)[i
 const SURFACE = '#ffffff', MUTED = '#f7f5f1', DARK = '#1c1f1d', WHITE = '#ffffff'
 
 const palettes = {}
-for (const [, slug, body] of css.matchAll(/:root\[data-school="([a-z]+)"\]\s*\{([^}]*)\}/g)) {
+for (const [, slug, body] of css.matchAll(/\[data-school="([a-z]+)"\]\s*\{([^}]*)\}/g)) {
   palettes[slug] = Object.fromEntries([...body.matchAll(/--color-primary-(\d+):\s*(#[0-9a-f]{6})/gi)].map(([, k, v]) => [k, v.toLowerCase()]))
 }
 const slugs = [...themeTs.matchAll(/:\s*'([a-z]+)',/g)].map(([, slug]) => slug)
