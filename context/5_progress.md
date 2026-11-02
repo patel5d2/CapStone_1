@@ -7,7 +7,7 @@
 > and append to the logs. Never reflow or reorder sections — that turns every merge into
 > a conflict.
 
-**Updated:** 2026-09-17 · **Documentation audit baseline:** `1b28132`
+**Updated:** 2026-11-02 · **Documentation audit baseline:** `1b28132`
 **Current sprint:** **Sprint 0 — Plan and set up (Sep 14 – Sep 25, 2026)**
 
 ---
@@ -352,6 +352,10 @@ Sprint 0's remaining items (S0-6, S0-8) are unaffected.
       `StudentIdentityServiceTest` green on fresh PostgreSQL databases.
       **Not verified:** no real Clerk token (tests construct `Jwt` values), no real address
       change in Clerk, and the upgrade has not been run on the Aiven database.
+      **Update 2026-11-02 (#99):** the Aiven dev database was brought up to date by hand
+      with a one-off script attached to #99 (not checked in), and `scripts/db/*.sql` were
+      deleted; they remain in git history before #99. Checked 2026-11-02: the app boots
+      against Aiven on the `dev` profile with `ddl-auto: validate`, health `UP`.
       **Not changed:** responses still carry participant, sender and blocked addresses —
       removing them is S1-07 (invariant 4). The email columns stay until S1-12.
 
@@ -402,6 +406,28 @@ early (below).
       **Not verified:** landing on the Directory tab after the redirect, because the
       route is behind `RequireAuth` and needs a Clerk session.
 
+- [x] **School colours on filters and cards** (2026-11-02, by user direction, #110).
+      The palette blocks in `index.css` now match any `[data-school]` element, not only
+      `<html>` (decision 020, Proposed). Support → Resources, Marketplace → Browse and
+      Community → Directory take the filtered school's colours; resource, listing,
+      student, group and event cards wear their own school's colours with a coloured top
+      strip. Details in `4_ui_design.md` §School theming.
+      Verified 2026-11-02: `npm run lint` no new warnings, `npm run build` clean,
+      `test-school-themes.cjs` **8/8**, `e2e/public.spec.ts` **28/28** (chromium, chromium-375)
+      including the new scoped-palette test; CI green on #110.
+      **Not verified:** four signed-in Playwright tests (Support, Marketplace and Directory
+      school filters) skip without a Clerk test account; not checked by keyboard or in
+      Safari/Firefox.
+
+- [x] **Listing types limited by category** (2026-11-02, by user direction, #110). Not a
+      scheduled story. Clothes, event tickets and furniture can no longer be listed for
+      rent; the rule lives on `ListingCategory`, `ListingService` answers 400 otherwise,
+      and the Marketplace filter and listing form only offer allowed types (decision 021,
+      Proposed; see `2_architecture.md`).
+      Verified 2026-11-02: `./mvnw --batch-mode verify` **190 tests, 0 failures**
+      (`ListingCategoryRulesTest` new, 3 tests). **Not verified:** the two signed-in
+      Playwright tests for the dropdowns skip without a Clerk test account.
+
 ---
 
 ## Contract objectives — scoreboard
@@ -417,7 +443,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 5 | Partial-match directory across schools | ⚠️ verified against Postgres 2026-09-16 — `LIKE '%son%'` returned 6 students across 5 schools; browser/demo acceptance still not recorded | Implementation present |
 | 6 | Messaging < 2s, no contacts shared | ⚠️ 5s active-chat polling; multiple DTOs expose personal emails | Sprint 6 |
 | 7 | Post/reply/report on both feed types | ⚠️ post/reply/like exist; no post-report endpoint or separate school/major feeds | Sprint 8 |
-| 8 | School theming automatic on login | ⚠️ seven contrast-checked palettes applied on sign-in from the profile's school; two schools' colours still to confirm; not yet checked in a browser | Sprint 2 |
+| 8 | School theming automatic on login | ⚠️ seven contrast-checked palettes applied on sign-in from the profile's school, and since 2026-11-02 to school filters and per-school cards; two schools' colours still to confirm; not yet checked in a browser | Sprint 2 |
 | 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
 | 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
 | 11 | 99% availability | ⚠️ Compose parses, Flyway owns the schema, CI now starts the container it builds and smoke-tests health/SPA/monitoring, Grafana dashboard and latency histograms verified. **Remaining: no deployed environment and therefore no uptime evidence** — availability cannot be measured from CI | Sprint 0 |
@@ -559,6 +585,8 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 013 | Adaptive password hashing discharged by Clerk | The contract requires adaptive hashes; Clerk owns credential storage, so CampusBridge stores none. Recorded so a reader looking for bcrypt understands its absence | **Proposed** |
 | 018 | Messaging rows are claimed for the caller's Clerk subject on first contact, matched by the caller's verified address | Rows written before S1-11, or addressed to someone not yet identified, carry only an address; binding them when their verified holder calls in is what lets an inbox and a block survive a later address change. Differs from identity-backfill rule 1 (student rows never bind by email) because that rule guards seeded demo profiles, and no messaging data is seeded | **Proposed** — implemented in S1-11 (`MessagingIdentity`). Needs a vote (Rule 8) |
 | 019 | School themes override the primary scale **and the decorative accent**; a brand colour that cannot carry white text gets an accessible in-app variant at `primary-600` | The accent is decorative only, so a school's second colour (NKU gold, MSJ gold) can show without becoming an action colour. NKU gold is 1.6:1 under white text, so its buttons use a bronze-gold (4.93:1) and dark mode shows the true gold | **Proposed** — implemented 2026-10-06. Needs a vote (Rule 8) |
+| 020 | School palettes apply to any `[data-school]` element, not only `<html>` | Lets a filtered section or a single card show another school's colours while the rest of the page keeps the viewer's, with no new tokens or classes — custom properties inherit | **Proposed** — implemented 2026-11-02 (#110). Needs a vote (Rule 8) |
+| 021 | Listing type is limited by category: no `RENT` for clothes, event tickets or furniture | Renting those makes no sense for students and cluttered the filters. Enforced server-side (400) so the API cannot bypass the UI; the SPA keeps a mirrored table. Whether electronics should stay rentable is open | **Proposed** — implemented 2026-11-02 (#110). Needs a vote (Rule 8) |
 
 ---
 
@@ -690,6 +718,9 @@ Raise at the next weekly meeting. Do not guess these in code.
     constraints (`uk_blocked_user`, `uk_conversation_participant`) are still enforced beside
     the new subject indexes, which is why blocking a recycled address answers 409 until
     S1-12 removes the email columns.
+    **Update 2026-11-02:** #99 deleted `scripts/db/` after upgrading Aiven by hand, so
+    there is now **no checked-in upgrade path** for a database that already holds data.
+    The question stands.
 
 ---
 
@@ -749,3 +780,17 @@ Raise at the next weekly meeting. Do not guess these in code.
   graduation year, bio and photo default private. No SDK. Formal Rule 8 minutes and
   post-capstone account ownership are still outstanding; user authorization is not
   recorded as a team vote. Implementation and verification in progress.
+
+- **Aiven "Unable to determine Dialect" is usually a full connection pool (2026-11-02).**
+  The `dev` profile's Aiven plan has few connection slots and each running app holds up
+  to 10 (Hikari default). With a few copies running, the next start gets `FATAL: remaining
+  connection slots are reserved for roles with the SUPERUSER attribute`, which Hibernate
+  reports as *Unable to determine Dialect without JDBC metadata*. Read the first
+  `Caused by` in the log. Stop idle copies, or ask Jon to restart the service; a missing
+  `DATABASE_PASSWORD` in `.env` fails the same way. A smaller
+  `spring.datasource.hikari.maximum-pool-size` in `application-dev.yml` would let more of
+  the team share it (not changed).
+- **CVE-2026-111497 (CRITICAL, brotli-libs) fixed in the runtime image (2026-11-02, #111).**
+  Same approach as the libexpat pin: the runtime stage requires `brotli-libs>=1.2.1-r0`
+  until the pinned `eclipse-temurin:21-jre-alpine` digest ships it; drop the pin then.
+  CI's container build and startup passed; the next release Trivy scan should confirm.
