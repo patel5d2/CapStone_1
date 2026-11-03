@@ -81,3 +81,54 @@ test('support: an anonymous request shows up for its author without naming them'
   await expect(page.getByText(description).first()).toBeVisible()
   await expect(page.getByText(process.env.E2E_CLERK_EMAIL!)).toHaveCount(0)
 })
+
+test('marketplace: the type filter only offers types the category allows', async ({ page }) => {
+  await page.goto('/marketplace')
+  const category = page.getByLabel('Filter by category')
+  const type = page.getByLabel('Filter by listing type')
+  await category.selectOption('BOOKS')
+  await type.selectOption('RENT')
+  // Furniture cannot be rented: the option goes and the chosen "For rent" is cleared.
+  await category.selectOption('FURNITURE')
+  await expect(type.locator('option[value="RENT"]')).toHaveCount(0)
+  await expect(type).toHaveValue('')
+  for (const value of ['CLOTHES', 'EVENT_TICKETS']) {
+    await category.selectOption(value)
+    await expect(type.locator('option[value="RENT"]'), value).toHaveCount(0)
+  }
+  await category.selectOption('ELECTRONICS')
+  await expect(type.locator('option[value="RENT"]')).toHaveCount(1)
+})
+
+test('marketplace: switching a new listing to furniture drops "For rent"', async ({ page }) => {
+  await page.goto('/marketplace')
+  await page.getByRole('button', { name: 'New listing' }).first().click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Category', { exact: true }).selectOption('BOOKS')
+  await dialog.getByLabel('Listing type').selectOption('RENT')
+  await dialog.getByLabel('Category', { exact: true }).selectOption('FURNITURE')
+  await expect(dialog.getByLabel('Listing type')).toHaveValue('SELL')
+  await expect(dialog.getByLabel('Listing type').locator('option[value="RENT"]')).toHaveCount(0)
+})
+
+for (const path of ['/marketplace', '/support']) {
+  test(`${path}: filtering by a school shows that school's colours`, async ({ page }) => {
+    await page.goto(path)
+    await page.getByLabel('Filter by school').selectOption({ label: 'Miami University' })
+    const section = page.locator('[data-school="miami"]').first()
+    await expect(section).toBeVisible()
+    expect(await section.evaluate((el) => getComputedStyle(el).getPropertyValue('--color-primary-600').trim())).toBe('#c41230')
+    await page.getByLabel('Filter by school').selectOption({ label: 'All schools' })
+    // Miami cards keep their own colours; only the page section around the filter resets.
+    await expect(page.locator('[data-school="miami"]').filter({ has: page.getByLabel('Filter by school') })).toHaveCount(0)
+  })
+}
+
+test("community directory: picking a school shows that school's colours", async ({ page }) => {
+  await page.goto('/community?tab=directory')
+  await page.getByLabel('School', { exact: true }).selectOption('Miami University')
+  const section = page.locator('[data-school="miami"]').filter({ has: page.getByLabel('School', { exact: true }) })
+  expect(await section.evaluate((el) => getComputedStyle(el).getPropertyValue('--color-primary-600').trim())).toBe('#c41230')
+  await page.getByLabel('School', { exact: true }).selectOption('')
+  await expect(section).toHaveCount(0)
+})

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { LifeBuoy, HeartHandshake, ShieldCheck, Phone, MapPin, Plus, Utensils, Brain, HandCoins } from 'lucide-react'
 import { api, toQueryString } from '../lib/api'
 import { useSchools } from '../hooks/useSchools'
+import { slugForSchool } from '../lib/schoolTheme'
 import { useToast } from '../components/ui/Toast'
 import { Modal } from '../components/ui/Modal'
 import { PageHeader, Tabs } from '../components/ui/Tabs'
@@ -26,9 +27,14 @@ const CATEGORY_ICON: Record<SupportCategory, typeof Utensils> = {
 
 export default function Support() {
   const [section, setSection] = useState<Section>('resources')
+  const { schools, nameOf } = useSchools()
+  const [schoolId, setSchoolId] = useState('')
+  // The page takes the filtered school's colours while browsing resources; "All schools"
+  // and the request tabs keep the viewer's own theme from <html>.
+  const schoolSlug = section === 'resources' && schoolId ? slugForSchool(nameOf(Number(schoolId))) : null
 
   return (
-    <>
+    <div data-school={schoolSlug ?? undefined}>
       <PageHeader
         title="Support"
         subtitle="Every school has help available. Find it here, or ask for what you need without your name attached."
@@ -50,16 +56,21 @@ export default function Support() {
         </span>
       </div>
 
-      {section === 'resources' && <Resources />}
+      {section === 'resources' && (
+        <Resources schools={schools} nameOf={nameOf} schoolId={schoolId} onSchoolChange={setSchoolId} />
+      )}
       {section === 'requests' && <OpenRequests />}
       {section === 'mine' && <MyRequests />}
-    </>
+    </div>
   )
 }
 
-function Resources() {
-  const { schools, nameOf } = useSchools()
-  const [schoolId, setSchoolId] = useState('')
+function Resources({
+  schools,
+  nameOf,
+  schoolId,
+  onSchoolChange,
+}: ReturnType<typeof useSchools> & { schoolId: string; onSchoolChange: (schoolId: string) => void }) {
   const [resources, setResources] = useState<SupportResource[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -81,7 +92,7 @@ function Resources() {
   return (
     <>
       <div className="mb-5 max-w-sm">
-        <select aria-label="Filter by school" className="field" value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
+        <select aria-label="Filter by school" className="field" value={schoolId} onChange={(e) => onSchoolChange(e.target.value)}>
           <option value="">All schools</option>
           {schools.map((s) => (
             <option key={s.id} value={s.id}>
@@ -100,7 +111,12 @@ function Resources() {
           {resources.map((resource) => {
             const Icon = CATEGORY_ICON[resource.category]
             return (
-              <article key={resource.id} className="card card-hover animate-fade-in-up p-5">
+              // Each card wears its own school's colours, so "All schools" reads at a glance.
+              <article
+                key={resource.id}
+                data-school={slugForSchool(nameOf(resource.schoolId)) ?? undefined}
+                className="card card-hover animate-fade-in-up border-t-4 border-t-primary-600 p-5 dark:border-t-primary-400"
+              >
                 <div className="flex items-start gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
                     <Icon className="h-5 w-5" />

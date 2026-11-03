@@ -34,7 +34,8 @@ verification and no per-student admin setup.
 The H2 and legacy PostgreSQL seed scripts contain **eight school records**, adding
 Thomas More University and Cincinnati Christian University. Seed records are not
 evidence of current institutional eligibility or tested support. The launch list and
-email-domain mapping need confirmation; automatic school theming is not implemented.
+email-domain mapping need confirmation. School theming is implemented for seven of the
+eight seeded schools (see [UI design](4_ui_design.md#school-theming--objective-8)).
 
 ## Intended roles
 
@@ -59,7 +60,7 @@ responsive shell — sidebar, rail and bottom bar — is still Sprint 2 work.
 
 | Tab | Contains |
 |---|---|
-| **Marketplace** | Listings (sell / rent / free / looking-for), photos, categories, status, search and filters, course-code textbook search, favourites, My Listings, report |
+| **Marketplace** | Listings (sell / rent / free / looking-for; clothes, event tickets and furniture cannot be rented), photos, categories, status, search and filters, course-code textbook search, favourites, My Listings, report |
 | **Messages** | One inbox — Marketplace / Groups / Direct. Real-time chat, unread counts, photos, block and report |
 | **Community** | Student directory, groups by major and graduation year, posts with comments and likes, events board |
 | **Support** | Per-school essentials hub (food pantry, emergency aid, counselling), anonymous requests fulfilled through the donate section |
