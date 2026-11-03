@@ -56,7 +56,8 @@ export default function Marketplace() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<ListingRequest>(EMPTY_FORM)
-  const [photoUrl, setPhotoUrl] = useState('')
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   // Set while editing an existing listing; null means the form creates a new one.
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -89,13 +90,15 @@ export default function Marketplace() {
     setCreateOpen(false)
     setEditingId(null)
     setForm(EMPTY_FORM)
-    setPhotoUrl('')
+    setPhotoFiles([])
+    setPhotoPreviews([])
   }
 
   const openCreate = () => {
     setEditingId(null)
     setForm(EMPTY_FORM)
-    setPhotoUrl('')
+    setPhotoFiles([])
+    setPhotoPreviews([])
     setCreateOpen(true)
   }
 
@@ -114,7 +117,8 @@ export default function Marketplace() {
         schoolId: fresh.schoolId,
         photoUrls: fresh.photoUrls ?? [],
       })
-      setPhotoUrl(fresh.photoUrls?.[0] ?? '')
+      setPhotoFiles([])
+      setPhotoPreviews([])
       setEditingId(fresh.id)
       setCreateOpen(true)
     } catch (e) {
@@ -122,38 +126,79 @@ export default function Marketplace() {
     }
   }
 
+
   const submitListing = async () => {
     if (!form.title.trim()) {
       push('Give your listing a title', 'error')
       return
     }
+
+    const existingPhotoUrls = form.photoUrls ?? []
+
+    if (existingPhotoUrls.length + photoFiles.length > 4) {
+      push('A listing can have at most 4 photos', 'error')
+      return
+    }
+
     setSaving(true)
+
     try {
-      const priceless = form.listingType === 'FREE' || form.listingType === 'LOOKING_FOR'
+      let uploadedPhotoUrls = [...existingPhotoUrls]
+
+      if (photoFiles.length > 0) {
+        const data = new FormData()
+
+        photoFiles.forEach((file) => {
+          data.append('files', file)
+        })
+
+        const newUrls = await api.post<string[]>(
+            '/api/marketplace/listing-images',
+            data,
+        )
+
+        uploadedPhotoUrls = [...uploadedPhotoUrls, ...newUrls]
+      }
+
+      const priceless =
+          form.listingType === 'FREE' ||
+          form.listingType === 'LOOKING_FOR'
+
       const body = {
         ...form,
         price: priceless ? null : form.price,
         courseCode: form.courseCode || null,
         schoolId: form.schoolId ? Number(form.schoolId) : null,
-        photoUrls: photoUrl.trim() ? [photoUrl.trim()] : [],
+        photoUrls: uploadedPhotoUrls,
       }
 
       if (editingId != null) {
-        await api.put<Listing>(`/api/marketplace/listings/${editingId}`, body)
+        await api.put<Listing>(
+            `/api/marketplace/listings/${editingId}`,
+            body,
+        )
         push('Listing updated', 'success')
       } else {
-        await api.post<Listing>('/api/marketplace/listings', body)
+        await api.post<Listing>(
+            '/api/marketplace/listings',
+            body,
+        )
         push('Listing posted', 'success')
         setView('all')
       }
+
       closeForm()
       void load()
     } catch (e) {
-      push(e instanceof Error ? e.message : 'Could not save listing', 'error')
+      push(
+          e instanceof Error ? e.message : 'Could not save listing',
+          'error',
+      )
     } finally {
       setSaving(false)
     }
   }
+
 
   const toggleFavorite = async (listing: Listing) => {
     try {
@@ -411,12 +456,66 @@ export default function Marketplace() {
               </option>
             ))}
           </select>
-          <input
-            className="field"
-            placeholder="Photo URL (optional)"
-            value={photoUrl}
-            onChange={(e) => setPhotoUrl(e.target.value)}
-          />
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Listing photos (up to 4)
+            </label>
+
+            <input
+                className="field"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+
+                  if (files.length > 4) {
+                    push('You can select up to 4 images', 'error')
+                    e.target.value = ''
+                    return
+                  }
+
+                  setPhotoFiles(files)
+                  setPhotoPreviews(
+                      files.map((file) => URL.createObjectURL(file)),
+                  )
+                }}
+            />
+
+            <p className="mt-1 text-sm text-gray-500">
+              Select up to 4 images.
+            </p>
+
+            {/* Display photos already saved to the listing */}
+
+            {/* Display photos already saved to the listing */}
+            {(form.photoUrls ?? []).length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {(form.photoUrls ?? []).map((url, index) => (
+                      <img
+                          key={`${url}-${index}`}
+                          src={url}
+                          alt={`Existing photo ${index + 1}`}
+                          className="h-32 w-full rounded-lg object-cover"
+                      />
+                  ))}
+                </div>
+            )}
+
+
+            {photoPreviews.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {photoPreviews.map((preview, index) => (
+                      <img
+                          key={preview}
+                          src={preview}
+                          alt={`Selected photo ${index + 1}`}
+                          className="h-32 w-full rounded-lg object-cover"
+                      />
+                  ))}
+                </div>
+            )}
+          </div>
         </div>
       </Modal>
     </>
@@ -458,15 +557,20 @@ function ListingCard({
 
   return (
     <article className="card card-hover animate-fade-in-up flex flex-col overflow-hidden">
-      {listing.photoUrls?.[0] && (
-        <img
-          src={listing.photoUrls[0]}
-          alt=""
-          className="h-40 w-full object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none'
-          }}
-        />
+      {listing.photoUrls && listing.photoUrls.length > 0 && (
+          <div className="grid grid-cols-2 gap-1">
+            {listing.photoUrls.slice(0, 4).map((url, index) => (
+                <img
+                    key={`${url}-${index}`}
+                    src={url}
+                    alt={`${listing.title} photo ${index + 1}`}
+                    className="h-40 w-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                />
+            ))}
+          </div>
       )}
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-3">

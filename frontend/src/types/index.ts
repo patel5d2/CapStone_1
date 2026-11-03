@@ -161,6 +161,7 @@ export interface Post {
   groupId: number | null
   content: string
   imageUrl: string | null
+  authorPhotoUrl?: string | null
   pinned: boolean
   likeCount: number
   commentCount: number

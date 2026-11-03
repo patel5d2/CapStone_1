@@ -159,9 +159,21 @@ function Feed() {
           <article key={post.id} className="card animate-fade-in-up p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
-                  {post.authorEmail.charAt(0).toUpperCase()}
-                </span>
+                {post.authorPhotoUrl ? (
+                    <img
+                        src={post.authorPhotoUrl}
+                        alt={`${post.authorEmail}'s profile`}
+                        className="h-9 w-9 shrink-0 rounded-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                    />
+                ) : (
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
+    {post.authorEmail.charAt(0).toUpperCase()}
+  </span>
+                )}
                 <div>
                   <p className="text-sm font-semibold">{post.authorEmail}</p>
                   <p className="text-xs text-[var(--color-ink-faint)]">

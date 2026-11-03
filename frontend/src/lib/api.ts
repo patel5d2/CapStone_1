@@ -46,10 +46,30 @@ function safeJsonParse(text: string) {
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
+
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
+      request<T>(path, {
+        method: 'POST',
+        body:
+            body === undefined
+                ? undefined
+                : body instanceof FormData
+                    ? body
+                    : JSON.stringify(body),
+      }),
+
+
   put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PUT', body: body !== undefined ? JSON.stringify(body) : undefined }),
+      request<T>(path, {
+        method: 'PUT',
+        body:
+            body === undefined
+                ? undefined
+                : body instanceof FormData
+                    ? body
+                    : JSON.stringify(body),
+      }),
+
   upload: <T>(path: string, file: File) => {
     const body = new FormData()
     body.append('file', file)
