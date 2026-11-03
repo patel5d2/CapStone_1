@@ -218,11 +218,29 @@ white and failed even that.
 
 **Implemented 2026-10-06.** `lib/schoolTheme.ts` resolves the signed-in student's profile
 school, stamps `data-school="<slug>"` on `<html>` (remembered across reloads, cleared on
-sign-out) and `index.css` holds one `:root[data-school]` block per school. Each block
+sign-out) and `index.css` holds one `[data-school]` block per school. Each block
 overrides the **`primary-*` scale and the decorative `accent-*` pair** (decision 019,
 Proposed); neutral semantic tokens (`surface`, `ink`, `border`, status) still follow
 light/dark mode only. Clerk's components follow through `ThemedClerkProvider`, which
 reads the active `--color-primary-600`.
+
+**Scoped theming (2026-11-02, Proposed decision 020).** The palette blocks match any
+element carrying `data-school`, not only `<html>`, so one part of a page can show a
+different school's colours while the rest keeps the viewer's. Custom properties inherit,
+so everything inside the element picks up that school's `primary-*` and `accent-*`
+without new classes. Current uses:
+
+- **School filters** — Support → Resources, Marketplace → Browse and Community →
+  Directory stamp the selected school on their section wrapper; "All schools" (or another
+  tab) removes it and the viewer's own theme shows again.
+- **Cards** — support resources, listings, directory students, groups and events stamp
+  their own school, and carry a `border-t-4 border-t-primary-600
+  dark:border-t-primary-400` strip so mixed results are told apart at a glance. A card
+  with no school (or Cincinnati Christian) keeps the surrounding theme.
+
+Resolve the slug with `slugForSchool(name)` from `lib/schoolTheme.ts`; never hard-code a
+slug or a hex. `e2e/public.spec.ts` checks that a scoped element resolves its school's
+`primary-600` while `<html>` keeps the default.
 
 | Slug | School | Brand colour | `primary-600` | Source |
 |---|---|---|---|---|

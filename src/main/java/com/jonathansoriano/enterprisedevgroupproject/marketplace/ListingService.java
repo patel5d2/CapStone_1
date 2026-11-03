@@ -82,6 +82,7 @@ public class ListingService {
     }
 
     public ListingResponse create(ListingRequest request, Party seller) {
+        requireAllowedType(request);
         Listing listing = Listing.builder()
                 .sellerEmail(seller.email())
                 .sellerSubject(seller.subject())
@@ -103,6 +104,7 @@ public class ListingService {
     public ListingResponse update(Long id, ListingRequest request, Party requester) {
         Listing listing = findOrThrow(id);
         requireOwner(listing, requester);
+        requireAllowedType(request);
 
         listing.setTitle(request.getTitle());
         listing.setDescription(request.getDescription());
@@ -115,6 +117,16 @@ public class ListingService {
         listing.setPhotoUrls(request.getPhotoUrls() == null ? List.of() : request.getPhotoUrls());
 
         return toResponse(listingRepository.save(listing), favoritedListingIds(requester));
+    }
+
+    /** 400 for a combination the category does not allow, such as renting furniture. */
+    private static void requireAllowedType(ListingRequest request) {
+        ListingCategory category = request.getCategory();
+        ListingType type = request.getListingType();
+        if (category != null && type != null && !category.allows(type)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    category + " listings cannot use listing type " + type);
+        }
     }
 
     public void delete(Long id, Party requester) {

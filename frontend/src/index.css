@@ -103,10 +103,12 @@ body {
    built from the school's official brand colour (sources in context/4_ui_design.md) and
    every pairing in the contrast ledger there is checked for it — the check is
    frontend/scripts/test-school-themes.cjs. No school, or an unknown one: pine green.
+   Not limited to :root: a page can stamp data-school on a wrapper to show one school's
+   colours in just that part (Support tints its resources by the school filter).
    In @layer base so it outranks @theme's :root without being unlayered. */
 @layer base {
   /* University of Cincinnati: brand #E00122 used as the action colour. */
-  :root[data-school="uc"] {
+  [data-school="uc"] {
     --color-primary-50: #fef8f9;
     --color-primary-100: #fdf0f2;
     --color-primary-200: #f4a6b2;
@@ -120,7 +122,7 @@ body {
   }
 
   /* Xavier University: brand #0C2340 used as the action colour. */
-  :root[data-school="xavier"] {
+  [data-school="xavier"] {
     --color-primary-50: #ebedf0;
     --color-primary-100: #d3d7dd;
     --color-primary-200: #aab2bc;
@@ -134,7 +136,7 @@ body {
   }
 
   /* Northern Kentucky University: brand #FFC72C — too light for white text, so 600 is an accessible variant of it. */
-  :root[data-school="nku"] {
+  [data-school="nku"] {
     --color-primary-50: #fffbee;
     --color-primary-100: #fff5d9;
     --color-primary-200: #ffebb5;
@@ -148,7 +150,7 @@ body {
   }
 
   /* Miami University: brand #C41230 used as the action colour. */
-  :root[data-school="miami"] {
+  [data-school="miami"] {
     --color-primary-50: #fbedf0;
     --color-primary-100: #f5d7dd;
     --color-primary-200: #eaacb7;
@@ -162,7 +164,7 @@ body {
   }
 
   /* Cincinnati State Technical and Community College: brand #418534 — too light for white text, so 600 is an accessible variant of it. */
-  :root[data-school="cincystate"] {
+  [data-school="cincystate"] {
     --color-primary-50: #f8fbf8;
     --color-primary-100: #f0f6ef;
     --color-primary-200: #bdd4b8;
@@ -176,7 +178,7 @@ body {
   }
 
   /* Mount St. Joseph University: brand #003366 used as the action colour. */
-  :root[data-school="msj"] {
+  [data-school="msj"] {
     --color-primary-50: #eaeef2;
     --color-primary-100: #d1dae3;
     --color-primary-200: #a6b8c9;
@@ -190,7 +192,7 @@ body {
   }
 
   /* Thomas More University: brand #000099 used as the action colour. */
-  :root[data-school="thomasmore"] {
+  [data-school="thomasmore"] {
     --color-primary-50: #eaeaf7;
     --color-primary-100: #d1d1ed;
     --color-primary-200: #a6a6db;

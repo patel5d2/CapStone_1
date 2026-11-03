@@ -168,6 +168,13 @@ community/support (S1-10, S1-12) are not.
 Present: `sellerEmail`, `title`, `description`, `category`, `listingType`, `status`,
 `price`, `courseCode`, `schoolId`, `photoUrls`, `createdAt`, `updatedAt`.
 
+**`category` limits `listingType`** (2026-11-02, Proposed decision 021): `CLOTHES`,
+`EVENT_TICKETS` and `FURNITURE` allow `SELL`, `FREE` and `LOOKING_FOR` only; `BOOKS`,
+`ELECTRONICS` and `OTHER` also allow `RENT`. The table lives on `ListingCategory`
+(`allows(type)`); `ListingService.create`/`update` answer **400** for any other pair. The
+SPA mirrors it in `ALLOWED_TYPES` (`pages/Marketplace.tsx`) to filter its dropdowns — keep
+the two in step. No schema change: rows stored before the rule keep their type until edited.
+
 **Planned tables:** `school_domain`, `offer`, `seller_review`, `notification`,
 `meetup_spot`, `profile_privacy`.
 
