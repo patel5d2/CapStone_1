@@ -2,6 +2,7 @@ package com.jonathansoriano.enterprisedevgroupproject.service;
 
 import com.jonathansoriano.enterprisedevgroupproject.domain.StudentSignupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
+import com.jonathansoriano.enterprisedevgroupproject.security.ClerkAccountLookup;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -16,6 +18,10 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * The S1-02 acceptance matrix, run against the real migrations on a disposable
@@ -40,6 +46,12 @@ class StudentIdentityServiceTest {
     StudentRepository studentRepository;
     @Autowired
     JdbcTemplate jdbc;
+    /** Clerk's answer to "does this account still exist?"; by default, yes. */
+    @MockitoBean
+    ClerkAccountLookup clerkAccounts;
+    /** Mocked because the real one commits in its own transaction, outside this test's. */
+    @MockitoBean
+    DeletedAccountCleanup deletedAccounts;
 
     private static Jwt token(String subject, String email) {
         Jwt.Builder builder = Jwt.withTokenValue("clerk-session-token").header("alg", "RS256");
@@ -110,6 +122,31 @@ class StudentIdentityServiceTest {
         assertEquals(HttpStatus.CONFLICT, thrown.getStatusCode());
         // ...and the refusal did not quietly reassign the row.
         assertEquals(SUBJECT, storedSubjectFor(SIGNED_UP_EMAIL));
+        // The owner is alive as far as Clerk says, so their profile is not touched.
+        verify(deletedAccounts, never()).retire(any());
+    }
+
+    @Test
+    void theOwnerDeletedTheirAccount_theProfileGoesAndTheNewAccountStartsFresh() {
+        // Delete the account in Clerk, sign up again with the same address: a new subject
+        // on the old profile's email. It used to be refused on every request, for good.
+        createProfileFor(SUBJECT, SIGNED_UP_EMAIL);
+        when(clerkAccounts.isDeleted(SUBJECT, OTHER_SUBJECT)).thenReturn(true);
+
+        String resolved = identityService.ownerEmailFor(token(OTHER_SUBJECT, SIGNED_UP_EMAIL));
+
+        // Resolves like anyone with no profile yet, and the dead account's profile is retired.
+        assertEquals(SIGNED_UP_EMAIL, resolved);
+        verify(deletedAccounts).retire(SUBJECT);
+    }
+
+    @Test
+    void theOwnerThemselves_neverTriggersALookup() {
+        createProfileFor(SUBJECT, SIGNED_UP_EMAIL);
+
+        identityService.ownerEmailFor(token(SUBJECT, SIGNED_UP_EMAIL));
+
+        verify(clerkAccounts, never()).isDeleted(any(), any());
     }
 
     @Test

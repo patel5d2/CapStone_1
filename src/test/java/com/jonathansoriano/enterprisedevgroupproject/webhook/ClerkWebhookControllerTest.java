@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.webhook;
 
+import com.jonathansoriano.enterprisedevgroupproject.service.DeletedAccountCleanup;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,9 @@ import java.time.Instant;
 import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +73,16 @@ class ClerkWebhookControllerTest {
     MockMvc mockMvc;
     @Autowired
     JdbcTemplate jdbc;
+    /** Mocked because the real one commits in its own transaction; see DeletedAccountCleanupTest. */
+    @MockitoBean
+    DeletedAccountCleanup deletedAccounts;
+
+    /** Clerk's deletion event carries the id and little else. */
+    private static String deletedEvent(String subject) {
+        return """
+                {"type": "user.deleted", "data": {"id": "%s", "object": "user", "deleted": true}}
+                """.formatted(subject);
+    }
 
     private static String userEvent(String type, String subject, String email) {
         return """
@@ -140,6 +155,28 @@ class ClerkWebhookControllerTest {
         assertEquals(204, deliver("msg_1", timestamp, signature, body));
 
         assertEquals(1, identityCount(), "a retry must not create a second identity");
+    }
+
+    @Test
+    void deletedAccount_hasItsProfileRetired() throws Exception {
+        String body = deletedEvent(SUBJECT);
+        String timestamp = now();
+
+        assertEquals(204, deliver("msg_del", timestamp, sign("msg_del", timestamp, body), body));
+
+        verify(deletedAccounts).retire(SUBJECT);
+    }
+
+    @Test
+    void forgedDeletion_removesNothing() throws Exception {
+        // Signed for one account, delivered naming another: the classic reason to verify
+        // before parsing, with someone's profile as the price of getting it wrong.
+        String timestamp = now();
+        String signature = sign("msg_del", timestamp, deletedEvent(SUBJECT));
+
+        assertEquals(401, deliver("msg_del", timestamp, signature, deletedEvent("user_someoneElse")));
+
+        verify(deletedAccounts, never()).retire(any());
     }
 
     @Test

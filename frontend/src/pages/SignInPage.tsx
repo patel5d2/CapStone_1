@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { SignIn, useSignIn } from '@clerk/clerk-react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
+import { PasswordField } from '../components/ui/PasswordField'
 import { Wordmark } from '../components/ui/Wordmark'
 import { isInstitutionalEmail } from '../lib/institutionalEmail'
 
@@ -86,7 +87,13 @@ export default function SignInPage() {
         setContinueWithClerk(true)
       }
     } catch (err) {
-      setError(messageOf(err, 'That email and password did not match an account.'))
+      // Clerk's "Couldn't find your account" is true but leaves out the usual cause: a
+      // sign-up that stopped before the emailed code was entered never became an account,
+      // so the student who "already signed up" has nothing to sign in to yet.
+      const noAccount = (err as { errors?: { code?: string }[] })?.errors?.[0]?.code === 'form_identifier_not_found'
+      setError(noAccount
+        ? 'No account uses that email. Check the spelling, or create your account below: signing up is only finished once the emailed code is entered.'
+        : messageOf(err, 'That email and password did not match an account.'))
     } finally {
       setBusy(false)
     }
@@ -102,7 +109,9 @@ export default function SignInPage() {
     return (
       <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-12">
         <Wordmark />
-        <SignIn routing="path" path="/sign-in" forceRedirectUrl="/marketplace" signUpUrl="/sign-up" />
+        {/* The address already typed carries over, so "Forgot your password?" does not ask for it again. */}
+        <SignIn routing="path" path="/sign-in" forceRedirectUrl="/marketplace" signUpUrl="/sign-up"
+          initialValues={{ emailAddress: email.trim() }} />
       </div>
     )
   }
@@ -126,28 +135,27 @@ export default function SignInPage() {
               className="field"
               type="email"
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder="you@school.edu"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold">Password</span>
-            <input
-              className="field"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
+          <PasswordField
+            id="signin-password"
+            label="Password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-          {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
+          {error && <p role="alert" className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
 
-          <button className="btn-primary w-full" disabled={!isLoaded || busy || !password}>
+          {/* Not disabled while the password is empty: a browser can fill a saved password
+              without telling the page, which would leave a button nobody can press. An
+              empty field is caught on submit by `required` instead. */}
+          <button className="btn-primary w-full" disabled={!isLoaded || busy}>
             {busy && <Loader2 className="h-4 w-4 animate-spin" />} Sign in
           </button>
 

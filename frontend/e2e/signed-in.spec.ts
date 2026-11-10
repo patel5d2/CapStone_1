@@ -36,12 +36,14 @@ test('profile: a signed-in student can open and save their profile', async ({ pa
   const isNew = await page.getByRole('heading', { name: /complete your profile/i }).isVisible()
   if (isNew) {
     await page.getByLabel(/^School/).selectOption({ index: 1 })
-    await page.getByLabel(/^Major/).fill('Information Technology')
+    // By role: "Major visibility" under Optional details is also labelled "Major…".
+    await page.getByRole('textbox', { name: /^Major/ }).fill('Information Technology')
     await page.getByLabel(/^City/).fill('Cincinnati')
-    await page.getByLabel(/^State/).fill('OH')
+    await page.getByLabel(/^State/).selectOption('OH')
   }
   await page.getByRole('button', { name: /save profile/i }).click()
-  await expect(page.getByText(/profile and visibility saved/i).first()).toBeVisible()
+  // A first save is the end of sign-up and says so; later saves confirm the save.
+  await expect(page.getByText(/welcome to campusbridge|profile and visibility saved/i).first()).toBeVisible()
 })
 
 test('marketplace: post, find in My listings, then delete a listing', async ({ page }) => {
