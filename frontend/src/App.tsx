@@ -6,11 +6,13 @@ import { GraduationCap, ShieldCheck } from 'lucide-react'
 import { AppShell } from './components/layout/AppShell'
 import { setTokenGetter } from './lib/authToken'
 import { isInstitutionalEmail } from './lib/institutionalEmail'
-import { useProfileMissing } from './lib/profileGate'
+import { useProfileCheck } from './lib/profileGate'
 import { applySchoolTheme, slugForSchool } from './lib/schoolTheme'
 import { api, ApiError } from './lib/api'
 import type { StudentAccountDetails } from './types'
 import { Spinner } from './components/ui/Feedback'
+import { SignUpSteps } from './components/ui/SignUpSteps'
+import { Wordmark } from './components/ui/Wordmark'
 import Landing from './pages/Landing'
 import SignInPage from './pages/SignInPage'
 import SignUpPage from './pages/SignUpPage'
@@ -124,10 +126,6 @@ function TwoFactorRequired() {
   )
 }
 
-/**
- * Signed in, allowed, and — except on the profile page itself — has completed their
- * profile. A new student is sent to /profile from every page until they save it.
- */
 /** Clerk's reverification hint (the shape `reverificationError()` builds), for its modal. */
 const SECOND_FACTOR_HINT = {
   clerk_error: {
@@ -148,7 +146,7 @@ function secondFactorUnverified(age: [number, number] | null | undefined) {
  * verified one, `InstitutionalAccessPolicy`). Sign-in never lands here: Clerk asks for the
  * factor there. Ask once, in Clerk's own verification modal, then continue.
  */
-function ConfirmSecondFactor() {
+function ConfirmSecondFactor({ signup = false }: { signup?: boolean }) {
   const clerk = useClerk()
   const { getToken } = useAuth()
   const [error, setError] = useState<string | null>(null)
@@ -174,15 +172,15 @@ function ConfirmSecondFactor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
-    <div className="mx-auto max-w-md py-16 text-center">
+    <div className="mx-auto max-w-md px-4 py-16 text-center">
+      {signup && <div className="mb-6"><SignUpSteps current={3} /></div>}
       <div className="card flex flex-col items-center gap-4 px-6 py-12">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
           <ShieldCheck className="h-6 w-6" />
         </span>
         <h1 className="text-xl font-extrabold tracking-tight">Confirm your two-step verification</h1>
         <p className="text-sm text-[var(--color-ink-muted)]">
-          You just set it up. Enter a code from it once to finish signing up — after that you go straight to your
-          profile.
+          You just set it up. Enter one code from it to confirm it works, and you are in.
         </p>
         {error && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}
         <button className="btn-primary" onClick={() => void start()}>Verify now</button>
@@ -194,7 +192,37 @@ function ConfirmSecondFactor() {
   )
 }
 
-export function RequireAuth({ children, allowIncompleteProfile = false }: { children: ReactNode; allowIncompleteProfile?: boolean }) {
+/**
+ * The check for a student profile did not come back with one. Not knowing is not the same
+ * as registered, so the app stays closed. Usually the way forward is to ask again; without
+ * `onRetry` the server gave a firm answer (the profile on this email belongs to another
+ * Clerk account) and asking again would only repeat it.
+ */
+function AccountCheckFailed({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="mx-auto max-w-md px-4 py-16 text-center">
+      <div className="card flex flex-col items-center gap-4 px-6 py-12">
+        <h1 className="text-xl font-extrabold tracking-tight">
+          {onRetry ? 'We could not check your account' : 'This email already has a profile'}
+        </h1>
+        <p role="alert" className="text-sm text-[var(--color-ink-muted)]">{message}</p>
+        {onRetry && <button className="btn-primary" onClick={onRetry}>Try again</button>}
+        <SignOutButton>
+          <button className="btn-ghost btn-sm">Sign out</button>
+        </SignOutButton>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Signed in, allowed, and registered: the student account/profile exists. Creating it is
+ * the last step of sign-up (#114), so a student without one is sent to /sign-up/profile
+ * from every page and never sees the app. `signupStep` is that page's own gate, the
+ * inverse: it admits only a student with no profile yet and sends everyone else into the
+ * app, so a registered student is never asked to set up again.
+ */
+export function RequireAuth({ children, signupStep = false }: { children: ReactNode; signupStep?: boolean }) {
   const { isLoaded, isSignedIn } = useAuth()
   const { isLoaded: sessionLoaded, session } = useSession()
   const { user } = useUser()
@@ -202,8 +230,7 @@ export function RequireAuth({ children, allowIncompleteProfile = false }: { chil
     && secondFactorUnverified(session?.factorVerificationAge)
   // Held back until the second factor is verified: before then every API call is refused,
   // and the profile check would read that refusal as "profile exists".
-  const profileMissing = useProfileMissing(
-    isSignedIn && !allowIncompleteProfile && !needsSecondFactor ? user?.id : undefined)
+  const profile = useProfileCheck(isSignedIn && !needsSecondFactor ? user?.id : undefined)
   if (!isLoaded || !sessionLoaded) return <Spinner />
   if (session?.currentTask?.key === 'setup-mfa') {
     return <Navigate to="/session-tasks/setup-mfa" replace />
@@ -215,13 +242,34 @@ export function RequireAuth({ children, allowIncompleteProfile = false }: { chil
   // rejection then would flash it at students who are perfectly entitled to be here.
   if (user && !isInstitutionalEmail(email)) return <NotInstitutional email={email} />
   if (REQUIRE_TWO_FACTOR && user && !user.twoFactorEnabled) return <TwoFactorRequired />
-  if (needsSecondFactor) return <ConfirmSecondFactor />
-  if (!allowIncompleteProfile) {
-    if (profileMissing === null) return <Spinner />
-    if (profileMissing) return <Navigate to="/profile" replace />
+  if (needsSecondFactor) return <ConfirmSecondFactor signup={signupStep} />
+  if (profile.status === 'checking') return <Spinner />
+  if (profile.status === 'failed') {
+    return <AccountCheckFailed message={profile.message} onRetry={profile.retryable ? profile.retry : undefined} />
   }
+  if (signupStep && profile.status === 'complete') return <Navigate to="/marketplace" replace />
+  if (!signupStep && profile.status === 'missing') return <Navigate to="/sign-up/profile" replace />
 
   return <>{children}</>
+}
+
+/**
+ * The last step of sign-up, outside AppShell on purpose: the app's tabs are not offered
+ * to a student whose account is not finished. With no avatar menu here, signing out needs
+ * its own button.
+ */
+function SignUpProfileStep() {
+  return (
+    <div className="mx-auto w-full max-w-2xl px-4 py-8">
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <Wordmark />
+        <SignOutButton>
+          <button className="btn-ghost btn-sm">Sign out</button>
+        </SignOutButton>
+      </div>
+      <Profile signup />
+    </div>
+  )
 }
 
 export default function App() {
@@ -236,6 +284,7 @@ export default function App() {
         <Route path="/session-tasks/setup-mfa" element={<SetupMfaPage />} />
         <Route path="/sign-in/*" element={<AuthSessionGate><SignInPage /></AuthSessionGate>} />
         <Route path="/sign-up/*" element={<AuthSessionGate><SignUpPage /></AuthSessionGate>} />
+        <Route path="/sign-up/profile" element={<RequireAuth signupStep><SignUpProfileStep /></RequireAuth>} />
         <Route element={<AppShell />}>
           <Route path="/" element={<Landing />} />
           <Route
@@ -275,7 +324,7 @@ export default function App() {
           <Route
             path="/profile"
             element={
-              <RequireAuth allowIncompleteProfile>
+              <RequireAuth>
                 <Profile />
               </RequireAuth>
             }

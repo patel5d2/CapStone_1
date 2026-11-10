@@ -722,6 +722,15 @@ Raise at the next weekly meeting. Do not guess these in code.
     there is now **no checked-in upgrade path** for a database that already holds data.
     The question stands.
 
+14. **What should happen to a student's rows when their Clerk account is deleted?** Nothing
+    does today: `ClerkWebhookController` ignores `user.deleted`, and self-deletion is on in
+    Clerk. The `student` row stays bound to the dead subject, so the same person signing up
+    again with the same email is refused 409 on every request (identity-backfill rule 3,
+    "needs a human") and cannot create a profile either, because `app_user` still holds the
+    address. Deleting, anonymising or releasing the rows is a privacy decision as much as a
+    technical one. Raised 2026-11-10, after it locked out a team test account on the dev
+    database (see session notes).
+
 ---
 
 ## Session notes
@@ -794,3 +803,55 @@ Raise at the next weekly meeting. Do not guess these in code.
   Same approach as the libexpat pin: the runtime stage requires `brotli-libs>=1.2.1-r0`
   until the pinned `eclipse-temurin:21-jre-alpine` digest ships it; drop the pin then.
   CI's container build and startup passed; the next release Trivy scan should confirm.
+- **#114 Student account creation moved into sign-up (2026-11-10, branch `feature/114`,
+  not yet reviewed or merged).** Frontend only; the API is unchanged.
+  - **The sign-up form asks for the required profile details** (school, year of study,
+    major, city, state) next to name, email and password, and refuses bad ones before a
+    Clerk account exists. They ride on the new Clerk user's `unsafeMetadata`
+    (`lib/signupProfile.ts`) through email verification and MFA setup, because the API only
+    creates a student for a session with a verified second factor. The school list on that
+    form is `SCHOOL_NAMES` in `lib/schoolTheme.ts`, since `/api/schools` needs a session; the
+    name is matched to an id once there is one. **Add a school there when the database
+    gains one.**
+  - **The last step, `/sign-up/profile`, creates the profile from those details without
+    showing a form**, then clears them from Clerk and enters the app. The form appears only
+    when that cannot finish (nothing collected, a detail refused, the request failed),
+    filled in with what was given. A create refused because an earlier attempt went through
+    updates that profile instead of stopping at "already has a profile".
+  - **No profile, no app.** `RequireAuth` sends a student without a profile to that step from
+    every page, `/profile` included; the step sends a registered student into the app. A
+    profile check that fails (anything but 404) now shows "We could not check your account"
+    with a retry — it used to count as registered. **This reverses the earlier "any other
+    failure does not trap them" choice; raise it at review if that was deliberate.**
+  - **Sign-in/sign-up fixes found on the way:** a reload while waiting for the email code
+    resumes at the code step; "Forgot your password?" carries the typed address into Clerk's
+    screen; `ClerkProvider` now names `/sign-in` and `/sign-up`, so Clerk's own redirects stop
+    going to the hosted Account Portal; signing in with an email that has no account now
+    says so and names the usual cause (a sign-up that stopped before the emailed code was
+    entered never became an account); the profile test in `e2e/signed-in.spec.ts` matched
+    two "Major" controls on a new account and is fixed.
+  - **Made easier to get through (same day).** A step indicator (details → verify email →
+    two-step verification) on the sign-up form, the code step, the MFA page and the
+    second-factor confirmation; problems shown beside their field and the field focused,
+    with one set of messages instead of the browser's bubbles; state is a picker, here and
+    on the profile form; show/hide on both password fields; the emailed code submits itself
+    at six digits and accepts a pasted "424 242"; an email already in use says to sign in;
+    the MFA page explains why and no longer sits empty when there is nothing to set up;
+    Sign in is no longer disabled while the password looks empty (a browser-filled password
+    may be invisible to the page); the first arrival says "Welcome to CampusBridge!".
+  - Verified 2026-11-10: `npm test` 59 pass, `npm run lint`, `npm run build`,
+    `e2e/public.spec.ts` in Chromium at desktop and 375px (40 pass). The whole journey
+    (form → code → MFA → second factor → profile created → marketplace, plus failed create,
+    lost response, duplicate create, reload mid-verification, returning student, account
+    with no details, failed account check) was driven in Chromium **against a stand-in for
+    `@clerk/clerk-react` and a stubbed API**, not checked in. **Not verified:** a real
+    sign-up against Clerk (its bot protection stops an automated browser, as it should),
+    Firefox/Safari, and `e2e/signed-in.spec.ts` (needs the Clerk secret key and the backend).
+- **Dev database, 2026-11-10: one stale Clerk link cleared by hand.** `student.id = 38`
+  (Dharmin's test account) was bound to a Clerk user that had since been deleted and
+  re-created with the same email, so every request answered 409 "already linked to a
+  different account". With Dharmin's approval `clerk_user_id` on that one row was set to
+  `NULL` (it was `user_3KLcudfu7anHqZz6r2mJRQsOLrZ`); the row now works through the email
+  path like any unbound row. Rows in other tables keyed on the old subject were left as
+  they were. The cause is Open Question 14. The frontend now shows that 409 as "This email
+  already has a profile" with no retry, since asking again cannot change it.
