@@ -134,8 +134,16 @@ export default function Marketplace() {
     }
 
     const existingPhotoUrls = form.photoUrls ?? []
+    const totalPhotos = existingPhotoUrls.length + photoFiles.length
 
-    if (existingPhotoUrls.length + photoFiles.length > 4) {
+// New listings must have at least one photo.
+    if (totalPhotos < 1) {
+      push('Please upload at least one photo', 'error')
+      return
+    }
+
+// Listings cannot have more than 4 photos.
+    if (totalPhotos > 4) {
       push('A listing can have at most 4 photos', 'error')
       return
     }
@@ -458,7 +466,7 @@ export default function Marketplace() {
           </select>
           <div>
             <label className="mb-1 block text-sm font-medium">
-              Listing photos (up to 4)
+              Listing photos (1–4 required)
             </label>
 
             <input
@@ -483,21 +491,37 @@ export default function Marketplace() {
             />
 
             <p className="mt-1 text-sm text-gray-500">
-              Select up to 4 images.
+              Upload at least 1 image and no more than 4.
             </p>
 
             {/* Display photos already saved to the listing */}
 
-            {/* Display photos already saved to the listing */}
+            {/* Display and remove photos already saved to the listing */}
             {(form.photoUrls ?? []).length > 0 && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {(form.photoUrls ?? []).map((url, index) => (
-                      <img
-                          key={`${url}-${index}`}
-                          src={url}
-                          alt={`Existing photo ${index + 1}`}
-                          className="h-32 w-full rounded-lg object-cover"
-                      />
+                      <div key={`${url}-${index}`} className="relative">
+                        <img
+                            src={url}
+                            alt={`Existing photo ${index + 1}`}
+                            className="h-32 w-full rounded-lg object-cover"
+                        />
+
+                        <button
+                            type="button"
+                            className="btn-danger btn-sm absolute right-1 top-1"
+                            onClick={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  photoUrls: (prev.photoUrls ?? []).filter(
+                                      (_, i) => i !== index
+                                  ),
+                                }))
+                            }
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                   ))}
                 </div>
             )}

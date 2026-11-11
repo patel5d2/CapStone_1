@@ -111,6 +111,59 @@ class FeatureFlowsIntegrationTest {
     }
 
     @Test
+    void listing_photoUrlsPersistWhenCreatedRetrievedAndEdited() {
+        List<String> originalPhotos = List.of(
+                "https://images.example.test/listing-1.webp",
+                "https://images.example.test/listing-2.webp");
+        ListingRequest createRequest = ListingRequest.builder()
+                .title("Desk lamp")
+                .category(ListingCategory.OTHER)
+                .listingType(ListingType.SELL)
+                .price(new java.math.BigDecimal("12.00"))
+                .photoUrls(originalPhotos)
+                .build();
+
+        ListingResponse created = listingService.create(createRequest, SELLER);
+
+        assertThat(created.getPhotoUrls()).containsExactlyElementsOf(originalPhotos);
+        assertThat(listingService.get(created.getId(), BUYER).getPhotoUrls())
+                .containsExactlyElementsOf(originalPhotos);
+        assertThat(listingService.search(null, null, null, null, null, "Desk lamp", BUYER))
+                .filteredOn(listing -> listing.getId().equals(created.getId()))
+                .singleElement()
+                .extracting(ListingResponse::getPhotoUrls)
+                .isEqualTo(originalPhotos);
+
+        ListingRequest editWithoutNewUploads = ListingRequest.builder()
+                .title("Desk lamp, updated")
+                .category(ListingCategory.OTHER)
+                .listingType(ListingType.SELL)
+                .price(new java.math.BigDecimal("10.00"))
+                .photoUrls(originalPhotos)
+                .build();
+        listingService.update(created.getId(), editWithoutNewUploads, SELLER);
+        assertThat(listingService.get(created.getId(), SELLER).getPhotoUrls())
+                .containsExactlyElementsOf(originalPhotos);
+
+        List<String> appendedPhotos = List.of(
+                originalPhotos.get(0),
+                originalPhotos.get(1),
+                "https://images.example.test/listing-3.webp");
+        ListingRequest editWithNewUpload = ListingRequest.builder()
+                .title("Desk lamp with shade")
+                .category(ListingCategory.OTHER)
+                .listingType(ListingType.SELL)
+                .price(new java.math.BigDecimal("10.00"))
+                .photoUrls(appendedPhotos)
+                .build();
+        listingService.update(created.getId(), editWithNewUpload, SELLER);
+
+        assertThat(listingService.get(created.getId(), BUYER).getPhotoUrls())
+                .containsExactlyElementsOf(appendedPhotos);
+        listingService.delete(created.getId(), SELLER);
+    }
+
+    @Test
     void post_likeUnlikeCommentAndPin() {
         PostResponse post = postService.create(PostRequest.builder().content("Anyone else in CS 2021?").build(), SELLER);
 

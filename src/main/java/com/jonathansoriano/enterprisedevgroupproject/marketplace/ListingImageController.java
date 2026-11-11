@@ -28,7 +28,7 @@ public class ListingImageController {
 
     @PostMapping
     public List<String> upload(
-            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files,
             @AuthenticationPrincipal Jwt clerkSession) {
 
         String owner = CurrentUser.emailOf(clerkSession);

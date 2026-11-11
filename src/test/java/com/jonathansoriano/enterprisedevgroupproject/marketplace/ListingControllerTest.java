@@ -143,6 +143,25 @@ class ListingControllerTest {
     }
 
     @Test
+    void create_RejectsFivePhotos_Http400() throws Exception {
+        String requestJson = """
+                {
+                  "title": "Mini Fridge",
+                  "category": "FURNITURE",
+                  "listingType": "SELL",
+                  "photoUrls": ["https://example.test/1.jpg", "https://example.test/2.jpg",
+                                "https://example.test/3.jpg", "https://example.test/4.jpg",
+                                "https://example.test/5.jpg"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/marketplace/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void create_ValidationFailure_ReportsEachFieldSeparately() throws Exception {
         // The response has to say WHICH field, in a form a client can act on. It used to
         // carry a Java map's toString() inside the message, so a student read

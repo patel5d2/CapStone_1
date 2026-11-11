@@ -57,19 +57,24 @@ Run these in `frontend/`:
 |---|---|
 | `npm run dev` | Vite development server with the API proxies above |
 | `npm run lint` | Oxlint source checks |
+| `npm test` | Vitest + React Testing Library component tests in jsdom |
 | `npm run build` | TypeScript project checks (`tsc -b`), then Vite production build |
 | `npm run preview` | Locally preview an existing production build; does not start Spring Boot |
 
 The frontend verification sequence is:
 
 ```bash
+npm test
 npm run lint
 npm run build
 ```
 
-There is no `test` script or installed frontend test runner yet. Linting and building
-do not demonstrate route behavior, keyboard access, responsiveness or authentication.
-Use the [team verification requirements](../context/6_rules.md) for acceptance checks.
+The marketplace component tests mock API calls and image object URLs; they cover
+photo selection and previews, upload submission, URL retention/appending on edits,
+the four-photo cap, and images rendered on listing cards. They do not make real
+Cloudinary uploads. These component tests do not demonstrate keyboard access,
+responsiveness or authentication; use the [team verification requirements](../context/6_rules.md)
+for acceptance checks.
 
 Vite writes to **`../src/main/resources/static`** with `emptyOutDir: true`, replacing
 its contents on every build. Edit `frontend/src/` and `frontend/public/`, never that
@@ -144,7 +149,7 @@ do not define matching `paths`; do not assume an `@/…` import will type-check.
   a theme override and text-size controls are planned.
 - Messages poll the inbox every 8 seconds and the active thread every 5 seconds;
   this does not meet the under-2-second real-time messaging target.
-- The listing editor accepts one photo URL; image upload and the five-photo flow
-  are not implemented.
+- The listing editor supports up to four listing photos. Frontend component and
+  backend tests cover the upload and photo URL persistence flows.
 - Accessibility primitives need further work, including modal focus management,
   tab semantics and announced toast feedback. WCAG conformance has not been established.

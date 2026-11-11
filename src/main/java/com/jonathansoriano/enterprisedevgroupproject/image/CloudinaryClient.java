@@ -103,6 +103,45 @@ public class CloudinaryClient {
         }
     }
 
+    public String extractPublicId(String imageUrl) {
+        try {
+            URI uri = URI.create(imageUrl);
+            String expectedPrefix =
+                    "https://res.cloudinary.com/" + configuration().getHost()
+                            + "/image/upload/";
+
+            if (!uri.toString().startsWith(expectedPrefix)) {
+                throw unavailable();
+            }
+
+            String path = uri.getPath();
+            String marker = "/image/upload/";
+            int index = path.indexOf(marker);
+
+            if (index < 0) {
+                throw unavailable();
+            }
+
+            String publicId = path.substring(index + marker.length());
+
+            // Remove the file extension.
+            if (!publicId.endsWith(".webp")) {
+                throw unavailable();
+            }
+
+            publicId = publicId.substring(0, publicId.length() - 5);
+
+            if (publicId.isBlank() || publicId.contains("..")) {
+                throw unavailable();
+            }
+
+            return publicId;
+
+        } catch (RuntimeException ex) {
+            throw unavailable();
+        }
+    }
+
     private static String encode(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }
     private static ResponseStatusException unavailable() {
         return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Photo service is unavailable. Please try the upload again.");

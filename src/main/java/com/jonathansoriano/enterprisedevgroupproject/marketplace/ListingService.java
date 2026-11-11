@@ -95,7 +95,7 @@ public class ListingService {
                 .map(listing -> toResponse(listing, favoritedSet))
                 .collect(Collectors.toList());
     }
-
+    @Transactional
     public ListingResponse create(ListingRequest request, String sellerEmail) {
         Listing listing = Listing.builder()
                 .sellerEmail(sellerEmail)
@@ -113,7 +113,7 @@ public class ListingService {
 
         return toResponse(listingRepository.save(listing), Set.of());
     }
-
+    @Transactional
     public ListingResponse update(Long id, ListingRequest request, String requesterEmail) {
         Listing listing = findOrThrow(id);
         requireOwner(listing, requesterEmail);
@@ -130,10 +130,16 @@ public class ListingService {
 
         return toResponse(listingRepository.save(listing), favoritedListingIds(requesterEmail));
     }
-
+    @Transactional
     public void delete(Long id, String requesterEmail) {
+
         Listing listing = findOrThrow(id);
+
+        // Verify ownership.
         requireOwner(listing, requesterEmail);
+
+        // Delete the listing.
+        // Hibernate also removes associated listing_photo records.
         listingRepository.delete(listing);
     }
 

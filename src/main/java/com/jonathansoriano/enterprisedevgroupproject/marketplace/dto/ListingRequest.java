@@ -21,7 +21,8 @@ import java.util.List;
 public class ListingRequest {
 
     /** Objective 3: "up to 5 photos". Fixed by the contract, not a tunable. */
-    public static final int MAX_PHOTOS = 5;
+    public static final int MIN_PHOTOS = 1;
+    public static final int MAX_PHOTOS = 4;
 
     /**
      * {@code https} only, and no whitespace, quote or angle bracket — those are what turn
@@ -62,7 +63,12 @@ public class ListingRequest {
      * host — that is S1-05, once D-IMAGES names a provider. Until then any {@code https}
      * URL is accepted. See {@code docs/phase-1/image-storage.md}.
      */
-    @Size(max = MAX_PHOTOS, message = "A listing can have at most " + MAX_PHOTOS + " photos")
+    @NotNull(message = "At least one photo is required")
+    @Size(
+            min = MIN_PHOTOS,
+            max = MAX_PHOTOS,
+            message = "A listing must have between " + MIN_PHOTOS + " and " + MAX_PHOTOS + " photos"
+    )
     private List<
             @Pattern(regexp = PHOTO_URL_PATTERN, message = "Each photo must be an https:// web address")
             @Size(max = 255, message = "A photo address must be 255 characters or fewer")
