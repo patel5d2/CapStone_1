@@ -1,5 +1,7 @@
+
 package com.jonathansoriano.enterprisedevgroupproject.marketplace;
 
+import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingImageResponse;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingRequest;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingResponse;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ReportRequest;
@@ -8,8 +10,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -18,83 +24,77 @@ public class ListingService {
     private final ListingRepository listingRepository;
     private final ListingFavoriteRepository favoriteRepository;
     private final ListingReportRepository reportRepository;
+    private final ListingImageRepository imageRepository;
+    private final ListingImageCleanupService imageCleanupService;
 
-    public ListingService(ListingRepository listingRepository,
-                           ListingFavoriteRepository favoriteRepository,
-                           ListingReportRepository reportRepository) {
+    public ListingService(
+            ListingRepository listingRepository,
+            ListingFavoriteRepository favoriteRepository,
+            ListingReportRepository reportRepository,
+            ListingImageRepository imageRepository,
+            ListingImageCleanupService imageCleanupService) {
+
         this.listingRepository = listingRepository;
         this.favoriteRepository = favoriteRepository;
         this.reportRepository = reportRepository;
+        this.imageRepository = imageRepository;
+        this.imageCleanupService = imageCleanupService;
     }
 
-    /**
-     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
-     *
-     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
-     * so without this the Hibernate session closes when the repository call returns and
-     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
-     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
-     * empty table nothing ever touched the collection.
-     */
     @Transactional(readOnly = true)
-    public List<ListingResponse> search(ListingCategory category, ListingType listingType, ListingStatus status,
-                                         Long schoolId, String courseCode, String keyword, String requesterEmail) {
-        List<Listing> listings = listingRepository.search(category, listingType, status, schoolId, courseCode, keyword);
+    public List<ListingResponse> search(
+            ListingCategory category,
+            ListingType listingType,
+            ListingStatus status,
+            Long schoolId,
+            String courseCode,
+            String keyword,
+            String requesterEmail) {
+
+        List<Listing> listings = listingRepository.search(
+                category, listingType, status, schoolId, courseCode, keyword
+        );
+
         Set<Long> favoritedIds = favoritedListingIds(requesterEmail);
-        return listings.stream().map(listing -> toResponse(listing, favoritedIds)).collect(Collectors.toList());
+
+        return listings.stream()
+                .map(listing -> toResponse(listing, favoritedIds))
+                .collect(Collectors.toList());
     }
 
-    /**
-     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
-     *
-     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
-     * so without this the Hibernate session closes when the repository call returns and
-     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
-     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
-     * empty table nothing ever touched the collection.
-     */
     @Transactional(readOnly = true)
     public ListingResponse get(Long id, String requesterEmail) {
         Listing listing = findOrThrow(id);
         return toResponse(listing, favoritedListingIds(requesterEmail));
     }
 
-    /**
-     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
-     *
-     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
-     * so without this the Hibernate session closes when the repository call returns and
-     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
-     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
-     * empty table nothing ever touched the collection.
-     */
     @Transactional(readOnly = true)
     public List<ListingResponse> myListings(String sellerEmail) {
         Set<Long> favoritedIds = favoritedListingIds(sellerEmail);
-        return listingRepository.findBySellerEmailOrderByCreatedAtDesc(sellerEmail).stream()
+
+        return listingRepository
+                .findBySellerEmailOrderByCreatedAtDesc(sellerEmail)
+                .stream()
                 .map(listing -> toResponse(listing, favoritedIds))
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Read inside a transaction so the mapping below can reach {@code photoUrls}.
-     *
-     * <p>{@code @ElementCollection} is LAZY by default and {@code open-in-view} is false,
-     * so without this the Hibernate session closes when the repository call returns and
-     * {@link #toResponse} throws {@code LazyInitializationException} — which the catch-all
-     * serves as an opaque 500. It stayed hidden until the first listing existed: with an
-     * empty table nothing ever touched the collection.
-     */
     @Transactional(readOnly = true)
     public List<ListingResponse> myFavorites(String userEmail) {
-        List<Long> favoritedIds = favoriteRepository.findByUserEmailOrderByCreatedAtDesc(userEmail).stream()
+        List<Long> favoritedIds = favoriteRepository
+                .findByUserEmailOrderByCreatedAtDesc(userEmail)
+                .stream()
                 .map(ListingFavorite::getListingId)
                 .collect(Collectors.toList());
+
         Set<Long> favoritedSet = Set.copyOf(favoritedIds);
-        return listingRepository.findAllById(favoritedIds).stream()
+
+        return listingRepository.findAllById(favoritedIds)
+                .stream()
                 .map(listing -> toResponse(listing, favoritedSet))
                 .collect(Collectors.toList());
     }
+
     @Transactional
     public ListingResponse create(ListingRequest request, String sellerEmail) {
         Listing listing = Listing.builder()
@@ -104,62 +104,113 @@ public class ListingService {
                 .category(request.getCategory())
                 .listingType(request.getListingType())
                 .status(ListingStatus.AVAILABLE)
-                .price(request.getListingType() == ListingType.FREE || request.getListingType() == ListingType.LOOKING_FOR
+                .price(request.getListingType() == ListingType.FREE
+                        || request.getListingType() == ListingType.LOOKING_FOR
                         ? null : request.getPrice())
                 .courseCode(request.getCourseCode())
                 .schoolId(request.getSchoolId())
-                .photoUrls(request.getPhotoUrls() == null ? List.of() : request.getPhotoUrls())
                 .build();
 
-        return toResponse(listingRepository.save(listing), Set.of());
+        List<ListingImage> images =
+                resolveImages(request.getPhotoIds(), sellerEmail, null);
+
+        for (ListingImage image : images) {
+            image.setListing(listing);
+            listing.getPhotos().add(image);
+        }
+
+        Listing saved = listingRepository.save(listing);
+
+        return toResponse(saved, Set.of());
     }
+
     @Transactional
-    public ListingResponse update(Long id, ListingRequest request, String requesterEmail) {
+    public ListingResponse update(
+            Long id,
+            ListingRequest request,
+            String requesterEmail) {
+
         Listing listing = findOrThrow(id);
         requireOwner(listing, requesterEmail);
+
+        List<ListingImage> newImages =
+                resolveImages(request.getPhotoIds(), requesterEmail, id);
+
+        Set<String> retainedIds = newImages.stream()
+                .map(ListingImage::getId)
+                .collect(Collectors.toSet());
+
+        List<String> removedPublicIds = listing.getPhotos().stream()
+                .filter(image -> !retainedIds.contains(image.getId()))
+                .map(ListingImage::getPublicId)
+                .filter(publicId -> publicId != null && !publicId.isBlank())
+                .collect(Collectors.toList());
 
         listing.setTitle(request.getTitle());
         listing.setDescription(request.getDescription());
         listing.setCategory(request.getCategory());
         listing.setListingType(request.getListingType());
-        listing.setPrice(request.getListingType() == ListingType.FREE || request.getListingType() == ListingType.LOOKING_FOR
+        listing.setPrice(request.getListingType() == ListingType.FREE
+                || request.getListingType() == ListingType.LOOKING_FOR
                 ? null : request.getPrice());
         listing.setCourseCode(request.getCourseCode());
         listing.setSchoolId(request.getSchoolId());
-        listing.setPhotoUrls(request.getPhotoUrls() == null ? List.of() : request.getPhotoUrls());
 
-        return toResponse(listingRepository.save(listing), favoritedListingIds(requesterEmail));
+        listing.getPhotos().clear();
+
+        for (ListingImage image : newImages) {
+            image.setListing(listing);
+            listing.getPhotos().add(image);
+        }
+
+        Listing saved = listingRepository.save(listing);
+
+        imageCleanupService.deleteAfterCommit(removedPublicIds);
+
+        return toResponse(saved, favoritedListingIds(requesterEmail));
     }
+
     @Transactional
     public void delete(Long id, String requesterEmail) {
-
         Listing listing = findOrThrow(id);
-
-        // Verify ownership.
         requireOwner(listing, requesterEmail);
 
-        // Delete the listing.
-        // Hibernate also removes associated listing_photo records.
+        List<String> publicIds = listing.getPhotos().stream()
+                .map(ListingImage::getPublicId)
+                .filter(publicId -> publicId != null && !publicId.isBlank())
+                .collect(Collectors.toList());
+
         listingRepository.delete(listing);
+
+        imageCleanupService.deleteAfterCommit(publicIds);
     }
 
-    /**
-     * Writes, then maps — so it needs the session open for the same reason the reads do.
-     * Unlike {@link #update} it never replaces {@code photoUrls}, so the collection it
-     * maps is still the lazy one loaded from the database.
-     */
     @Transactional
     public ListingResponse markSold(Long id, String requesterEmail) {
         Listing listing = findOrThrow(id);
         requireOwner(listing, requesterEmail);
+
         listing.setStatus(ListingStatus.SOLD);
-        return toResponse(listingRepository.save(listing), favoritedListingIds(requesterEmail));
+
+        return toResponse(
+                listingRepository.save(listing),
+                favoritedListingIds(requesterEmail)
+        );
     }
 
     public void favorite(Long id, String userEmail) {
         findOrThrow(id);
-        if (favoriteRepository.findByListingIdAndUserEmail(id, userEmail).isEmpty()) {
-            favoriteRepository.save(ListingFavorite.builder().listingId(id).userEmail(userEmail).build());
+
+        if (favoriteRepository
+                .findByListingIdAndUserEmail(id, userEmail)
+                .isEmpty()) {
+
+            favoriteRepository.save(
+                    ListingFavorite.builder()
+                            .listingId(id)
+                            .userEmail(userEmail)
+                            .build()
+            );
         }
     }
 
@@ -168,23 +219,108 @@ public class ListingService {
         favoriteRepository.deleteByListingIdAndUserEmail(id, userEmail);
     }
 
-    public void report(Long id, ReportRequest request, String reporterEmail) {
+    public void report(
+            Long id,
+            ReportRequest request,
+            String reporterEmail) {
+
         findOrThrow(id);
-        reportRepository.save(ListingReport.builder()
-                .listingId(id)
-                .reporterEmail(reporterEmail)
-                .reason(request.getReason())
-                .build());
+
+        reportRepository.save(
+                ListingReport.builder()
+                        .listingId(id)
+                        .reporterEmail(reporterEmail)
+                        .reason(request.getReason())
+                        .build()
+        );
+    }
+
+    private List<ListingImage> resolveImages(
+            List<String> requestedIds,
+            String requesterEmail,
+            Long currentListingId) {
+
+        if (requestedIds == null
+                || requestedIds.size() < ListingRequest.MIN_PHOTOS
+                || requestedIds.size() > ListingRequest.MAX_PHOTOS) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A listing must have between 1 and 4 photos."
+            );
+        }
+
+        if (new HashSet<>(requestedIds).size() != requestedIds.size()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Duplicate photo IDs are not allowed."
+            );
+        }
+
+        List<ListingImage> found = imageRepository.findAllById(requestedIds);
+
+        if (found.size() != requestedIds.size()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "One or more photos could not be found."
+            );
+        }
+
+        Map<String, ListingImage> byId = found.stream()
+                .collect(Collectors.toMap(
+                        ListingImage::getId,
+                        Function.identity()
+                ));
+
+        List<ListingImage> ordered = new ArrayList<>();
+
+        for (String imageId : requestedIds) {
+            ListingImage image = byId.get(imageId);
+
+            if (image == null
+                    || image.getOwnerEmail() == null
+                    || !image.getOwnerEmail().equalsIgnoreCase(requesterEmail)) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "You cannot attach a photo uploaded by another user."
+                );
+            }
+
+            Listing attachedListing = image.getListing();
+
+            if (attachedListing != null
+                    && (currentListingId == null
+                    || !currentListingId.equals(attachedListing.getId()))) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "A photo is already attached to another listing."
+                );
+            }
+
+            ordered.add(image);
+        }
+
+        return ordered;
     }
 
     private Listing findOrThrow(Long id) {
         return listingRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found: " + id));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Listing not found: " + id
+                ));
     }
 
     private void requireOwner(Listing listing, String requesterEmail) {
-        if (!listing.getSellerEmail().equalsIgnoreCase(requesterEmail)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the seller can modify this listing");
+        if (requesterEmail == null
+                || !listing.getSellerEmail().equalsIgnoreCase(requesterEmail)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only the seller can modify this listing"
+            );
         }
     }
 
@@ -192,12 +328,25 @@ public class ListingService {
         if (userEmail == null) {
             return Set.of();
         }
-        return favoriteRepository.findByUserEmailOrderByCreatedAtDesc(userEmail).stream()
+
+        return favoriteRepository
+                .findByUserEmailOrderByCreatedAtDesc(userEmail)
+                .stream()
                 .map(ListingFavorite::getListingId)
                 .collect(Collectors.toSet());
     }
 
-    private ListingResponse toResponse(Listing listing, Set<Long> favoritedIds) {
+    private ListingResponse toResponse(
+            Listing listing,
+            Set<Long> favoritedIds) {
+
+        List<ListingImageResponse> photos = listing.getPhotos().stream()
+                .map(image -> ListingImageResponse.builder()
+                        .id(image.getId())
+                        .photoUrl(image.getPhotoUrl())
+                        .build())
+                .collect(Collectors.toList());
+
         return ListingResponse.builder()
                 .id(listing.getId())
                 .sellerEmail(listing.getSellerEmail())
@@ -209,9 +358,7 @@ public class ListingService {
                 .price(listing.getPrice())
                 .courseCode(listing.getCourseCode())
                 .schoolId(listing.getSchoolId())
-                // Copied, not handed over: the lazy collection itself would only be read
-                // when Jackson writes the response, after the transaction has closed.
-                .photoUrls(List.copyOf(listing.getPhotoUrls()))
+                .photos(photos)
                 .favorited(favoritedIds.contains(listing.getId()))
                 .createdAt(listing.getCreatedAt())
                 .updatedAt(listing.getUpdatedAt())

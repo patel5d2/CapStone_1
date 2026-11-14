@@ -1,6 +1,8 @@
 package com.jonathansoriano.enterprisedevgroupproject;
 
 import com.jonathansoriano.enterprisedevgroupproject.security.ClerkJwtAuthenticationConverter;
+import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingImage;
+import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingImageRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,6 +51,8 @@ class FrontendEndpointsSmokeTest {
     private ClerkJwtAuthenticationConverter converter;
     @Autowired
     private ObjectMapper json;
+    @Autowired
+    private ListingImageRepository listingImageRepository;
 
     @Test
     void everyFrontendCallReachesAWorkingEndpoint() throws Exception {
@@ -71,9 +75,13 @@ class FrontendEndpointsSmokeTest {
         call(ALICE, HttpMethod.POST, "/api/students/" + bobId + "/conversation", null, 200);
 
         // Marketplace.tsx
+        ListingImage stagedListingPhoto = new ListingImage();
+        stagedListingPhoto.setOwnerEmail(ALICE);
+        stagedListingPhoto.setPhotoUrl("https://images.example.test/smoke.webp");
+        stagedListingPhoto = listingImageRepository.saveAndFlush(stagedListingPhoto);
         Map<String, Object> listing = Map.of("title", "Calc textbook", "description", "Like new",
                 "category", "BOOKS", "listingType", "SELL", "price", 25, "schoolId", schoolId,
-                "photoUrls", List.of("https://example.com/book.jpg"));
+                "photoIds", List.of(stagedListingPhoto.getId()));
         long listingId = call(ALICE, HttpMethod.POST, "/api/marketplace/listings", listing, 201).get("id").asLong();
         call(BOB, HttpMethod.GET, "/api/marketplace/listings", null, 200);
         call(ALICE, HttpMethod.GET, "/api/marketplace/listings/" + listingId, null, 200);

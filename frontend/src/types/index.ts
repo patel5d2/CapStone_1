@@ -105,6 +105,7 @@ export interface Listing {
   favorited: boolean
   createdAt: string
   updatedAt: string
+  photos: ListingImage[]
 }
 
 export interface ListingRequest {
@@ -115,7 +116,12 @@ export interface ListingRequest {
   price?: number | null
   courseCode?: string | null
   schoolId?: number | null
-  photoUrls?: string[]
+  photoIds: string[]
+}
+
+export interface ListingImage {
+  id: string
+  photoUrl: string
 }
 
 // ---- Messages ----

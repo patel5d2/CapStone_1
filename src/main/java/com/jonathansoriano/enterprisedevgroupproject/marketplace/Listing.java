@@ -5,7 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -53,11 +54,16 @@ public class Listing {
 
     private Long schoolId;
 
-    @ElementCollection
-    @CollectionTable(name = "listing_photo", joinColumns = @JoinColumn(name = "listing_id"))
-    @Column(name = "photo_url")
+    @OneToMany(
+            mappedBy = "listing",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @OrderBy("createdAt ASC")
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
     @Builder.Default
-    private List<String> photoUrls = new ArrayList<>();
+    private List<ListingImage> photos = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

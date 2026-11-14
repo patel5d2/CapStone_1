@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject;
 
+import com.jonathansoriano.enterprisedevgroupproject.image.CloudinaryClient;
 import com.jonathansoriano.enterprisedevgroupproject.community.GroupService;
 import com.jonathansoriano.enterprisedevgroupproject.community.GroupType;
 import com.jonathansoriano.enterprisedevgroupproject.community.PostService;
@@ -7,6 +8,8 @@ import com.jonathansoriano.enterprisedevgroupproject.community.dto.GroupRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostRequest;
 import com.jonathansoriano.enterprisedevgroupproject.community.dto.PostResponse;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingCategory;
+import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingImage;
+import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingImageRepository;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingService;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.ListingType;
 import com.jonathansoriano.enterprisedevgroupproject.marketplace.dto.ListingRequest;
@@ -19,6 +22,7 @@ import com.jonathansoriano.enterprisedevgroupproject.support.SupportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -41,6 +45,8 @@ class FeatureFlowsIntegrationTest {
     @Autowired
     private ListingService listingService;
     @Autowired
+    private ListingImageRepository listingImageRepository;
+    @Autowired
     private PostService postService;
     @Autowired
     private GroupService groupService;
@@ -48,9 +54,12 @@ class FeatureFlowsIntegrationTest {
     private MessagingService messagingService;
     @Autowired
     private SupportService supportService;
+    @MockitoBean
+    private CloudinaryClient cloudinaryClient;
 
     @Test
     void listing_createSearchUpdateFavoriteAndDelete() {
+        ListingImage photo = stagedPhoto(SELLER, "textbook-photo");
         ListingResponse created = listingService.create(ListingRequest.builder()
                 .title("Calculus textbook")
                 .description("8th edition, light notes")
@@ -58,6 +67,7 @@ class FeatureFlowsIntegrationTest {
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("40.00"))
                 .courseCode("MATH 1061")
+                .photoIds(List.of(photo.getId()))
                 .build(), SELLER);
 
         assertThat(created.getId()).isNotNull();
@@ -85,6 +95,7 @@ class FeatureFlowsIntegrationTest {
                 .category(ListingCategory.BOOKS)
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("25.00"))
+                .photoIds(List.of(photo.getId()))
                 .build();
         assertThatThrownBy(() -> listingService.update(created.getId(), edit, BUYER))
                 .isInstanceOf(ResponseStatusException.class)
@@ -111,55 +122,55 @@ class FeatureFlowsIntegrationTest {
     }
 
     @Test
-    void listing_photoUrlsPersistWhenCreatedRetrievedAndEdited() {
-        List<String> originalPhotos = List.of(
-                "https://images.example.test/listing-1.webp",
-                "https://images.example.test/listing-2.webp");
+    void listing_photoRecordsPersistWhenCreatedRetrievedAndEdited() {
+        ListingImage firstPhoto = stagedPhoto(SELLER, "listing-1");
+        ListingImage secondPhoto = stagedPhoto(SELLER, "listing-2");
+        List<String> originalPhotoIds = List.of(firstPhoto.getId(), secondPhoto.getId());
         ListingRequest createRequest = ListingRequest.builder()
                 .title("Desk lamp")
                 .category(ListingCategory.OTHER)
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("12.00"))
-                .photoUrls(originalPhotos)
+                .photoIds(originalPhotoIds)
                 .build();
 
         ListingResponse created = listingService.create(createRequest, SELLER);
 
-        assertThat(created.getPhotoUrls()).containsExactlyElementsOf(originalPhotos);
-        assertThat(listingService.get(created.getId(), BUYER).getPhotoUrls())
-                .containsExactlyElementsOf(originalPhotos);
+        assertThat(created.getPhotos()).extracting("id").containsExactlyElementsOf(originalPhotoIds);
+        assertThat(listingService.get(created.getId(), BUYER).getPhotos())
+                .extracting("id").containsExactlyElementsOf(originalPhotoIds);
         assertThat(listingService.search(null, null, null, null, null, "Desk lamp", BUYER))
                 .filteredOn(listing -> listing.getId().equals(created.getId()))
                 .singleElement()
-                .extracting(ListingResponse::getPhotoUrls)
-                .isEqualTo(originalPhotos);
+                .satisfies(listing -> assertThat(listing.getPhotos())
+                        .extracting("id")
+                        .containsExactlyElementsOf(originalPhotoIds));
 
         ListingRequest editWithoutNewUploads = ListingRequest.builder()
                 .title("Desk lamp, updated")
                 .category(ListingCategory.OTHER)
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("10.00"))
-                .photoUrls(originalPhotos)
+                .photoIds(originalPhotoIds)
                 .build();
         listingService.update(created.getId(), editWithoutNewUploads, SELLER);
-        assertThat(listingService.get(created.getId(), SELLER).getPhotoUrls())
-                .containsExactlyElementsOf(originalPhotos);
+        assertThat(listingService.get(created.getId(), SELLER).getPhotos())
+                .extracting("id").containsExactlyElementsOf(originalPhotoIds);
 
-        List<String> appendedPhotos = List.of(
-                originalPhotos.get(0),
-                originalPhotos.get(1),
-                "https://images.example.test/listing-3.webp");
+        ListingImage thirdPhoto = stagedPhoto(SELLER, "listing-3");
+        List<String> appendedPhotoIds = List.of(
+                firstPhoto.getId(), secondPhoto.getId(), thirdPhoto.getId());
         ListingRequest editWithNewUpload = ListingRequest.builder()
                 .title("Desk lamp with shade")
                 .category(ListingCategory.OTHER)
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("10.00"))
-                .photoUrls(appendedPhotos)
+                .photoIds(appendedPhotoIds)
                 .build();
         listingService.update(created.getId(), editWithNewUpload, SELLER);
 
-        assertThat(listingService.get(created.getId(), BUYER).getPhotoUrls())
-                .containsExactlyElementsOf(appendedPhotos);
+        assertThat(listingService.get(created.getId(), BUYER).getPhotos())
+                .extracting("id").containsExactlyElementsOf(appendedPhotoIds);
         listingService.delete(created.getId(), SELLER);
     }
 
@@ -218,11 +229,13 @@ class FeatureFlowsIntegrationTest {
 
     @Test
     void messaging_startFromListingSendReadBlockAndUnblock() {
+        ListingImage photo = stagedPhoto(SELLER, "messaging-listing");
         ListingResponse listing = listingService.create(ListingRequest.builder()
                 .title("Mini fridge")
                 .category(ListingCategory.FURNITURE)
                 .listingType(ListingType.SELL)
                 .price(new java.math.BigDecimal("50.00"))
+                .photoIds(List.of(photo.getId()))
                 .build(), SELLER);
 
         ConversationResponse conversation = messagingService.startConversation(
@@ -308,5 +321,13 @@ class FeatureFlowsIntegrationTest {
                 .findFirst()
                 .map(ConversationResponse::getUnreadCount)
                 .orElseThrow();
+    }
+
+    private ListingImage stagedPhoto(String owner, String publicId) {
+        ListingImage image = new ListingImage();
+        image.setOwnerEmail(owner);
+        image.setPhotoUrl("https://images.example.test/" + publicId + ".webp");
+        image.setPublicId(publicId);
+        return listingImageRepository.saveAndFlush(image);
     }
 }

@@ -91,7 +91,8 @@ class ListingControllerTest {
                   "description": "Works great, moving out",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "price": 50.00
+                  "price": 50.00,
+                  "photoIds": ["11111111-1111-1111-1111-111111111111"]
                 }
                 """;
 
@@ -103,7 +104,7 @@ class ListingControllerTest {
     }
 
     @Test
-    void create_AcceptsHttpsPhotoUrls() throws Exception {
+    void create_AcceptsPhotoIds() throws Exception {
         ListingResponse created = ListingResponse.builder().id(5L).title("Mini Fridge").build();
         when(listingService.create(any(), any())).thenReturn(created);
 
@@ -112,7 +113,7 @@ class ListingControllerTest {
                   "title": "Mini Fridge",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "photoUrls": ["https://example.test/a.jpg", "https://example.test/b.jpg"]
+                  "photoIds": ["11111111-1111-1111-1111-111111111111"]
                 }
                 """;
 
@@ -123,16 +124,17 @@ class ListingControllerTest {
     }
 
     @Test
-    void create_RejectsMoreThanFivePhotos_Http400() throws Exception {
-        // Objective 3 caps a listing at five photos.
+    void create_RejectsMoreThanFourPhotos_Http400() throws Exception {
         String requestJson = """
                 {
                   "title": "Mini Fridge",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "photoUrls": ["https://example.test/1.jpg", "https://example.test/2.jpg",
-                                "https://example.test/3.jpg", "https://example.test/4.jpg",
-                                "https://example.test/5.jpg", "https://example.test/6.jpg"]
+                  "photoIds": ["11111111-1111-1111-1111-111111111111",
+                               "22222222-2222-2222-2222-222222222222",
+                               "33333333-3333-3333-3333-333333333333",
+                               "44444444-4444-4444-4444-444444444444",
+                               "55555555-5555-5555-5555-555555555555"]
                 }
                 """;
 
@@ -149,9 +151,11 @@ class ListingControllerTest {
                   "title": "Mini Fridge",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "photoUrls": ["https://example.test/1.jpg", "https://example.test/2.jpg",
-                                "https://example.test/3.jpg", "https://example.test/4.jpg",
-                                "https://example.test/5.jpg"]
+                  "photoIds": ["11111111-1111-1111-1111-111111111111",
+                               "22222222-2222-2222-2222-222222222222",
+                               "33333333-3333-3333-3333-333333333333",
+                               "44444444-4444-4444-4444-444444444444",
+                               "55555555-5555-5555-5555-555555555555"]
                 }
                 """;
 
@@ -169,7 +173,7 @@ class ListingControllerTest {
         String invalidJson = """
                 {
                   "listingType": "SELL",
-                  "photoUrls": ["http://tracker.test/pixel.gif"]
+                  "photoIds": ["not-a-photo-id"]
                 }
                 """;
 
@@ -179,21 +183,19 @@ class ListingControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.title").value("Title is required"))
                 .andExpect(jsonPath("$.fieldErrors.category").value("Category is required"))
-                .andExpect(jsonPath("$.fieldErrors['photoUrls[0]']").value("Each photo must be an https:// web address"))
+                .andExpect(jsonPath("$.fieldErrors['photoIds[0]']").value("Invalid photo ID"))
                 // ...and the human-readable message is a sentence, not a map literal.
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("{"))));
     }
 
     @Test
-    void create_RejectsAPhotoUrlThatIsNotHttps_Http400() throws Exception {
-        // The reason this bound exists: an arbitrary address is served to every viewer of
-        // the listing, so it can be used to collect their IP addresses.
+    void create_RejectsAnInvalidPhotoId_Http400() throws Exception {
         String requestJson = """
                 {
                   "title": "Mini Fridge",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "photoUrls": ["http://tracker.test/pixel.gif?listing=1"]
+                  "photoIds": ["not-a-photo-id"]
                 }
                 """;
 
@@ -204,13 +206,13 @@ class ListingControllerTest {
     }
 
     @Test
-    void create_RejectsANonUrlPhotoValue_Http400() throws Exception {
+    void create_RejectsABlankPhotoId_Http400() throws Exception {
         String requestJson = """
                 {
                   "title": "Mini Fridge",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "photoUrls": ["javascript:alert(1)"]
+                  "photoIds": [""]
                 }
                 """;
 
@@ -221,15 +223,13 @@ class ListingControllerTest {
     }
 
     @Test
-    void update_RejectsAnUnboundedPhotoUrl_Http400() throws Exception {
-        // The same DTO backs update, so the bound has to hold on both paths — a listing
-        // that passed validation at creation must not be editable into a bad state.
+    void update_RejectsAnInvalidPhotoId_Http400() throws Exception {
         String requestJson = """
                 {
                   "title": "Mini Fridge",
                   "category": "FURNITURE",
                   "listingType": "SELL",
-                  "photoUrls": ["http://tracker.test/pixel.gif"]
+                  "photoIds": ["not-a-photo-id"]
                 }
                 """;
 

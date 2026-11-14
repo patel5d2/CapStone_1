@@ -17,6 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class ListingResponse {
+
     private Long id;
     private String sellerEmail;
     private String title;
@@ -27,7 +28,7 @@ public class ListingResponse {
     private BigDecimal price;
     private String courseCode;
     private Long schoolId;
-    private List<String> photoUrls;
+    private List<ListingImageResponse> photos;
     private boolean favorited;
     private Instant createdAt;
     private Instant updatedAt;

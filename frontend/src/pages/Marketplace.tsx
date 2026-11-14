@@ -7,7 +7,7 @@ import { useToast } from '../components/ui/Toast'
 import { Modal } from '../components/ui/Modal'
 import { PageHeader, Tabs } from '../components/ui/Tabs'
 import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback'
-import type { Listing, ListingCategory, ListingRequest, ListingType } from '../types'
+import type { Listing, ListingCategory, ListingImage, ListingRequest, ListingType } from '../types'
 
 type View = 'all' | 'mine' | 'favorites'
 
@@ -35,7 +35,7 @@ const EMPTY_FORM: ListingRequest = {
   price: null,
   courseCode: '',
   schoolId: null,
-  photoUrls: [],
+  photoIds: [],
 }
 
 export default function Marketplace() {
@@ -58,6 +58,7 @@ export default function Marketplace() {
   const [form, setForm] = useState<ListingRequest>(EMPTY_FORM)
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+  const [existingPhotos, setExistingPhotos] = useState<ListingImage[]>([])
   const [saving, setSaving] = useState(false)
   // Set while editing an existing listing; null means the form creates a new one.
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -92,6 +93,7 @@ export default function Marketplace() {
     setForm(EMPTY_FORM)
     setPhotoFiles([])
     setPhotoPreviews([])
+    setExistingPhotos([])
   }
 
   const openCreate = () => {
@@ -100,6 +102,7 @@ export default function Marketplace() {
     setPhotoFiles([])
     setPhotoPreviews([])
     setCreateOpen(true)
+    setExistingPhotos([])
   }
 
   const openEdit = async (listing: Listing) => {
@@ -115,8 +118,9 @@ export default function Marketplace() {
         price: fresh.price,
         courseCode: fresh.courseCode ?? '',
         schoolId: fresh.schoolId,
-        photoUrls: fresh.photoUrls ?? [],
+        photoIds: (fresh.photos ?? []).map((photo) => photo.id),
       })
+      setExistingPhotos(fresh.photos ?? [])
       setPhotoFiles([])
       setPhotoPreviews([])
       setEditingId(fresh.id)
@@ -133,16 +137,13 @@ export default function Marketplace() {
       return
     }
 
-    const existingPhotoUrls = form.photoUrls ?? []
-    const totalPhotos = existingPhotoUrls.length + photoFiles.length
+    const totalPhotos = (form.photoIds ?? []).length + photoFiles.length
 
-// New listings must have at least one photo.
     if (totalPhotos < 1) {
       push('Please upload at least one photo', 'error')
       return
     }
 
-// Listings cannot have more than 4 photos.
     if (totalPhotos > 4) {
       push('A listing can have at most 4 photos', 'error')
       return
@@ -151,7 +152,7 @@ export default function Marketplace() {
     setSaving(true)
 
     try {
-      let uploadedPhotoUrls = [...existingPhotoUrls]
+      let photoIds = [...(form.photoIds ?? [])]
 
       if (photoFiles.length > 0) {
         const data = new FormData()
@@ -160,24 +161,27 @@ export default function Marketplace() {
           data.append('files', file)
         })
 
-        const newUrls = await api.post<string[]>(
+        const uploadedPhotos = await api.post<ListingImage[]>(
             '/api/marketplace/listing-images',
             data,
         )
 
-        uploadedPhotoUrls = [...uploadedPhotoUrls, ...newUrls]
+        photoIds = [
+          ...photoIds,
+          ...uploadedPhotos.map((photo) => photo.id),
+        ]
       }
 
       const priceless =
           form.listingType === 'FREE' ||
           form.listingType === 'LOOKING_FOR'
 
-      const body = {
+      const body: ListingRequest = {
         ...form,
         price: priceless ? null : form.price,
-        courseCode: form.courseCode || null,
+        courseCode: form.courseCode || '',
         schoolId: form.schoolId ? Number(form.schoolId) : null,
-        photoUrls: uploadedPhotoUrls,
+        photoIds,
       }
 
       if (editingId != null) {
@@ -476,9 +480,10 @@ export default function Marketplace() {
                 multiple
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? [])
+                  const remainingSlots = 4 - (form.photoIds ?? []).length
 
-                  if (files.length > 4) {
-                    push('You can select up to 4 images', 'error')
+                  if (files.length > remainingSlots) {
+                    push(`You can only add ${remainingSlots} more image(s)`, 'error')
                     e.target.value = ''
                     return
                   }
@@ -497,12 +502,12 @@ export default function Marketplace() {
             {/* Display photos already saved to the listing */}
 
             {/* Display and remove photos already saved to the listing */}
-            {(form.photoUrls ?? []).length > 0 && (
+            {existingPhotos.length > 0 && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {(form.photoUrls ?? []).map((url, index) => (
-                      <div key={`${url}-${index}`} className="relative">
+                  {existingPhotos.map((photo, index) => (
+                      <div key={photo.id} className="relative">
                         <img
-                            src={url}
+                            src={photo.photoUrl}
                             alt={`Existing photo ${index + 1}`}
                             className="h-32 w-full rounded-lg object-cover"
                         />
@@ -510,14 +515,18 @@ export default function Marketplace() {
                         <button
                             type="button"
                             className="btn-danger btn-sm absolute right-1 top-1"
-                            onClick={() =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  photoUrls: (prev.photoUrls ?? []).filter(
-                                      (_, i) => i !== index
-                                  ),
-                                }))
-                            }
+                            onClick={() => {
+                              setExistingPhotos((prev) =>
+                                  prev.filter((item) => item.id !== photo.id),
+                              )
+
+                              setForm((prev) => ({
+                                ...prev,
+                                photoIds: (prev.photoIds ?? []).filter(
+                                    (id) => id !== photo.id,
+                                ),
+                              }))
+                            }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -581,12 +590,12 @@ function ListingCard({
 
   return (
     <article className="card card-hover animate-fade-in-up flex flex-col overflow-hidden">
-      {listing.photoUrls && listing.photoUrls.length > 0 && (
+      {listing.photos && listing.photos.length > 0 && (
           <div className="grid grid-cols-2 gap-1">
-            {listing.photoUrls.slice(0, 4).map((url, index) => (
+            {listing.photos.slice(0, 4).map((photo, index) => (
                 <img
-                    key={`${url}-${index}`}
-                    src={url}
+                    key={photo.id}
+                    src={photo.photoUrl}
                     alt={`${listing.title} photo ${index + 1}`}
                     className="h-40 w-full object-cover"
                     onError={(e) => {
