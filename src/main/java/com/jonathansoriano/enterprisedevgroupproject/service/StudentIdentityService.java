@@ -2,6 +2,7 @@ package com.jonathansoriano.enterprisedevgroupproject.service;
 
 import com.jonathansoriano.enterprisedevgroupproject.dto.StudentUpdateDto;
 import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
+import com.jonathansoriano.enterprisedevgroupproject.security.ClerkAccountLookup;
 import com.jonathansoriano.enterprisedevgroupproject.security.CurrentUser;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -35,9 +36,14 @@ public class StudentIdentityService {
                     + "that created it, or contact support.";
 
     private final StudentRepository studentRepository;
+    private final ClerkAccountLookup clerkAccounts;
+    private final DeletedAccountCleanup deletedAccounts;
 
-    public StudentIdentityService(StudentRepository studentRepository) {
+    public StudentIdentityService(StudentRepository studentRepository, ClerkAccountLookup clerkAccounts,
+                                  DeletedAccountCleanup deletedAccounts) {
         this.studentRepository = studentRepository;
+        this.clerkAccounts = clerkAccounts;
+        this.deletedAccounts = deletedAccounts;
     }
 
     /**
@@ -69,14 +75,25 @@ public class StudentIdentityService {
      * first one has claimed it — the "another subject cannot claim the data" case.
      *
      * <p>An unbound row (the common case: every legacy row) is left alone rather than
-     * claimed, and a row with no match at all is nothing to protect. Recycled addresses
-     * and re-created accounts both land here, and both need a human rather than a guess.
+     * claimed, and a row with no match at all is nothing to protect.
+     *
+     * <p>Recycled addresses and re-created accounts both land here. Neither is guessed at:
+     * Clerk is asked whether the account the profile is bound to still exists. If it was
+     * deleted, its profile is deleted with it and the caller carries on as someone with no
+     * profile yet — so a student who deletes their account and signs up again starts
+     * fresh, and a new holder of a recycled address never sees the previous holder's
+     * details. If the account is alive (its owner changed address), or Clerk cannot be
+     * asked, the caller is refused as before and it does take a human.
      */
     private void refuseIfClaimedByAnother(String tokenEmail, String subject) {
         studentRepository.findStudentByEmail(tokenEmail)
                 .map(StudentUpdateDto::getClerkUserId)
                 .filter(owner -> !owner.equals(subject))
                 .ifPresent(owner -> {
+                    if (clerkAccounts.isDeleted(owner, subject)) {
+                        deletedAccounts.retire(owner);
+                        return;
+                    }
                     throw new ResponseStatusException(HttpStatus.CONFLICT, PROFILE_CLAIMED_MESSAGE);
                 });
     }

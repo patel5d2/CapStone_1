@@ -3,14 +3,14 @@ import { useUser } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import { UserRound, Save, Check } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
-import { markProfileComplete } from '../lib/profileGate'
+import { markProfileComplete, profileExists } from '../lib/profileGate'
 import { applySchoolTheme, slugForSchool } from '../lib/schoolTheme'
+import { GRADES, pendingSignupProfile, SIGNUP_PROFILE_KEY, US_STATES, withoutSignupProfile } from '../lib/signupProfile'
 import { useToast } from '../components/ui/Toast'
 import { PageHeader } from '../components/ui/Tabs'
 import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback'
 import type { ProfileImageResponse, ProfileSaveRequest, ProfileVisibility, School, StudentAccountDetails } from '../types'
 
-const GRADES = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate']
 const PRIVATE: ProfileVisibility = { showMajor: false, showGraduationYear: false, showBio: false, showPhoto: false }
 const VISIBILITY: { key: keyof ProfileVisibility; label: string }[] = [
   { key: 'showMajor', label: 'Major' },
@@ -61,7 +61,7 @@ function validate(form: ProfileForm): FieldErrors {
   }
   if (form.major.length > 255) errors.major = 'Use 255 characters or fewer.'
   if (form.socialMediaLink.length > 255) errors.socialMediaLink = 'Use 255 characters or fewer.'
-  if (!/^[A-Z]{2}$/.test(form.residentState)) errors.residentState = 'Enter two capital letters, such as OH.'
+  if (!/^[A-Z]{2}$/.test(form.residentState)) errors.residentState = 'Select your state.'
   if (!form.universityId) errors.universityId = 'Select your school.'
   if (form.bio.length > 1000) errors.bio = 'Use 1000 characters or fewer.'
   if (form.graduationYear && (!/^\d{4}$/.test(form.graduationYear)
@@ -71,7 +71,16 @@ function validate(form: ProfileForm): FieldErrors {
   return errors
 }
 
-export default function Profile() {
+/**
+ * The profile form. `signup` is the same form as the last step of sign-up, rendered outside
+ * the app shell (see `SignUpProfileStep` in App.tsx); there it always creates the profile.
+ *
+ * Sign-up has normally collected the required details already (`lib/signupProfile.ts`), so
+ * that step creates the profile from them without showing the form at all. The form is what
+ * the student gets when that cannot finish: nothing was collected, a detail is refused, or
+ * the request failed. It opens filled in with what they gave, and saving it is the retry.
+ */
+export default function Profile({ signup = false }: { signup?: boolean }) {
   const { user } = useUser()
   const { push } = useToast()
   const navigate = useNavigate()
@@ -94,6 +103,9 @@ export default function Profile() {
   const [fromAccount, setFromAccount] = useState<(keyof ProfileForm)[]>([])
   const [editAccountFields, setEditAccountFields] = useState(false)
   const [saved, setSaved] = useState(false)
+  // Creating the profile from the details sign-up collected, with the form held back.
+  const [finishing, setFinishing] = useState(false)
+  const finishStarted = useRef(false)
   const errorSummary = useRef<HTMLParagraphElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const busy = saving || uploading
@@ -109,14 +121,21 @@ export default function Profile() {
     Promise.all([profile, api.get<School[]>('/api/schools')])
       .then(([value, availableSchools]) => {
         if (cancelled) return
+        const pending = signup && value === null ? pendingSignupProfile(user?.unsafeMetadata) : null
         setSchools(availableSchools)
         setIsNew(value === null)
+        setFinishing(Boolean(pending) && !finishStarted.current)
         setForm(value ? {
           firstName: value.firstName ?? '', lastName: value.lastName ?? '',
           residentCity: value.residentCity ?? '', residentState: value.residentState ?? '',
           universityId: String(value.universityId ?? ''), grade: value.grade ?? 'Freshman',
           major: value.major ?? '', socialMediaLink: value.socialMediaLink ?? '',
           graduationYear: value.graduationYear == null ? '' : String(value.graduationYear), bio: value.bio ?? '',
+        } : pending ? {
+          ...fromClerk(user?.firstName, user?.lastName),
+          universityId: String(availableSchools.find((school) => school.name === pending.universityName)?.id ?? ''),
+          grade: GRADES.includes(pending.grade) ? pending.grade : EMPTY.grade,
+          major: pending.major, residentCity: pending.residentCity, residentState: pending.residentState,
         } : fromClerk(user?.firstName, user?.lastName))
         setFromAccount(value ? [] : accountFields(user?.firstName, user?.lastName))
         setEditAccountFields(false)
@@ -133,7 +152,9 @@ export default function Profile() {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [reload, user?.id, user?.firstName, user?.lastName])
+    // Not `user.unsafeMetadata`: clearing it after the save must not load the form again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reload, signup, user?.id, user?.firstName, user?.lastName])
 
   const edit = (key: keyof ProfileForm, value: string) => {
     setForm((previous) => ({ ...previous, [key]: value }))
@@ -145,7 +166,7 @@ export default function Profile() {
     'aria-invalid': Boolean(fieldErrors[key]),
     'aria-describedby': fieldErrors[key] ? `profile-${key}-error` : undefined,
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      edit(key, key === 'residentState' ? event.target.value.toUpperCase() : event.target.value),
+      edit(key, event.target.value),
   })
 
   const upload = async (selected: File) => {
@@ -178,6 +199,7 @@ export default function Profile() {
     // A problem in a field taken from the account must be visible to be fixed.
     if (fromAccount.some((key) => errors[key])) setEditAccountFields(true)
     if (Object.keys(errors).length) {
+      setFinishing(false)
       setSaveError('Your profile was not saved. Check the marked fields below.')
       requestAnimationFrame(() => errorSummary.current?.focus())
       return
@@ -189,14 +211,25 @@ export default function Profile() {
     }
     setSaving(true)
     try {
-      if (isNew) await api.post<string>('/student', body)
-      else await api.put<string>('/student/profile', body)
+      if (isNew) {
+        await api.post<string>('/student', body).catch(async (error: unknown) => {
+          // A retry of a save that did go through (lost response, double submit) is refused
+          // as a duplicate. The account exists, so apply this submission to it and finish
+          // sign-up instead of leaving the student at an error they cannot get past.
+          if (!(await profileExists())) throw error
+          await api.put<string>('/student/profile', body)
+        })
+      } else await api.put<string>('/student/profile', body)
       setIsNew(false)
       setSaved(true)
       markProfileComplete(user?.id)
+      // The details sign-up carried are the profile now; do not keep a second copy on Clerk.
+      if (user && SIGNUP_PROFILE_KEY in user.unsafeMetadata) {
+        void user.update({ unsafeMetadata: withoutSignupProfile(user.unsafeMetadata) }).catch(() => {})
+      }
       // Their school's colours apply as soon as the school is saved (objective 8).
       applySchoolTheme(slugForSchool(schools.find((school) => school.id === Number(form.universityId))?.name))
-      push('Profile and visibility saved', 'success')
+      push(signup ? 'Welcome to CampusBridge! Your account is ready.' : 'Profile and visibility saved', 'success')
       // First save finishes sign-up: let them into the app.
       if (isNew) navigate('/marketplace')
     } catch (error) {
@@ -208,6 +241,7 @@ export default function Profile() {
         }
       }
       setFieldErrors(mapped)
+      setFinishing(false)
       // Always retain the banner, including errors for fields this page cannot map.
       setSaveError(`Your profile was not saved. ${message}`)
       requestAnimationFrame(() => errorSummary.current?.focus())
@@ -216,8 +250,17 @@ export default function Profile() {
     }
   }
 
+  useEffect(() => {
+    if (!finishing || loading || finishStarted.current) return
+    finishStarted.current = true
+    void save()
+    // Once, when the loaded form is ready; `save` reads that form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishing, loading])
+
   if (loading) return <div role="status"><Spinner label="Loading your profile…" /></div>
   if (loadError) return <ErrorState message={loadError} onRetry={() => { setLoading(true); setLoadError(null); setReload((value) => value + 1) }} />
+  if (finishing && !loadError) return <div role="status"><Spinner label="Creating your account…" /></div>
   if (!schools.length) return <EmptyState icon={<UserRound className="h-6 w-6" />} title="Schools are unavailable"
     description="We could not find a school to complete your profile. Please try again."
     action={<button className="btn-primary" onClick={() => setReload((value) => value + 1)}>Try again</button>} />
@@ -227,13 +270,15 @@ export default function Profile() {
       <PageHeader title={isNew ? 'Complete your profile' : 'My profile'}
         subtitle="Add your details and choose what classmates can see." />
       {isNew && <p className="card mb-5 p-4 text-sm" role="status">
-        {fromAccount.length
-          ? 'We filled in what your account already knows. Add the few details below to join the directory.'
-          : 'Your directory profile is not ready yet. Complete the required fields below, then save.'}
+        {signup
+          ? 'This is the last step of creating your account. Check the details below, then save to finish.'
+          : fromAccount.length
+            ? 'We filled in what your account already knows. Add the few details below to join the directory.'
+            : 'Your directory profile is not ready yet. Complete the required fields below, then save.'}
       </p>}
       <form className="card p-4 sm:p-6" noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
         <p className="mb-5 break-words text-sm text-[var(--color-ink-muted)]">
-          Signed in as {email}. Manage your account from the avatar menu.
+          Signed in as {email}.{signup ? '' : ' Manage your account from the avatar menu.'}
         </p>
         {saveError && <div className="mb-5 rounded-xl border border-[var(--color-danger)] p-4">
           <p ref={errorSummary} tabIndex={-1} role="alert" className="text-sm text-[var(--color-danger)]">{saveError}</p>
@@ -265,8 +310,14 @@ export default function Profile() {
             </Field>
             <Field name="major" label="Major" required errors={fieldErrors}><input {...field('major')} required /></Field>
             <Field name="residentCity" label="City" required errors={fieldErrors}><input {...field('residentCity')} autoComplete="address-level2" required /></Field>
-            <Field name="residentState" label="State (two letters)" required errors={fieldErrors}>
-              <input {...field('residentState')} autoComplete="address-level1" maxLength={2} required />
+            <Field name="residentState" label="State" required errors={fieldErrors}>
+              <select {...field('residentState')} autoComplete="address-level1" required>
+                <option value="">Select your state</option>
+                {/* A value saved before this was a list stays selectable, not silently dropped. */}
+                {form.residentState && !US_STATES.some(([abbreviation]) => abbreviation === form.residentState)
+                  && <option>{form.residentState}</option>}
+                {US_STATES.map(([abbreviation, name]) => <option key={abbreviation} value={abbreviation}>{name}</option>)}
+              </select>
             </Field>
           </div>
           {!isNew && <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Your school was set when your profile was created.</p>}

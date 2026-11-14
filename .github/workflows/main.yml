@@ -146,7 +146,12 @@ jobs:
           retention-days: 14
 
   # Everything a visitor reaches without signing in, in Chromium, Firefox and WebKit at
-  # desktop and 375px. e2e/signed-in.spec.ts skips itself here (no Clerk test account).
+  # desktop and 375px, plus the signed-in journeys of e2e/signed-in.spec.ts when the
+  # repository secrets CLERK_SECRET_KEY and E2E_CLERK_EMAIL exist. A step only sees a
+  # secret it is handed, so they are passed to the Playwright step below; without them
+  # (a fork or Dependabot pull request, or before they are added) that suite skips itself
+  # and the run carries a warning saying so. playwright.config.ts starts the backend for
+  # it on in-memory H2, which is why this job needs a JDK.
   e2e:
     name: Playwright end-to-end
     runs-on: ubuntu-latest
@@ -169,12 +174,22 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
       - name: Install browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run Playwright
         working-directory: frontend
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          E2E_CLERK_EMAIL: ${{ secrets.E2E_CLERK_EMAIL }}
         run: npm run e2e
 
       - name: Upload Playwright report

@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 // Everything a visitor can reach without signing in. No account, no backend needed:
 // signed-out routing, the auth forms' own validation, school theming and phone layout.
 
-const PROTECTED = ['/marketplace', '/messages', '/community', '/support', '/profile']
+const PROTECTED = ['/marketplace', '/messages', '/community', '/support', '/profile', '/sign-up/profile']
 
 /** Console errors raised by our own code (Clerk's dev-instance warnings are not ours). */
 function collectAppErrors(page: Page) {
@@ -57,22 +57,69 @@ test('sign in: form is labelled, reachable by keyboard and fits a phone', async 
   await email.focus()
   await page.keyboard.press('Tab')
   await expect(password).toBeFocused()
-  await expect(page.getByRole('button', { name: /^sign in$/i })).toBeDisabled() // no password yet
+  // Never disabled for an empty password: a browser-filled one may not be visible to the page.
+  await expect(page.getByRole('button', { name: /^sign in$/i })).toBeEnabled({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Show password' }).click()
+  await expect(password).toHaveAttribute('type', 'text')
   await noHorizontalScroll(page)
 })
 
-test('sign up: a name of only spaces is refused before anything reaches Clerk', async ({ page }) => {
+const PICKERS = ['School', 'Year of study', 'State']
+
+/** The whole sign-up form, valid unless a test overrides a field. */
+async function fillSignUp(page: Page, overrides: Record<string, string> = {}) {
+  const values: Record<string, string> = {
+    'First name': 'Jordan', 'Last name': 'Lee', Email: 'jordan.lee@example.com', Password: 'a-long-enough-password',
+    School: 'Xavier University', 'Year of study': 'Junior', Major: 'Nursing', City: 'Norwood', State: 'OH', ...overrides,
+  }
   await page.goto('/sign-up')
-  await page.getByLabel('First name').fill('   ')
-  await page.getByLabel('Last name').fill('Lee')
-  await page.getByLabel('Email').fill('jordan.lee@example.com')
-  await page.getByLabel('Password').fill('a-long-enough-password')
+  for (const [label, value] of Object.entries(values)) {
+    if (PICKERS.includes(label)) await page.getByLabel(label).selectOption(value)
+    else await page.getByLabel(label).fill(value)
+  }
+}
+
+test('sign up: a name of only spaces is refused before anything reaches Clerk', async ({ page }) => {
+  await fillSignUp(page, { 'First name': '   ' })
   const submit = page.getByRole('button', { name: /create account|sign up|join/i })
   await expect(submit).toBeEnabled({ timeout: 20_000 }) // Clerk finished loading
   await submit.click()
   await expect(page.getByText('Enter your first name.')).toBeVisible()
+  // The student is taken to the field, which on a phone is a screen above the button.
+  await expect(page.getByLabel('First name')).toBeFocused()
   await expect(page).toHaveURL(/\/sign-up$/)
   await noHorizontalScroll(page)
+})
+
+// #114: the profile's required details are asked on the sign-up form itself.
+for (const [label, value, message] of [
+  ['Major', '   ', 'Enter your major.'],
+  ['City', '   ', 'Enter your city.'],
+  ['School', '', 'Select your school.'],
+  ['State', '', 'Select your state.'],
+]) {
+  test(`sign up: ${label} "${value}" is refused before anything reaches Clerk`, async ({ page }) => {
+    await fillSignUp(page, { [label]: value })
+    const submit = page.getByRole('button', { name: /create account/i })
+    await expect(submit).toBeEnabled({ timeout: 20_000 }) // Clerk finished loading
+    await submit.click()
+    await expect(page.getByRole('alert')).toHaveText(message)
+    await expect(page.getByLabel(label)).toBeFocused()
+    await expect(page).toHaveURL(/\/sign-up$/)
+    await noHorizontalScroll(page)
+  })
+}
+
+test('sign up: says which step this is and lets the password be checked', async ({ page }) => {
+  await page.goto('/sign-up')
+  await expect(page.getByRole('list', { name: 'Sign-up steps' }).locator('[aria-current="step"]')).toContainText('Your details')
+  const password = page.getByLabel('Password')
+  await password.fill('a-long-enough-password')
+  await expect(password).toHaveAttribute('type', 'password')
+  await page.getByRole('button', { name: 'Show password' }).click()
+  await expect(password).toHaveAttribute('type', 'text')
+  await page.getByRole('button', { name: 'Hide password' }).click()
+  await expect(password).toHaveAttribute('type', 'password')
 })
 
 test('signed out, the default pine-green palette is used', async ({ page }) => {

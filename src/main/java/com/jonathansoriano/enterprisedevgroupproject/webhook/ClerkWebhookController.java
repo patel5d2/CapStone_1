@@ -1,5 +1,6 @@
 package com.jonathansoriano.enterprisedevgroupproject.webhook;
 
+import com.jonathansoriano.enterprisedevgroupproject.service.DeletedAccountCleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,16 +52,20 @@ public class ClerkWebhookController {
 
     private static final String USER_CREATED = "user.created";
     private static final String USER_UPDATED = "user.updated";
+    private static final String USER_DELETED = "user.deleted";
 
     private final SvixSignatureVerifier verifier;
     private final ClerkIdentityRepository identities;
+    private final DeletedAccountCleanup deletedAccounts;
     private final ObjectMapper objectMapper;
 
     public ClerkWebhookController(SvixSignatureVerifier verifier,
                                   ClerkIdentityRepository identities,
+                                  DeletedAccountCleanup deletedAccounts,
                                   ObjectMapper objectMapper) {
         this.verifier = verifier;
         this.identities = identities;
+        this.deletedAccounts = deletedAccounts;
         this.objectMapper = objectMapper;
     }
 
@@ -77,6 +82,19 @@ public class ClerkWebhookController {
 
         JsonNode event = parse(payload);
         String type = event.path("type").asString("");
+
+        if (USER_DELETED.equals(type)) {
+            // The account is gone, so its directory profile goes with it. Without this the
+            // row stays bound to a subject nobody can present again, and the same student
+            // signing up again on the same address is refused on every request.
+            String deletedUserId = event.path("data").path("id").asString("");
+            if (!deletedUserId.isBlank()) {
+                boolean removed = deletedAccounts.retire(deletedUserId);
+                log.info("Clerk {} for subject {} (delivery {}): {}", type, deletedUserId, svixId,
+                        removed ? "profile removed" : "no profile to remove");
+            }
+            return ResponseEntity.noContent().build();
+        }
 
         if (!USER_CREATED.equals(type) && !USER_UPDATED.equals(type)) {
             // Clerk sends every event type the endpoint is subscribed to. Ignoring the
