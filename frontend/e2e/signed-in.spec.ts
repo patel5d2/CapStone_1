@@ -2,21 +2,21 @@ import { expect, test } from '@playwright/test'
 import { clerk, clerkSetup } from '@clerk/testing/playwright'
 
 /*
- * Signed-in journeys against the real backend. Skipped unless all of these are set in the
- * environment of the person running them (never committed):
+ * Signed-in journeys against the real backend. Skipped unless both of these are set, in the
+ * git-ignored .env at the project root (or frontend/.env.local, or the shell; never committed):
  *
  *   CLERK_SECRET_KEY        the Clerk DEV instance's secret key (testing tokens need it)
  *   E2E_CLERK_EMAIL         an existing test account in that instance, used through
  *                           Clerk's ticket sign-in, so no password or code is typed
  *
- * and the stack started for testing, with two-step enforcement off on both sides (a ticket
- * sign-in has no second factor to show):
+ * playwright.config.ts copies them into process.env (Playwright itself reads no .env file)
+ * and, when both are there, starts the backend and the SPA with two-step enforcement off
+ * on both sides (a ticket sign-in has no second factor to show). So this is the whole run:
  *
- *   backend:  CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR=false ./mvnw spring-boot:run
- *   frontend: VITE_REQUIRE_TWO_FACTOR=false npx playwright test e2e/signed-in.spec.ts
+ *   npx playwright test e2e/signed-in.spec.ts
  */
 const ready = Boolean(process.env.CLERK_SECRET_KEY && process.env.E2E_CLERK_EMAIL)
-test.skip(!ready, 'needs CLERK_SECRET_KEY and E2E_CLERK_EMAIL, and the backend on :8080')
+test.skip(!ready, 'needs CLERK_SECRET_KEY and E2E_CLERK_EMAIL in .env (see the header of this file)')
 test.describe.configure({ mode: 'serial' })
 
 const stamp = Date.now()
