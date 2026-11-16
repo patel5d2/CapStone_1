@@ -28,7 +28,7 @@ RUN npm run build
 # ============================================================
 # Stage 1b: Build
 # ============================================================
-FROM eclipse-temurin:21-jdk-alpine@sha256:0bfc69a4758a86710e5c474032d28400a8bd00874766f9e8b1642ac2fd293159 AS build
+FROM eclipse-temurin:21-jdk-alpine@sha256:82801f9dcdcbad5a05082aba8c86d1da5b72ccb498e71318b1f91b5a477887b3 AS build
 WORKDIR /app
 
 # Copy the Maven wrapper and pom.xml first to leverage Docker layer caching
@@ -59,7 +59,7 @@ COPY --from=build /app/target/*.jar /app.jar
 # ============================================================
 # Stage 2: Runtime
 # ============================================================
-FROM eclipse-temurin:21-jre-alpine@sha256:51ab5e3302e7141ce665ca3ea85e8b5cd648eafbc3c0c90dd79d6537684e4555 AS runtime
+FROM eclipse-temurin:21-jre-alpine@sha256:ac05c3c42b7c2f1a52c9bd52f01041fa1958231b15ebeae7420429cbc5baf474 AS runtime
 WORKDIR /app
 
 # Version, revision and source labels are added by docker/metadata-action at release.
