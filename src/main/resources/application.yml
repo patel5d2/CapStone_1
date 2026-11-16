@@ -61,6 +61,13 @@ campusbridge:
     # default and never committed (Team Rule 9, invariant 8): with no value the webhook
     # route refuses every delivery rather than trusting an unverifiable one.
     webhook-secret: ${CLERK_WEBHOOK_SECRET:}
+    # Clerk secret key ("sk_test_..." / "sk_live_..."), from the dashboard's API keys page,
+    # for the SAME instance as CLERK_ISSUER. Used for one read: asking whether the account a
+    # profile is bound to still exists, when a new account presents that profile's address
+    # (ClerkAccountLookup). Empty by default and never committed: without it nothing is
+    # asked, and a student who deleted their account and signed up again is refused 409
+    # until the row is fixed by hand.
+    secret-key: ${CLERK_SECRET_KEY:}
 
   monitoring:
     enabled: ${CAMPUSBRIDGE_MONITORING_ENABLED:false}

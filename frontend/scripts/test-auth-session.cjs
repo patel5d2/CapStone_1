@@ -22,6 +22,16 @@ function load(file, mocks) {
   return module.exports
 }
 
+// The sign-up form's own modules, real except for the school list.
+const SCHOOL_THEME = { SCHOOL_NAMES: ['University of Cincinnati', 'Xavier University'] }
+const SCHOOL_DETAILS = {
+  universityName: 'Xavier University', grade: 'Junior', major: 'Nursing', residentCity: 'Norwood', residentState: 'OH',
+}
+const SIGNUP_LIBS = {
+  '../lib/schoolTheme': SCHOOL_THEME,
+  '../lib/signupProfile': load('lib/signupProfile.ts', { './schoolTheme': SCHOOL_THEME }),
+}
+
 for (const [label, state, destination] of [
   ['loading', { isLoaded: false }, 'Spinner'],
   ['signed out', { isLoaded: true, session: null }, 'form'],
@@ -127,7 +137,7 @@ for (const status of ['needs_second_factor', 'needs_new_password']) {
 
 for (const [page, hook, method, destination] of [
   ['SignInPage', 'useSignIn', 'attemptFirstFactor', '/marketplace'],
-  ['SignUpPage', 'useSignUp', 'attemptEmailAddressVerification', '/profile'],
+  ['SignUpPage', 'useSignUp', 'attemptEmailAddressVerification', '/sign-up/profile'],
 ]) {
   for (const pending of [false, true]) {
     test(`${page}: activation ${pending ? 'preserves MFA redirect' : 'continues normally'}`, async () => {
@@ -142,6 +152,7 @@ for (const [page, hook, method, destination] of [
             : slot === 2 ? true : initial, () => {}]
         } },
         '../lib/institutionalEmail': { isInstitutionalEmail: () => true },
+        ...SIGNUP_LIBS,
         '@clerk/clerk-react': {
           [hook]: () => ({
             isLoaded: true,
@@ -176,8 +187,9 @@ for (const [email, password, allowed] of [
     const institutional = load('lib/institutionalEmail.ts', {})
     const { default: Page } = load('pages/SignUpPage.tsx', {
       react: { useState: (initial) => [stateIndex++ === 0
-        ? { firstName: ' Jane ', lastName: ' Doe ', email, password } : initial, () => {}] },
+        ? { firstName: ' Jane ', lastName: ' Doe ', email, password, ...SCHOOL_DETAILS, major: ' Nursing ' } : initial, () => {}] },
       '../lib/institutionalEmail': institutional,
+      ...SIGNUP_LIBS,
       '@clerk/clerk-react': { useSignUp: () => ({
         isLoaded: true,
         signUp: {
@@ -185,6 +197,8 @@ for (const [email, password, allowed] of [
             calls.push('create')
             assert.equal(details.firstName, 'Jane')
             assert.equal(details.lastName, 'Doe')
+            // The profile details ride on the new Clerk user until the last step saves them.
+            assert.deepEqual({ ...details.unsafeMetadata.signupProfile }, { ...SCHOOL_DETAILS, major: 'Nursing' })
             return { status: 'missing_requirements' }
           },
           prepareEmailAddressVerification: async ({ strategy }) => calls.push(strategy),
@@ -214,6 +228,7 @@ for (const rejected of [false, true]) {
         const slot = index++
         return [states[slot], (value) => { states[slot] = value }]
       } },
+      ...SIGNUP_LIBS,
       '@clerk/clerk-react': { useSignUp: () => ({
         isLoaded: true,
         signUp: { prepareEmailAddressVerification: async ({ strategy }) => {
@@ -247,22 +262,220 @@ for (const rejected of [false, true]) {
 }
 
 for (const [label, outcome, expected] of [
-  ['no profile yet (404) sends the student to /profile', { status: 404 }, true],
-  ['saved profile lets them through', 'ok', false],
-  ['any other failure does not trap them', { status: 500 }, false],
+  ['no profile yet (404) is missing', { status: 404 }, { status: 'missing' }],
+  ['a saved profile is complete', 'ok', { status: 'complete' }],
+  ['any other failure is failed, never registered', { status: 500 }, { status: 'failed', message: 'x', retryable: true }],
+  ['a profile bound to another account (409) is failed for good', { status: 409 }, { status: 'failed', message: 'x', retryable: false }],
 ]) {
-  test(`profile gate: ${label}`, async () => {
+  test(`profile check: ${label}`, async () => {
     class ApiError extends Error { constructor(status) { super('x'); this.status = status } }
-    let state
-    const { useProfileMissing } = load('lib/profileGate.ts', {
-      react: { useState: (initial) => [state ?? initial, (v) => { state = v }], useEffect: (fn) => { fn() } },
+    const states = []
+    let slot = 0
+    const { useProfileCheck } = load('lib/profileGate.ts', {
+      react: {
+        useState: (initial) => {
+          const index = slot++
+          if (!(index in states)) states[index] = initial
+          return [states[index], (v) => { states[index] = typeof v === 'function' ? v(states[index]) : v }]
+        },
+        useEffect: (fn) => { fn() },
+      },
       './api': {
         ApiError,
         api: { get: () => outcome === 'ok' ? Promise.resolve({}) : Promise.reject(new ApiError(outcome.status)) },
       },
     })
-    assert.equal(useProfileMissing(`user_${label}`), null)
+    const userId = `user_${label}`
+    assert.equal(useProfileCheck(userId).status, 'checking')
     await new Promise((r) => setTimeout(r, 0))
-    assert.equal(state, expected)
+    slot = 0
+    const { retry, ...check } = useProfileCheck(userId)
+    assert.deepEqual({ ...check }, expected)
+    // Another student never reads this one's answer.
+    slot = 0
+    assert.equal(useProfileCheck('user_someone_else').status, 'checking')
+    // Asking again starts over.
+    retry()
+    slot = 0
+    assert.equal(outcome === 'ok' ? 'complete' : useProfileCheck(userId).status, outcome === 'ok' ? 'complete' : 'checking')
   })
 }
+
+for (const [label, saved] of [['a profile the server holds', true], ['no profile, or a failed check', false]]) {
+  test(`profileExists: ${label} -> ${saved}`, async () => {
+    const { profileExists } = load('lib/profileGate.ts', {
+      './api': { api: { get: () => saved ? Promise.resolve({}) : Promise.reject(new Error('x')) } },
+    })
+    assert.equal(await profileExists(), saved)
+  })
+}
+
+function mfaPage(session, hadTask = false) {
+  return load('pages/SetupMfaPage.tsx', {
+    react: { useState: () => [hadTask, () => {}] },
+    '@clerk/clerk-react': { TaskSetupMFA: 'TaskSetupMFA', useSession: () => ({ isLoaded: true, session }) },
+    'react-router-dom': { Navigate: 'Navigate' },
+  }).default()
+}
+
+test('MFA setup continues to the profile step of sign-up', () => {
+  const page = mfaPage({ status: 'pending', currentTask: { key: 'setup-mfa' } })
+  assert.equal(findElement(page, 'TaskSetupMFA').props.redirectUrlComplete, '/sign-up/profile')
+})
+
+test('MFA setup with nothing to set up is not left as an empty page', () => {
+  const page = mfaPage({ status: 'active', currentTask: null })
+  assert.equal(page.type, 'Navigate')
+  assert.equal(page.props.to, '/marketplace')
+})
+
+test('MFA setup finished on this visit stays put, so Clerk can show its last screen', () => {
+  assert.ok(findElement(mfaPage({ status: 'active', currentTask: null }, true), 'TaskSetupMFA'))
+})
+
+for (const [field, value, problem] of [
+  ['universityName', '', 'Select your school.'],
+  ['universityName', 'Hogwarts', 'Select your school.'],
+  ['grade', 'Wizard', 'Select your year of study.'],
+  ['major', '   ', 'Enter your major.'],
+  ['residentCity', '', 'Enter your city.'],
+  ['residentState', '', 'Select your state.'],
+  ['residentState', 'Ohio', 'Select your state.'],
+]) {
+  test(`signup refuses ${field} "${value}" before anything reaches Clerk`, async () => {
+    let stateIndex = 0
+    let shown
+    const { default: Page } = load('pages/SignUpPage.tsx', {
+      react: { useState: (initial) => {
+        const slot = stateIndex++
+        return [slot === 0
+          ? { firstName: 'Jane', lastName: 'Doe', email: 'jane@school.edu', password: 'Abcd1234!', ...SCHOOL_DETAILS, [field]: value }
+          : initial, (next) => { if (slot === 3) shown = next }]
+      } },
+      '../lib/institutionalEmail': { isInstitutionalEmail: () => true },
+      ...SIGNUP_LIBS,
+      '@clerk/clerk-react': { useSignUp: () => ({
+        isLoaded: true,
+        signUp: { create: () => assert.fail('Refused details must not create a Clerk account') },
+      }) },
+      'react-router-dom': { useNavigate: () => () => assert.fail('Refused details must not navigate') },
+    })
+    await findForm(Page()).props.onSubmit({ preventDefault() {} })
+    assert.equal(shown, problem)
+  })
+}
+
+test('a reload while verifying resumes at the code step instead of the empty form', () => {
+  const page = (signUp) => load('pages/SignUpPage.tsx', {
+    react: { useState: (initial) => [initial, () => {}] },
+    ...SIGNUP_LIBS,
+    '@clerk/clerk-react': { useSignUp: () => ({ isLoaded: true, signUp }) },
+    'react-router-dom': { useNavigate: () => () => {} },
+  }).default()
+  const waiting = { status: 'missing_requirements', unverifiedFields: ['email_address'], emailAddress: 'jane@school.edu' }
+  assert.ok(findButton(page(waiting), 'Resend code'))
+  assert.equal(findButton(page({ status: null }), 'Resend code'), undefined)
+})
+
+test('signup profile details: read from Clerk metadata, and removed without touching the rest', () => {
+  const { pendingSignupProfile, withoutSignupProfile } = load('lib/signupProfile.ts', { './schoolTheme': SCHOOL_THEME })
+  assert.equal(pendingSignupProfile({}), null)
+  assert.equal(pendingSignupProfile(undefined), null)
+  assert.deepEqual({ ...pendingSignupProfile({ signupProfile: SCHOOL_DETAILS }) }, SCHOOL_DETAILS)
+  // Anything that is not text is dropped, so the profile form reports it as missing.
+  assert.equal(pendingSignupProfile({ signupProfile: { major: 7 } }).major, '')
+  assert.deepEqual({ ...withoutSignupProfile({ signupProfile: SCHOOL_DETAILS, other: 1 }) }, { other: 1 })
+})
+
+test('Clerk sends its own redirects to this app, not to the hosted Account Portal', () => {
+  const { ThemedClerkProvider } = load('components/ThemedClerkProvider.tsx', {
+    react: { useMemo: (fn) => fn(), useSyncExternalStore: () => null },
+    '@clerk/clerk-react': { ClerkProvider: 'ClerkProvider' },
+    '../lib/clerkAppearance': { clerkAppearanceWith: () => ({}) },
+    '../lib/schoolTheme': { activePrimaryHex: () => '#000000' },
+  })
+  const { props } = ThemedClerkProvider({ publishableKey: 'pk_test_x', children: 'app' })
+  assert.equal(props.signInUrl, '/sign-in')
+  assert.equal(props.signUpUrl, '/sign-up')
+  assert.equal(props.signInFallbackRedirectUrl, '/marketplace')
+  assert.equal(props.signUpFallbackRedirectUrl, '/sign-up/profile')
+  assert.equal(props.taskUrls['setup-mfa'], '/session-tasks/setup-mfa')
+})
+
+for (const [label, clerkError, shown] of [
+  ['an email with no account', { code: 'form_identifier_not_found', longMessage: "Couldn't find your account." }, /No account uses that email.*emailed code/],
+  ['a wrong password', { code: 'form_password_incorrect', longMessage: 'Password is incorrect.' }, /^Password is incorrect\.$/],
+]) {
+  test(`SignInPage: ${label} is explained, and nothing is activated`, async () => {
+    const states = []
+    let index = 0
+    const { default: Page } = load('pages/SignInPage.tsx', {
+      react: { useState: (initial) => {
+        const slot = index++
+        if (!(slot in states)) states[slot] = slot === 0 ? 'student@school.edu' : slot === 1 ? 'password-example' : initial
+        return [states[slot], (value) => { states[slot] = value }]
+      } },
+      '../lib/institutionalEmail': { isInstitutionalEmail: () => true },
+      '@clerk/clerk-react': { useSignIn: () => ({
+        isLoaded: true,
+        signIn: { create: async () => { throw { errors: [clerkError] } } },
+        setActive: () => assert.fail('A failed sign-in must not activate a session'),
+      }) },
+      'react-router-dom': { useLocation: () => ({ pathname: '/sign-in' }), useNavigate: () => () => assert.fail('A failed sign-in must not navigate') },
+    })
+    await findForm(Page()).props.onSubmit({ preventDefault() {} })
+    assert.match(states[2], shown)
+    assert.equal(states[3], false, 'Always release busy state')
+  })
+}
+
+for (const [label, clerkError, shown, field] of [
+  ['an email already in use', { code: 'form_identifier_exists', longMessage: 'That email address is taken. Please try another.', meta: { paramName: 'email_address' } },
+    'An account already uses that email. Sign in instead, or use a different email.', 'email'],
+  ['a password Clerk refuses', { code: 'form_password_pwned', longMessage: 'This password has been found in a breach.', meta: { paramName: 'password' } },
+    'This password has been found in a breach.', 'password'],
+  ['a failure with no field', { code: 'captcha_invalid', longMessage: 'Security check failed.' }, 'Security check failed.', null],
+]) {
+  test(`signup shows ${label} beside its field`, async () => {
+    const states = []
+    let index = 0
+    const { default: Page } = load('pages/SignUpPage.tsx', {
+      react: { useState: (initial) => {
+        const slot = index++
+        if (!(slot in states)) states[slot] = slot === 0
+          ? { firstName: 'Jane', lastName: 'Doe', email: 'jane@school.edu', password: 'Abcd1234!', ...SCHOOL_DETAILS } : initial
+        return [states[slot], (value) => { states[slot] = value }]
+      } },
+      '../lib/institutionalEmail': { isInstitutionalEmail: () => true },
+      ...SIGNUP_LIBS,
+      '@clerk/clerk-react': { useSignUp: () => ({ isLoaded: true, signUp: { create: async () => { throw { errors: [clerkError] } } } }) },
+      'react-router-dom': { useNavigate: () => () => assert.fail('A refused sign-up must not navigate') },
+    })
+    await findForm(Page()).props.onSubmit({ preventDefault() {} })
+    assert.equal(states[3], shown)
+    assert.equal(states[8], field, 'The field the message belongs to')
+    assert.equal(states[2], false, 'Not moved on to the code step')
+    assert.equal(states[4], false, 'Always release busy state')
+  })
+}
+
+test('a complete emailed code is submitted without pressing the button', async () => {
+  const attempts = []
+  let index = 0
+  const { default: Page } = load('pages/SignUpPage.tsx', {
+    react: { useState: (initial) => [index++ === 2 ? true : initial, () => {}] },
+    ...SIGNUP_LIBS,
+    '@clerk/clerk-react': { useSignUp: () => ({
+      isLoaded: true,
+      signUp: { attemptEmailAddressVerification: async ({ code }) => { attempts.push(code); return { status: 'complete', createdSessionId: 's' } } },
+      setActive: async () => {},
+    }) },
+    'react-router-dom': { useNavigate: () => () => {} },
+  })
+  const input = findElement(Page(), 'input')
+  input.props.onChange({ target: { value: '424' } })
+  assert.deepEqual(attempts, [], 'A partial code is not sent')
+  input.props.onChange({ target: { value: '424 242' } })
+  await new Promise((r) => setTimeout(r, 0))
+  assert.deepEqual(attempts, ['424242'], 'Spaces from a pasted code are dropped')
+})

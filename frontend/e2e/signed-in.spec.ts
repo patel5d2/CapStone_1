@@ -1,22 +1,27 @@
-import { expect, test } from '@playwright/test'
-import { clerk, clerkSetup } from '@clerk/testing/playwright'
+import { expect, test, type Page } from '@playwright/test'
+import { clerk, clerkSetup, setupClerkTestingToken } from '@clerk/testing/playwright'
 
 /*
- * Signed-in journeys against the real backend. Skipped unless all of these are set in the
- * environment of the person running them (never committed):
+ * Signed-in journeys against the real backend. Skipped unless both of these are set, in the
+ * git-ignored .env at the project root (or frontend/.env.local, or the shell; never committed):
  *
  *   CLERK_SECRET_KEY        the Clerk DEV instance's secret key (testing tokens need it)
  *   E2E_CLERK_EMAIL         an existing test account in that instance, used through
- *                           Clerk's ticket sign-in, so no password or code is typed
+ *                           Clerk's ticket sign-in, so no password is typed
  *
- * and the stack started for testing, with two-step enforcement off on both sides (a ticket
- * sign-in has no second factor to show):
+ * The instance requires two-step verification, so that account must have a Clerk TEST phone
+ * number (+1 555-555-0100 to 0199) enrolled as its second factor: those accept the fixed code
+ * 424242 and never send an SMS. The account in use is e2e+clerk_test@example.com, with
+ * +15555550142.
  *
- *   backend:  CAMPUSBRIDGE_AUTH_REQUIRE_TWO_FACTOR=false ./mvnw spring-boot:run
- *   frontend: VITE_REQUIRE_TWO_FACTOR=false npx playwright test e2e/signed-in.spec.ts
+ * playwright.config.ts copies them into process.env (Playwright itself reads no .env file)
+ * and, when both are there, starts the backend and the SPA with two-step enforcement off
+ * on both sides (a ticket sign-in has no second factor to show). So this is the whole run:
+ *
+ *   npx playwright test e2e/signed-in.spec.ts
  */
 const ready = Boolean(process.env.CLERK_SECRET_KEY && process.env.E2E_CLERK_EMAIL)
-test.skip(!ready, 'needs CLERK_SECRET_KEY and E2E_CLERK_EMAIL, and the backend on :8080')
+test.skip(!ready, 'needs CLERK_SECRET_KEY and E2E_CLERK_EMAIL in .env (see the header of this file)')
 test.describe.configure({ mode: 'serial' })
 
 const stamp = Date.now()
@@ -25,9 +30,57 @@ test.beforeAll(async () => {
   await clerkSetup({ publishableKey: process.env.VITE_CLERK_PUBLISHABLE_KEY })
 })
 
+/** Clerk Backend API call with the secret key; Node-side only, never in the page. */
+async function clerkApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`https://api.clerk.com/v1${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+  })
+  if (!response.ok) throw new Error(`Clerk ${path}: ${response.status} ${await response.text()}`)
+  return (await response.json()) as T
+}
+
+/**
+ * `clerk.signIn({ emailAddress })` from @clerk/testing, plus the step it leaves out: once the
+ * account has a second factor, Clerk's ticket sign-in stops at `needs_second_factor`. The
+ * test phone factor is answered with Clerk's fixed test code.
+ */
+async function signIn(page: Page, emailAddress: string) {
+  await setupClerkTestingToken({ context: page.context() })
+  await clerk.loaded({ page })
+  const users = await clerkApi<{ id: string }[]>(`/users?email_address=${encodeURIComponent(emailAddress)}`)
+  if (users.length === 0) throw new Error(`No Clerk user with email ${emailAddress}`)
+  const { token } = await clerkApi<{ token: string }>('/sign_in_tokens', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: users[0].id, expires_in_seconds: 300 }),
+  })
+  await page.evaluate(async (ticket) => {
+    type Attempt = {
+      status: string
+      createdSessionId: string
+      supportedSecondFactors?: { strategy: string; phoneNumberId?: string }[] | null
+      prepareSecondFactor(p: { strategy: 'phone_code'; phoneNumberId?: string }): Promise<Attempt>
+      attemptSecondFactor(p: { strategy: 'phone_code'; code: string }): Promise<Attempt>
+    }
+    const Clerk = (window as unknown as {
+      Clerk: { client: { signIn: { create(p: object): Promise<Attempt> } }; setActive(p: object): Promise<void> }
+    }).Clerk
+    let attempt = await Clerk.client.signIn.create({ strategy: 'ticket', ticket })
+    if (attempt.status === 'needs_second_factor') {
+      const phone = attempt.supportedSecondFactors?.find((factor) => factor.strategy === 'phone_code')
+      if (!phone) throw new Error('The e2e account has no test phone number enrolled as its second factor')
+      await attempt.prepareSecondFactor({ strategy: 'phone_code', phoneNumberId: phone.phoneNumberId })
+      attempt = await attempt.attemptSecondFactor({ strategy: 'phone_code', code: '424242' })
+    }
+    if (attempt.status !== 'complete') throw new Error(`Clerk sign-in stopped at ${attempt.status}`)
+    await Clerk.setActive({ session: attempt.createdSessionId })
+  }, token)
+  await page.waitForFunction(() => (window as unknown as { Clerk?: { user: unknown } }).Clerk?.user != null)
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
-  await clerk.signIn({ page, emailAddress: process.env.E2E_CLERK_EMAIL! })
+  await signIn(page, process.env.E2E_CLERK_EMAIL!)
 })
 
 test('profile: a signed-in student can open and save their profile', async ({ page }) => {
@@ -36,12 +89,14 @@ test('profile: a signed-in student can open and save their profile', async ({ pa
   const isNew = await page.getByRole('heading', { name: /complete your profile/i }).isVisible()
   if (isNew) {
     await page.getByLabel(/^School/).selectOption({ index: 1 })
-    await page.getByLabel(/^Major/).fill('Information Technology')
+    // By role: "Major visibility" under Optional details is also labelled "Major…".
+    await page.getByRole('textbox', { name: /^Major/ }).fill('Information Technology')
     await page.getByLabel(/^City/).fill('Cincinnati')
-    await page.getByLabel(/^State/).fill('OH')
+    await page.getByLabel(/^State/).selectOption('OH')
   }
   await page.getByRole('button', { name: /save profile/i }).click()
-  await expect(page.getByText(/profile and visibility saved/i).first()).toBeVisible()
+  // A first save is the end of sign-up and says so; later saves confirm the save.
+  await expect(page.getByText(/welcome to campusbridge|profile and visibility saved/i).first()).toBeVisible()
 })
 
 test('marketplace: post, find in My listings, then delete a listing', async ({ page }) => {
@@ -75,8 +130,10 @@ test('community: post, like and delete a post', async ({ page }) => {
 test('support: an anonymous request shows up for its author without naming them', async ({ page }) => {
   const description = `E2E groceries ${stamp}`
   await page.goto('/support')
+  // The page opens on Resources; asking for help lives under Open requests.
+  await page.getByRole('button', { name: 'Open requests' }).click()
   await page.getByRole('button', { name: 'Ask for help' }).first().click()
-  await page.getByRole('dialog').getByRole('textbox').first().fill(description)
+  await page.getByRole('dialog').getByLabel('What you need').fill(description)
   await page.getByRole('button', { name: 'Post anonymously' }).click()
   await expect(page.getByText(description).first()).toBeVisible()
   await expect(page.getByText(process.env.E2E_CLERK_EMAIL!)).toHaveCount(0)
