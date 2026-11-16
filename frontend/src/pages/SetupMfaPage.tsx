@@ -1,4 +1,7 @@
-import { TaskSetupMFA } from '@clerk/clerk-react'
+import { useState } from 'react'
+import { TaskSetupMFA, useSession } from '@clerk/clerk-react'
+import { Navigate } from 'react-router-dom'
+import { SignUpSteps } from '../components/ui/SignUpSteps'
 import { Wordmark } from '../components/ui/Wordmark'
 
 /**
@@ -19,12 +22,29 @@ import { Wordmark } from '../components/ui/Wordmark'
  *     (`VITE_REQUIRE_TWO_FACTOR`), so there is no Clerk task to resolve.
  */
 export default function SetupMfaPage() {
+  const { session } = useSession()
+  // With no task Clerk renders nothing, so a visit that never had one (Back after finishing,
+  // an old bookmark) would be an empty page: send it on. A task finished during this visit
+  // is left alone, because Clerk is still showing its last screen and does its own redirect.
+  const [hadTask, setHadTask] = useState(false)
+  if (session?.currentTask && !hadTask) setHadTask(true)
+  if (session?.status === 'active' && !session.currentTask && !hadTask) return <Navigate to="/marketplace" replace />
+
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-12">
       <Wordmark />
-      {/* MFA enrolment is the last step of sign-up (required_for_sign_up), so finish on
-          the profile form; an existing profile just opens "My profile". */}
-      <TaskSetupMFA redirectUrlComplete="/profile" />
+      <SignUpSteps current={3} />
+      {/* Clerk's card below says how; this says why, which it does not. */}
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-extrabold tracking-tight">Protect your account</h1>
+        <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
+          CampusBridge asks every student for two-step verification. Set it up once, with an authenticator
+          app or a text message code, and you are in.
+        </p>
+      </div>
+      {/* MFA enrolment is part of sign-up (required_for_sign_up), so continue to its last
+          step, the profile form; a student who already has a profile is sent on into the app. */}
+      <TaskSetupMFA redirectUrlComplete="/sign-up/profile" />
     </div>
   )
 }

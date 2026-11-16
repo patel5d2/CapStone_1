@@ -16,6 +16,11 @@ const SLUG_BY_SCHOOL: Record<string, string> = {
   'Thomas More University': 'thomasmore',
 }
 const SLUGS = new Set(Object.values(SLUG_BY_SCHOOL))
+/**
+ * The schools a new student can pick on the sign-up form, which has no session to read
+ * `/api/schools` with. Add a school to the map above when the database gains one.
+ */
+export const SCHOOL_NAMES = Object.keys(SLUG_BY_SCHOOL)
 const STORAGE_KEY = 'campusbridge-school'
 const listeners = new Set<() => void>()
 

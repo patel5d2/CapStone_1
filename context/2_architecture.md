@@ -228,20 +228,22 @@ the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one
 ## External integrations
 
 **Clerk** — app `app_3JQAD8C90nX8hkoj6wkJ8u783sk`, development instance.
-- Sign-up requires username + email + password; 15-character password minimum; email
+- Sign-up requires email + password (9-character minimum; username is off); email
   verified by code; **device trust enabled**.
 - The default session token carries a custom `email` claim via `session.claims`.
   **Removing that claim breaks every endpoint.**
-- **Two-factor authentication is currently OFF** (`second_factor_strategies: []`) and
-  Clerk does **not** restrict sign-up by domain. Both are required by objective 1 and
-  both are dashboard work that no code change here can do.
+- **Two-factor enrolment is required at sign-up.** The second factors offered are an
+  authenticator app (TOTP) and an SMS code; sign-in does not force one on an account that
+  has none. Clerk does **not** restrict sign-up by domain (no allowlist), which is
+  dashboard work that no code change here can do. *(Sign-up fields, password length and
+  factor settings re-read from the instance's public settings 2026-11-10. This list
+  previously said username required, 15 characters and two-factor OFF.)*
 - The application enforces the email half independently of that dashboard state:
   `InstitutionalAccessPolicy` refuses any token whose address is not on a `.edu` domain,
   and `SecurityConfig` applies it to `/api/**` and `/student/**`. The 2FA half is
   **switched on** (`campusbridge.auth.require-two-factor` and `VITE_REQUIRE_TWO_FACTOR`,
-  both `true` since 2026-09-16) — but Clerk has no second-factor strategy enabled, so no
-  token can satisfy it and the API refuses every account until the dashboard is
-  configured. The agreed factor is **TOTP plus backup codes**
+  both `true` since 2026-09-16); a token satisfies it once the account has enrolled a
+  factor and verified it in that session. The agreed factor is **TOTP plus backup codes**
   (decision 015); the code reads `fva` and `user.twoFactorEnabled` and never names a
   strategy, so swapping factors is a dashboard change only.
 - Managed with the `clerk` CLI (`clerk link`, `clerk env pull`, `clerk doctor`).

@@ -23,7 +23,7 @@ function loadApp(mocks) {
   return module.exports
 }
 
-function render(factorVerificationAge) {
+function render(factorVerificationAge, { profile = 'complete', signupStep = false, retryable = true } = {}) {
   const profileCheckedFor = []
   const { RequireAuth } = loadApp({
     react: { useEffect: () => {}, useRef: () => ({ current: false }), useState: (v) => [v, () => {}] },
@@ -34,10 +34,13 @@ function render(factorVerificationAge) {
       useUser: () => ({ user: { id: 'user_1', twoFactorEnabled: true, primaryEmailAddress: { emailAddress: 'a@school.edu' } } }),
     },
     './lib/institutionalEmail': { isInstitutionalEmail: () => true },
-    './lib/profileGate': { useProfileMissing: (userId) => { profileCheckedFor.push(userId); return false } },
+    './lib/profileGate': { useProfileCheck: (userId) => {
+      profileCheckedFor.push(userId)
+      return { status: profile, message: 'Service unavailable', retryable, retry: () => {} }
+    } },
     './components/ui/Feedback': { Spinner: 'Spinner' },
   })
-  return { view: RequireAuth({ children: 'page' }), profileCheckedFor }
+  return { view: RequireAuth({ children: 'page', signupStep }), profileCheckedFor }
 }
 
 test('just signed up: second factor enrolled but never verified -> confirm it, no profile check', () => {
@@ -50,4 +53,49 @@ test('signed in with the second factor -> profile check runs and the page render
   const { view, profileCheckedFor } = render([0, 0])
   assert.equal(view.props.children, 'page')
   assert.deepEqual(profileCheckedFor, ['user_1'])
+})
+
+// #114: the student account/profile is created during sign-up, before the app is entered.
+test('no profile yet -> every app page sends the student to the profile step of sign-up', () => {
+  const { view } = render([0, 0], { profile: 'missing' })
+  assert.equal(view.type, 'Navigate')
+  assert.equal(view.props.to, '/sign-up/profile')
+})
+
+test('profile check still running -> neither the app nor the sign-up step is shown', () => {
+  for (const signupStep of [false, true]) assert.equal(render([0, 0], { profile: 'checking', signupStep }).view.type, 'Spinner')
+})
+
+test('sign-up profile step: shown to a student with no profile', () => {
+  assert.equal(render([0, 0], { profile: 'missing', signupStep: true }).view.props.children, 'page')
+})
+
+test('sign-up profile step: a registered student is sent into the app, not asked again', () => {
+  const { view } = render([0, 0], { profile: 'complete', signupStep: true })
+  assert.equal(view.type, 'Navigate')
+  assert.equal(view.props.to, '/marketplace')
+})
+
+test('sign-up profile step: an unverified second factor is confirmed first', () => {
+  assert.equal(render([0, -1], { profile: 'missing', signupStep: true }).view.type.name, 'ConfirmSecondFactor')
+})
+
+test('profile check failed -> the app stays closed and a retry is offered, on both gates', () => {
+  for (const signupStep of [false, true]) {
+    const { view } = render([0, 0], { profile: 'failed', signupStep })
+    assert.equal(view.type.name, 'AccountCheckFailed')
+    assert.equal(view.props.message, 'Service unavailable')
+    assert.equal(typeof view.props.onRetry, 'function')
+  }
+})
+
+test('profile bound to another Clerk account -> the refusal is shown without a pointless retry', () => {
+  const { view } = render([0, 0], { profile: 'failed', retryable: false })
+  assert.equal(view.type.name, 'AccountCheckFailed')
+  assert.equal(view.props.onRetry, undefined)
+  // Rendered: the title names the conflict and there is no "Try again".
+  const card = view.type(view.props)
+  const text = JSON.stringify(card)
+  assert.match(text, /This email already has a profile/)
+  assert.doesNotMatch(text, /Try again/)
 })
