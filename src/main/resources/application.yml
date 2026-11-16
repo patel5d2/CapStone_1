@@ -67,7 +67,19 @@ campusbridge:
     # (ClerkAccountLookup). Empty by default and never committed: without it nothing is
     # asked, and a student who deleted their account and signed up again is refused 409
     # until the row is fixed by hand.
+    # Also used for one write: removing a student's sign-in when an administrator deletes
+    # their account (ClerkAccountDeletion). Without it such a delete is refused, because
+    # the profile would be gone while the student could still sign in.
     secret-key: ${CLERK_SECRET_KEY:}
+
+  admin:
+    # Comma-separated email addresses of the administrator accounts (#113), e.g.
+    # "dean@uc.edu,registrar@xavier.edu". Each must be the address of a real Clerk account:
+    # the person signs in through Clerk like anyone else, and this setting is what makes
+    # that account an administrator (AdminAccountSeeder writes app_user.role = ADMIN at
+    # startup). Empty by default, so nobody is an administrator until one is named here.
+    # Kept in the environment rather than in data.sql so the grant is never committed.
+    emails: ${CAMPUSBRIDGE_ADMIN_EMAILS:}
 
   monitoring:
     enabled: ${CAMPUSBRIDGE_MONITORING_ENABLED:false}

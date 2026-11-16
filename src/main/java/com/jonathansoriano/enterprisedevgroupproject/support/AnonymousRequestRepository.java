@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.support;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +10,11 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface AnonymousRequestRepository extends JpaRepository<AnonymousRequest, Long> {
+
+    /** Every request, in every status unless one is given; for an administrator (#113). */
+    @Query("SELECT r FROM AnonymousRequest r WHERE (:status IS NULL OR r.status = :status)")
+    Page<AnonymousRequest> adminSearch(@Param("status") RequestStatus status, Pageable pageable);
+
 
     List<AnonymousRequest> findByRequesterSubjectOrderByCreatedAtDesc(String requesterSubject);
 

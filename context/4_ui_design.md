@@ -56,6 +56,15 @@ current UI from implementation work and do not establish approval or app accepta
 | Community | `Users` | `/community` |
 | Support | `LifeBuoy` | `/support` |
 
+**Admin (#113)** is a fifth destination, `ShieldCheck` → `/admin`, added to the same list
+for administrators only; students still see four. A dedicated administrator account (no
+student profile) sees Admin alone. The page marks itself as privileged with a warning-tone
+"Administrator" badge and banner. It has four areas (Accounts, Marketplace, Community,
+Support) built from one set of parts in `pages/admin/shared.tsx`: `ListFrame` for the
+loading, empty and failed states, and `ConfirmDialog` for every privileged action, which
+names the target, lists the consequences, and stays open with the reason if the action
+fails. Destructive actions use `btn-danger`.
+
 **Responsive shell — implemented:**
 
 | Width | Pattern | Class |

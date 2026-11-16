@@ -1,8 +1,9 @@
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, UserButton, useAuth } from '@clerk/clerk-react'
-import { Store, MessageCircle, Users, LifeBuoy, UserRound } from 'lucide-react'
+import { Store, MessageCircle, Users, LifeBuoy, UserRound, ShieldCheck } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { Wordmark } from '../ui/Wordmark'
+import { useAdminAccess } from '../../hooks/useAdminAccess'
 
 interface NavItem {
   to: string
@@ -20,6 +21,27 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/support', label: 'Support', icon: LifeBuoy },
 ]
 
+// Account management (#113), offered only to administrators. Showing or hiding the link
+// is a convenience: the page and every request behind it are checked again.
+const ADMIN_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCheck }
+
+/**
+ * The destinations for whoever is signed in. A student sees the four tabs. An
+ * administrator who is also a student sees them plus Admin. A dedicated administrator
+ * account has no student profile, so the student tabs (and "My profile") would only
+ * bounce it back to Admin, and are left out.
+ */
+function useNavigation() {
+  const { isSignedIn, userId } = useAuth()
+  const access = useAdminAccess(isSignedIn ? userId : undefined)
+  const isAdmin = access.status === 'ready' && access.admin
+  const adminOnly = isAdmin && !access.hasStudentProfile
+  return {
+    items: adminOnly ? [ADMIN_ITEM] : isAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS,
+    showProfile: !adminOnly,
+  }
+}
+
 /**
  * Sidebar at ≥1024px, icon-only rail between 640 and 1023px. One element rather than
  * two: the label collapses, the destinations do not change.
@@ -28,7 +50,7 @@ const NAV_ITEMS: NavItem[] = [
  * so it survives a colour-vision difference and a school theme that tints the fill
  * closer to the surface.
  */
-function SideNav() {
+function SideNav({ items, showProfile }: { items: NavItem[]; showProfile: boolean }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-18 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] sm:flex lg:w-60">
       <div className="flex h-16 items-center justify-center px-3 lg:justify-start lg:px-5">
@@ -41,7 +63,7 @@ function SideNav() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-2 lg:px-3" aria-label="Primary">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -75,7 +97,7 @@ function SideNav() {
       {/* Pinned to the bottom, per the target shell. Notifications land here too once
           the notification centre exists. */}
       <div className="border-t border-[var(--color-border)] p-2 lg:p-3">
-        <NavLink
+        {showProfile && <NavLink
           to="/profile"
           title="My profile"
           className={({ isActive }) =>
@@ -89,7 +111,7 @@ function SideNav() {
         >
           <UserRound className="h-5 w-5 shrink-0" />
           <span className="hidden lg:inline">My profile</span>
-        </NavLink>
+        </NavLink>}
         <div className="flex justify-center lg:justify-start lg:px-3">
           <UserButton afterSignOutUrl="/" />
         </div>
@@ -98,15 +120,15 @@ function SideNav() {
   )
 }
 
-/** Thumb-reachable bottom bar below 640px, with the same four destinations. */
-function BottomBar() {
+/** Thumb-reachable bottom bar below 640px, with the same destinations as the sidebar. */
+function BottomBar({ items }: { items: NavItem[] }) {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg sm:hidden"
       aria-label="Primary"
     >
       <div className="flex items-stretch justify-around">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -142,12 +164,13 @@ export function AppShell() {
   // only gate children, not a class on this wrapper, so a signed-out visitor was
   // getting a 240px indent against empty space.
   const { isSignedIn } = useAuth()
+  const { items, showProfile } = useNavigation()
 
   return (
     <div className="min-h-full">
       <SignedIn>
-        <SideNav />
-        <BottomBar />
+        <SideNav items={items} showProfile={showProfile} />
+        <BottomBar items={items} />
       </SignedIn>
 
       {/* The main column sits beside the rail/sidebar rather than under it. */}
@@ -163,13 +186,13 @@ export function AppShell() {
                 covers every wider width, so the entry is added here rather than
                 duplicated into both. */}
             <UserButton afterSignOutUrl="/">
-              <UserButton.MenuItems>
+              {showProfile && <UserButton.MenuItems>
                 <UserButton.Action
                   label="My CampusBridge profile"
                   labelIcon={<UserRound className="h-4 w-4" />}
                   onClick={() => navigate('/profile')}
                 />
-              </UserButton.MenuItems>
+              </UserButton.MenuItems>}
             </UserButton>
           </header>
         </SignedIn>

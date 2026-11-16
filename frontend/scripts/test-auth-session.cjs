@@ -264,8 +264,11 @@ for (const rejected of [false, true]) {
 for (const [label, outcome, expected] of [
   ['no profile yet (404) is missing', { status: 404 }, { status: 'missing' }],
   ['a saved profile is complete', 'ok', { status: 'complete' }],
-  ['any other failure is failed, never registered', { status: 500 }, { status: 'failed', message: 'x', retryable: true }],
-  ['a profile bound to another account (409) is failed for good', { status: 409 }, { status: 'failed', message: 'x', retryable: false }],
+  ['any other failure is failed, never registered', { status: 500 }, { status: 'failed', message: 'x', retryable: true, refused: false }],
+  ['a profile bound to another account (409) is failed for good', { status: 409 }, { status: 'failed', message: 'x', retryable: false, refused: false }],
+  // #113: the server will not serve this account at all, which after the email and second-factor
+  // gates means an administrator banned it. Not retryable, and marked so the app can say why.
+  ['a banned account (403) is refused for good', { status: 403 }, { status: 'failed', message: 'x', retryable: false, refused: true }],
 ]) {
   test(`profile check: ${label}`, async () => {
     class ApiError extends Error { constructor(status) { super('x'); this.status = status } }

@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.community;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -9,6 +11,16 @@ import java.time.Instant;
 import java.util.List;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
+
+    /** Every event, past ones included, whose title, description or creator matches (#113). */
+    @Query("""
+            SELECT e FROM Event e
+            WHERE LOWER(e.title) LIKE :pattern ESCAPE '!'
+               OR LOWER(e.description) LIKE :pattern ESCAPE '!'
+               OR LOWER(e.createdByEmail) LIKE :pattern ESCAPE '!'
+            """)
+    Page<Event> adminSearch(@Param("pattern") String pattern, Pageable pageable);
+
 
     @Query("""
             SELECT e FROM Event e

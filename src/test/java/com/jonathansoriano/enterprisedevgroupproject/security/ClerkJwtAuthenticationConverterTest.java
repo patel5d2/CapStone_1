@@ -17,8 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ClerkJwtAuthenticationConverterTest {
 
+    private final AccountBans bans = org.mockito.Mockito.mock(AccountBans.class);
     private final ClerkJwtAuthenticationConverter converter =
-            new ClerkJwtAuthenticationConverter(new InstitutionalAccessPolicy(false));
+            new ClerkJwtAuthenticationConverter(new InstitutionalAccessPolicy(false), bans);
 
     private static Jwt tokenFor(String email) {
         Jwt.Builder builder = Jwt.withTokenValue("token")
@@ -64,5 +65,14 @@ class ClerkJwtAuthenticationConverterTest {
     @DisplayName("a token with no email claim earns nothing")
     void missingEmailClaimGetsNoAuthority() {
         assertThat(authoritiesFor(null)).isEmpty();
+    }
+
+    @Test
+    void aBannedAccountEarnsNoAuthority_whateverElseIsTrueOfItsToken() {
+        // #113: a ban is applied where the role is granted, so every route refuses it at once.
+        Jwt banned = tokenFor("sarah.johnson@mail.uc.edu");
+        org.mockito.Mockito.when(bans.isBanned(banned)).thenReturn(true);
+
+        org.junit.jupiter.api.Assertions.assertTrue(converter.convert(banned).getAuthorities().isEmpty());
     }
 }

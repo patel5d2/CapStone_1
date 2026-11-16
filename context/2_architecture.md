@@ -145,7 +145,17 @@ changed email orphans that user's rows.
 
 - `user.created` webhook → create `student` with `clerk_user_id`.
 - Email domain → school mapping at creation.
-- Admin role → a Clerk metadata flag, read from the token.
+- Admin role → `app_user.role = 'ADMIN'` on the token's verified address, read on every
+  admin request by `admin/AdminAccess` (#113, Proposed decision 022). `AdminAccountSeeder`
+  writes it at startup from `CAMPUSBRIDGE_ADMIN_EMAILS`; no endpoint can change a role. A
+  Clerk metadata flag on the token was the earlier proposal and needs a Clerk dashboard
+  change this repository cannot make (Open Question 15).
+- Banned → `app_user.role = 'BANNED'` (#113, Proposed decision 023). It bans the **email
+  address**: `security/AccountBans` is asked by `ClerkJwtAuthenticationConverter` on every
+  request and withholds `ROLE_STUDENT`, so every `/api/**` and `/student/**` route answers
+  403 with the reason. It matches the token's address, or the profile bound to the token's
+  subject, so signing up again, deleting the account first, and changing the address in
+  Clerk all stay banned. A banned profile is kept but left out of the directory.
 - Email is display data, subject to invariant 4 and the user's privacy settings.
 
 **Current state:** ownership is keyed on **email** across 16 entity columns and 37
@@ -197,6 +207,29 @@ and it authenticates by signature.
 `/api/community/{posts,groups,events}`, `/api/support`, `/api/users/{block,report}`,
 `/api/schools`, and the legacy `/student`.
 
+`/api/admin` (#113) is the administrator console. Every route but `GET /access` (the
+caller's own capability) answers **403** to a caller without the admin role; the check is
+the first line of each method in `AdminAccountService` and `AdminModerationService`, not
+the path. Every list is paginated, size capped at 50.
+
+- **Accounts:** `GET /students?query=`, `GET` / `PUT` / `DELETE /students/{id}`
+  (`?ban=&removeContent=`), `POST /students/{id}/ban`, `GET /bans`, `POST /bans/lift`,
+  `GET /user-reports`, `DELETE /user-reports/{id}`. A delete removes the Clerk sign-in
+  first (`ClerkAccountDeletion`, needs `CLERK_SECRET_KEY`) and the profile only once Clerk
+  confirms, then applies the existing deleted-account rule (`DeletedAccountCleanup`).
+- **Marketplace:** `GET /listings?query=&reportedOnly=`, `DELETE /listings/{id}`,
+  `GET` / `DELETE /listings/{id}/reports` (review, or dismiss and keep the listing).
+- **Community:** `GET` and `DELETE` under `/posts`, `/groups`, `/events`;
+  `GET /posts/{id}/comments`, `DELETE /comments/{id}`.
+- **Support:** `GET /support/requests?status=`, `PUT /support/requests/{id}/status`,
+  `DELETE /support/requests/{id}`; `POST` / `PUT` / `DELETE /support/resources`.
+
+An administrator removes content or leaves it; nothing a student wrote is ever edited.
+`removeContent` on a ban or delete also removes what that person posted
+(`AccountContentRemoval`). Admin responses include the poster's email, the one deliberate
+exception to invariant 4's "never returned" wording, **except support requests, which stay
+anonymous to administrators too**.
+
 `/student` is the only base outside `/api` — moving it to `/api/students` also collapses
 the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one rule.
 
@@ -212,7 +245,8 @@ the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one
 | `DEV_DATABASE_NAME` / `PROD_DATABASE_NAME` | Database name per profile |
 | `CLERK_ISSUER` | Clerk issuer URL, validates `iss` |
 | `CLERK_JWKS_URI` | JWKS endpoint; keys load lazily, not at boot |
-| `CLERK_SECRET_KEY` | Backend API. **Server-only.** |
+| `CLERK_SECRET_KEY` | Backend API. **Server-only.** Also required for an admin to delete a signed-up student (#113) |
+| `CAMPUSBRIDGE_ADMIN_EMAILS` | Comma-separated emails of the Clerk accounts that are administrators (#113). Empty = nobody |
 | `CLERK_WEBHOOK_SECRET` | *(planned)* Svix signature verification |
 | `CLOUDINARY_URL` *or* `AWS_S3_BUCKET` / `AWS_REGION` | *(planned)* image storage |
 | `JAVA_OPTS` | JVM tuning |
