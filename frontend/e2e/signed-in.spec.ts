@@ -6,13 +6,15 @@ import { clerk, clerkSetup, setupClerkTestingToken } from '@clerk/testing/playwr
  * git-ignored .env at the project root (or frontend/.env.local, or the shell; never committed):
  *
  *   CLERK_SECRET_KEY        the Clerk DEV instance's secret key (testing tokens need it)
- *   E2E_CLERK_EMAIL         an existing test account in that instance, used through
- *                           Clerk's ticket sign-in, so no password is typed
+ *   E2E_CLERK_EMAIL         the test account in that instance, used through Clerk's ticket
+ *                           sign-in, so no password is typed
  *
- * The instance requires two-step verification, so that account must have a Clerk TEST phone
- * number (+1 555-555-0100 to 0199) enrolled as its second factor: those accept the fixed code
- * 424242 and never send an SMS. The account in use is e2e+clerk_test@example.com, with
- * +15555550142.
+ * The account does not have to exist beforehand. e2e/clerk-account.setup.ts runs once before
+ * the suite and creates it if it is missing (for a Clerk test address such as
+ * e2e+clerk_test@example.com), and enrols a Clerk TEST phone number as its second factor if
+ * it has none: the instance requires two-step verification, and those numbers
+ * (+1 555-555-0100 to 0199) accept the fixed code 424242 and never send an SMS. The account
+ * in use is e2e+clerk_test@example.com, with +15555550142.
  *
  * playwright.config.ts copies them into process.env (Playwright itself reads no .env file)
  * and, when both are there, starts the backend and the SPA with two-step enforcement off
@@ -44,15 +46,17 @@ async function clerkApi<T>(path: string, init?: RequestInit): Promise<T> {
  * `clerk.signIn({ emailAddress })` from @clerk/testing, plus the step it leaves out: once the
  * account has a second factor, Clerk's ticket sign-in stops at `needs_second_factor`. The
  * test phone factor is answered with Clerk's fixed test code.
+ *
+ * The account's id comes from the global setup, which has already made sure it exists.
  */
-async function signIn(page: Page, emailAddress: string) {
+async function signIn(page: Page) {
+  const userId = process.env.E2E_CLERK_USER_ID
+  if (!userId) throw new Error('E2E_CLERK_USER_ID is not set: e2e/clerk-account.setup.ts did not run (see playwright.config.ts)')
   await setupClerkTestingToken({ context: page.context() })
   await clerk.loaded({ page })
-  const users = await clerkApi<{ id: string }[]>(`/users?email_address=${encodeURIComponent(emailAddress)}`)
-  if (users.length === 0) throw new Error(`No Clerk user with email ${emailAddress}`)
   const { token } = await clerkApi<{ token: string }>('/sign_in_tokens', {
     method: 'POST',
-    body: JSON.stringify({ user_id: users[0].id, expires_in_seconds: 300 }),
+    body: JSON.stringify({ user_id: userId, expires_in_seconds: 300 }),
   })
   await page.evaluate(async (ticket) => {
     type Attempt = {
@@ -80,7 +84,7 @@ async function signIn(page: Page, emailAddress: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
-  await signIn(page, process.env.E2E_CLERK_EMAIL!)
+  await signIn(page)
 })
 
 test('profile: a signed-in student can open and save their profile', async ({ page }) => {
