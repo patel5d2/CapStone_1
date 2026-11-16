@@ -8,7 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
+import com.jonathansoriano.enterprisedevgroupproject.repository.StudentRepository;
+import com.jonathansoriano.enterprisedevgroupproject.profile.ProfilePrivacyRepository;
+import com.jonathansoriano.enterprisedevgroupproject.profile.ProfilePrivacy;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,11 +20,21 @@ public class PostService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final PostLikeRepository postLikeRepository;
+    private final StudentRepository studentRepository;
+    private final ProfilePrivacyRepository profilePrivacyRepository;
 
-    public PostService(PostRepository postRepository, CommentRepository commentRepository, PostLikeRepository postLikeRepository) {
+    public PostService(
+            PostRepository postRepository,
+            CommentRepository commentRepository,
+            PostLikeRepository postLikeRepository,
+            StudentRepository studentRepository,
+            ProfilePrivacyRepository profilePrivacyRepository) {
+
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
         this.postLikeRepository = postLikeRepository;
+        this.studentRepository = studentRepository;
+        this.profilePrivacyRepository = profilePrivacyRepository;
     }
 
     public List<PostResponse> list(Long groupId, String requesterEmail) {
@@ -40,6 +52,7 @@ public class PostService {
                 .imageUrl(request.getImageUrl())
                 .pinned(false)
                 .build());
+
         return toResponse(post, authorEmail);
     }
 
@@ -111,6 +124,7 @@ public class PostService {
         return PostResponse.builder()
                 .id(post.getId())
                 .authorEmail(post.getAuthorEmail())
+                .authorPhotoUrl(getAuthorPhotoUrl(post.getAuthorEmail()))
                 .groupId(post.getGroupId())
                 .content(post.getContent())
                 .imageUrl(post.getImageUrl())
@@ -120,5 +134,23 @@ public class PostService {
                 .likedByMe(likedByMe)
                 .createdAt(post.getCreatedAt())
                 .build();
+    }
+
+    private String getAuthorPhotoUrl(String authorEmail) {
+        Long studentId = studentRepository.findStudentIdByEmail(authorEmail);
+
+        if (studentId == null) {
+            return null;
+        }
+
+        boolean photoVisible = profilePrivacyRepository.findById(studentId)
+                .map(ProfilePrivacy::isShowPhoto)
+                .orElse(false);
+
+        if (!photoVisible) {
+            return null;
+        }
+
+        return studentRepository.findPhotoUrlByEmail(authorEmail);
     }
 }

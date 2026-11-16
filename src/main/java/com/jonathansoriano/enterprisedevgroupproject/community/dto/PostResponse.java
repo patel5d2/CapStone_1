@@ -14,6 +14,7 @@ import java.time.Instant;
 public class PostResponse {
     private Long id;
     private String authorEmail;
+    private String authorPhotoUrl;
     private Long groupId;
     private String content;
     private String imageUrl;

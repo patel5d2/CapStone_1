@@ -308,5 +308,38 @@ public class StudentRepository {
         StringBuilder sql = new StringBuilder(UPDATE_STUDENT_INFO);
         return jdbcTemplate.update(sql.toString(), params);
     }
+    public Long findStudentIdByEmail(String email) {
+        String sql = """
+            SELECT id
+            FROM student
+            WHERE LOWER(email) = LOWER(:email)
+            """;
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("email", email);
+
+        try {
+            return jdbcTemplate.queryForObject(sql, params, Long.class);
+        } catch (EmptyResultDataAccessException ex) {
+            return null;
+        }
+    }
+
+    public String findPhotoUrlByEmail(String email) {
+        String sql = """
+            SELECT photo_url
+            FROM student
+            WHERE LOWER(email) = LOWER(:email)
+            """;
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("email", email);
+
+        try {
+            return jdbcTemplate.queryForObject(sql, params, String.class);
+        } catch (EmptyResultDataAccessException ex) {
+            return null;
+        }
+    }
 
 }

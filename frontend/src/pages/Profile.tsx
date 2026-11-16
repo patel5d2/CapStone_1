@@ -128,26 +128,51 @@ export default function Profile() {
       edit(key, key === 'residentState' ? event.target.value.toUpperCase() : event.target.value),
   })
 
+
   const upload = async (selected: File) => {
     setFile(selected)
     setUploadError(null)
     setSaved(false)
+
     if (selected.size > 10_000_000) {
       setUploadError('Photo must be 10 MB or smaller. Choose a smaller file.')
       return
     }
+
     setUploading(true)
+
     try {
-      const response = await api.upload<ProfileImageResponse>('/api/profile-images', selected)
+      // Upload the image to CampusBridge / Cloudinary.
+      const response = await api.upload<ProfileImageResponse>(
+          '/api/profile-images',
+          selected
+      )
+
       setPhotoUrl(response.photoUrl)
       setFile(null)
-      push('Photo uploaded. Save your profile to keep it.', 'info')
+
+      // Also update the Clerk profile image used by UserButton.
+      try {
+        await user?.setProfileImage({ file: selected })
+        push('Profile photo uploaded and account avatar updated.', 'success')
+      } catch (error) {
+        console.error('Could not update Clerk profile image:', error)
+        push(
+            'Photo uploaded to CampusBridge, but the account avatar could not be updated.',
+            'error'
+        )
+      }
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Could not upload your photo. Try again.')
+      setUploadError(
+          error instanceof Error
+              ? error.message
+              : 'Could not upload your photo. Try again.'
+      )
     } finally {
       setUploading(false)
     }
   }
+
 
   const save = async () => {
     if (busy || file) return
