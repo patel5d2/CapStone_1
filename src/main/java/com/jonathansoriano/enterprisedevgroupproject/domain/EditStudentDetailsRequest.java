@@ -66,6 +66,4 @@ public class EditStudentDetailsRequest {
     @Pattern(regexp = ProfileFieldBounds.PHOTO_URL_PATTERN,
             message = "Photo must be an https:// web address")
     private String photoUrl;
-
-    private com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility visibility;
 }

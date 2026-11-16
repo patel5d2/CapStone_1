@@ -3,9 +3,8 @@ package com.jonathansoriano.enterprisedevgroupproject.admin.dto;
 /**
  * One student account as an administrator sees it.
  *
- * <p>Carries the email address and every profile field regardless of the student's
- * visibility choices: an administrator has to be able to tell two accounts apart before
- * editing or deleting one. It is returned only by {@code /api/admin} after the administrator
+ * <p>Carries the email address and social link, which the student directory never shows: an
+ * administrator has to be able to tell two accounts apart before editing or deleting one. It is returned only by {@code /api/admin} after the administrator
  * check, never by a student-facing endpoint, and it never includes the Clerk user id.
  *
  * @param universityName null when the row points at a school that no longer exists

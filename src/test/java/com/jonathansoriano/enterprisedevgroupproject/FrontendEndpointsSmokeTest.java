@@ -136,8 +136,7 @@ class FrontendEndpointsSmokeTest {
     private Map<String, Object> profile(String firstName, long schoolId) {
         return Map.of("firstName", firstName, "lastName", "Smoke", "residentCity", "Cincinnati",
                 "residentState", "OH", "universityId", schoolId, "grade", "Junior", "major", "Computer Science",
-                "email", "ignored@example.com", "visibility", Map.of("showMajor", true,
-                        "showGraduationYear", false, "showBio", false, "showPhoto", false));
+                "email", "ignored@example.com");
     }
 
     /** A Clerk session token as the frontend sends it, run through the app's own converter. */

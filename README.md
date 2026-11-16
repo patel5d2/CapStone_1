@@ -323,8 +323,8 @@ the **11 success criteria** in [1_overview.md](context/1_overview.md).
 - **TLS** is a deployment requirement; local examples use HTTP and termination remains
   unresolved. CampusBridge authentication stores no passwords (Clerk owns credentials);
   an unused legacy `app_user.password` column still needs cleanup.
-- **FERPA posture** — no registrar integration, data minimisation, user-controlled field
-  visibility as a requirement. Avoiding registrar integration alone is not a legal
+- **FERPA posture** — no registrar integration, data minimisation, and one fixed list of
+  profile fields that other students see (never email or social link). Avoiding registrar integration alone is not a legal
   exemption; applicability depends on the data and institutional relationship.
   See the [Department of Education's FERPA overview](https://studentprivacy.ed.gov/faq/what-ferpa).
 - **Ohio Rev. Code § 1349.19** — the project calls for a written breach-response and
