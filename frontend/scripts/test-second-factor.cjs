@@ -23,8 +23,14 @@ function loadApp(mocks) {
   return module.exports
 }
 
-function render(factorVerificationAge, { profile = 'complete', signupStep = false, retryable = true } = {}) {
+// `admin` is what useAdminAccess answers (#113): 'checking', 'failed', or the server's
+// { admin, hasStudentProfile }. The default is an ordinary student.
+function render(factorVerificationAge, {
+  profile = 'complete', signupStep = false, retryable = true, adminArea = false, refused = false,
+  admin = { admin: false, hasStudentProfile: true },
+} = {}) {
   const profileCheckedFor = []
+  const adminCheckedFor = []
   const { RequireAuth } = loadApp({
     react: { useEffect: () => {}, useRef: () => ({ current: false }), useState: (v) => [v, () => {}] },
     'react-router-dom': { Navigate: 'Navigate' },
@@ -36,11 +42,15 @@ function render(factorVerificationAge, { profile = 'complete', signupStep = fals
     './lib/institutionalEmail': { isInstitutionalEmail: () => true },
     './lib/profileGate': { useProfileCheck: (userId) => {
       profileCheckedFor.push(userId)
-      return { status: profile, message: 'Service unavailable', retryable, retry: () => {} }
+      return { status: profile, message: 'Service unavailable', retryable, refused, retry: () => {} }
+    } },
+    './hooks/useAdminAccess': { useAdminAccess: (userId) => {
+      adminCheckedFor.push(userId)
+      return typeof admin === 'string' ? { status: admin, retry: () => {} } : { status: 'ready', ...admin, retry: () => {} }
     } },
     './components/ui/Feedback': { Spinner: 'Spinner' },
   })
-  return { view: RequireAuth({ children: 'page', signupStep }), profileCheckedFor }
+  return { view: RequireAuth({ children: 'page', signupStep, adminArea }), profileCheckedFor, adminCheckedFor }
 }
 
 test('just signed up: second factor enrolled but never verified -> confirm it, no profile check', () => {
@@ -98,4 +108,65 @@ test('profile bound to another Clerk account -> the refusal is shown without a p
   const text = JSON.stringify(card)
   assert.match(text, /This email already has a profile/)
   assert.doesNotMatch(text, /Try again/)
+})
+
+// #113: a banned account. The server answers 403 to the profile check; the app stays shut
+// and says why, with no retry and no way into any page, the admin page included.
+test('banned account -> told so in the server\'s words, on every gate, with nothing to retry', () => {
+  for (const gate of [{}, { signupStep: true }, { adminArea: true, admin: { admin: true, hasStudentProfile: true } }]) {
+    const { view } = render([0, 0], { profile: 'failed', retryable: false, refused: true, ...gate })
+    assert.equal(view.type.name, 'AccessRefused')
+    const text = JSON.stringify(view.type(view.props))
+    assert.match(text, /Service unavailable/)
+    assert.doesNotMatch(text, /Try again/)
+  }
+})
+
+// #113: account management is for administrators. This is the UI half of the rule; the
+// server half is AdminAccess, which refuses the same people on every /api/admin request.
+const ADMIN_WITH_PROFILE = { admin: true, hasStudentProfile: true }
+const DEDICATED_ADMIN = { admin: true, hasStudentProfile: false }
+
+test('admin page: a student is refused and the page is never rendered', () => {
+  const { view } = render([0, 0], { adminArea: true })
+  assert.equal(view.type.name, 'AdministratorsOnly')
+  assert.doesNotMatch(JSON.stringify(view), /page/)
+  assert.match(JSON.stringify(view.type(view.props)), /does not have administrator access/)
+})
+
+test('admin page: an administrator gets in, with or without a student profile', () => {
+  assert.equal(render([0, 0], { adminArea: true, admin: ADMIN_WITH_PROFILE }).view.props.children, 'page')
+  assert.equal(render([0, 0], { adminArea: true, admin: DEDICATED_ADMIN, profile: 'missing' }).view.props.children, 'page')
+})
+
+test('admin page: stays closed while the check runs, and offers a retry if it fails', () => {
+  assert.equal(render([0, 0], { adminArea: true, admin: 'checking' }).view.type, 'Spinner')
+  const { view } = render([0, 0], { adminArea: true, admin: 'failed' })
+  assert.equal(view.type.name, 'AccountCheckFailed')
+  assert.equal(typeof view.props.onRetry, 'function')
+})
+
+test('admin page: an unverified second factor is confirmed first, and nothing is asked before it', () => {
+  const { view, adminCheckedFor } = render([0, -1], { adminArea: true, admin: ADMIN_WITH_PROFILE })
+  assert.equal(view.type.name, 'ConfirmSecondFactor')
+  assert.deepEqual(adminCheckedFor, [undefined])
+})
+
+test('dedicated administrator account: sent to the admin page, never to the sign-up profile step', () => {
+  for (const signupStep of [false, true]) {
+    const { view } = render([0, 0], { profile: 'missing', signupStep, admin: DEDICATED_ADMIN })
+    assert.equal(view.type, 'Navigate')
+    assert.equal(view.props.to, '/admin')
+  }
+})
+
+test('no profile and the administrator check unknown -> wait or retry, do not guess', () => {
+  assert.equal(render([0, 0], { profile: 'missing', admin: 'checking' }).view.type, 'Spinner')
+  assert.equal(render([0, 0], { profile: 'missing', admin: 'failed' }).view.type.name, 'AccountCheckFailed')
+})
+
+test('existing student flow is unchanged: a student with a profile never waits on the administrator check', () => {
+  for (const admin of ['checking', 'failed', ADMIN_WITH_PROFILE]) {
+    assert.equal(render([0, 0], { admin }).view.props.children, 'page')
+  }
 })

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import { SignOutButton, useAuth, useClerk, useReverification, useSession, useUser } from '@clerk/clerk-react'
 import { isReverificationCancelledError } from '@clerk/clerk-react/errors'
 import { GraduationCap, ShieldCheck } from 'lucide-react'
@@ -7,6 +7,7 @@ import { AppShell } from './components/layout/AppShell'
 import { setTokenGetter } from './lib/authToken'
 import { isInstitutionalEmail } from './lib/institutionalEmail'
 import { useProfileCheck } from './lib/profileGate'
+import { useAdminAccess } from './hooks/useAdminAccess'
 import { applySchoolTheme, slugForSchool } from './lib/schoolTheme'
 import { api, ApiError } from './lib/api'
 import type { StudentAccountDetails } from './types'
@@ -21,6 +22,7 @@ import Messages from './pages/Messages'
 import Community from './pages/Community'
 import Support from './pages/Support'
 import Profile from './pages/Profile'
+import Admin from './pages/Admin'
 import SetupMfaPage from './pages/SetupMfaPage'
 import { AuthSessionGate } from './components/AuthSessionGate'
 
@@ -216,13 +218,64 @@ function AccountCheckFailed({ message, onRetry }: { message: string; onRetry?: (
 }
 
 /**
+ * The server refuses this account outright: an administrator has banned it (#113). There
+ * is nothing to retry and no page to offer, so the reason is shown once, in the server's
+ * own words, with the only thing left to do. Without this every tab would open and fill
+ * with failed requests.
+ */
+function AccessRefused({ message }: { message: string }) {
+  return (
+    <div className="mx-auto max-w-md px-4 py-16 text-center">
+      <div className="card flex flex-col items-center gap-4 px-6 py-12">
+        <h1 className="text-xl font-extrabold tracking-tight">You can&rsquo;t use CampusBridge</h1>
+        <p role="alert" className="text-sm text-[var(--color-ink-muted)]">{message}</p>
+        <SignOutButton>
+          <button className="btn-primary">Sign out</button>
+        </SignOutButton>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A signed-in student opened /admin. They are told plainly rather than bounced, so a
+ * mistyped or shared link does not look like a broken page. Nothing was loaded for them:
+ * the page that fetches accounts is never rendered, and the server would refuse it anyway.
+ */
+function AdministratorsOnly() {
+  return (
+    <div className="mx-auto max-w-md px-4 py-16 text-center">
+      <div className="card flex flex-col items-center gap-4 px-6 py-12">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-900/40 dark:text-primary-200">
+          <ShieldCheck className="h-6 w-6" />
+        </span>
+        <h1 className="text-xl font-extrabold tracking-tight">Administrators only</h1>
+        <p role="alert" className="text-sm text-[var(--color-ink-muted)]">
+          Account management is for CampusBridge administrators. Your account does not have administrator access.
+        </p>
+        <Link to="/marketplace" className="btn-primary">Back to CampusBridge</Link>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Signed in, allowed, and registered: the student account/profile exists. Creating it is
  * the last step of sign-up (#114), so a student without one is sent to /sign-up/profile
  * from every page and never sees the app. `signupStep` is that page's own gate, the
  * inverse: it admits only a student with no profile yet and sends everyone else into the
  * app, so a registered student is never asked to set up again.
+ *
+ * `adminArea` (#113) admits administrators only and shows everyone else a refusal. A
+ * dedicated administrator account has no student profile and is never asked to make one:
+ * from any other page it is sent to /admin instead of to the sign-up step. This is the UI
+ * half of the rule; the server refuses the same people on every /api/admin request.
  */
-export function RequireAuth({ children, signupStep = false }: { children: ReactNode; signupStep?: boolean }) {
+export function RequireAuth({ children, signupStep = false, adminArea = false }: {
+  children: ReactNode
+  signupStep?: boolean
+  adminArea?: boolean
+}) {
   const { isLoaded, isSignedIn } = useAuth()
   const { isLoaded: sessionLoaded, session } = useSession()
   const { user } = useUser()
@@ -230,7 +283,9 @@ export function RequireAuth({ children, signupStep = false }: { children: ReactN
     && secondFactorUnverified(session?.factorVerificationAge)
   // Held back until the second factor is verified: before then every API call is refused,
   // and the profile check would read that refusal as "profile exists".
-  const profile = useProfileCheck(isSignedIn && !needsSecondFactor ? user?.id : undefined)
+  const checkedUserId = isSignedIn && !needsSecondFactor ? user?.id : undefined
+  const profile = useProfileCheck(checkedUserId)
+  const admin = useAdminAccess(checkedUserId)
   if (!isLoaded || !sessionLoaded) return <Spinner />
   if (session?.currentTask?.key === 'setup-mfa') {
     return <Navigate to="/session-tasks/setup-mfa" replace />
@@ -245,7 +300,18 @@ export function RequireAuth({ children, signupStep = false }: { children: ReactN
   if (needsSecondFactor) return <ConfirmSecondFactor signup={signupStep} />
   if (profile.status === 'checking') return <Spinner />
   if (profile.status === 'failed') {
+    if (profile.refused) return <AccessRefused message={profile.message} />
     return <AccountCheckFailed message={profile.message} onRetry={profile.retryable ? profile.retry : undefined} />
+  }
+  // The administrator answer only matters on the admin page and for an account with no
+  // profile, so an ordinary student on an ordinary page never waits on it.
+  if (adminArea || profile.status === 'missing') {
+    if (admin.status === 'checking') return <Spinner />
+    if (admin.status === 'failed') {
+      return <AccountCheckFailed message="CampusBridge could not check what your account can access." onRetry={admin.retry} />
+    }
+    if (adminArea) return admin.admin ? <>{children}</> : <AdministratorsOnly />
+    if (admin.admin) return <Navigate to="/admin" replace />
   }
   if (signupStep && profile.status === 'complete') return <Navigate to="/marketplace" replace />
   if (!signupStep && profile.status === 'missing') return <Navigate to="/sign-up/profile" replace />
@@ -326,6 +392,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <Profile />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RequireAuth adminArea>
+                <Admin />
               </RequireAuth>
             }
           />

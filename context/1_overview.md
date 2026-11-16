@@ -43,7 +43,7 @@ eight seeded schools (see [UI design](4_ui_design.md#school-theming--objective-8
 |---|---|---|
 | **Visitor** | Not signed in | Landing and authentication pages; no protected application data |
 | **Student** | Clerk account on a verified institutional email | Everything except moderation |
-| **Admin** | Proposed Clerk metadata capability | Delete listings, suspend accounts, process reports, manage schools and categories |
+| **Admin** | `app_user.role = ADMIN`, granted from `CAMPUSBRIDGE_ADMIN_EMAILS` (#113, Proposed decision 022; a Clerk metadata flag was the earlier proposal) | **Built at `/admin`:** find, edit, ban and delete student accounts; delete listings and review or dismiss the reports on them; delete posts, comments, groups and events; close or delete support requests; add, edit and delete campus support resources; review reports about students. **Planned:** manage schools and categories |
 
 The target authorization model combines ownership checks with an admin capability.
 Currently the app validates Clerk JWTs and uses email-based ownership; admin

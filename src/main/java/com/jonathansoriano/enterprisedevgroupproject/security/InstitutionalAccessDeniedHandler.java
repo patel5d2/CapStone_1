@@ -26,10 +26,13 @@ public class InstitutionalAccessDeniedHandler implements AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
     private final InstitutionalAccessPolicy policy;
+    private final AccountBans bans;
 
-    public InstitutionalAccessDeniedHandler(ObjectMapper objectMapper, InstitutionalAccessPolicy policy) {
+    public InstitutionalAccessDeniedHandler(ObjectMapper objectMapper, InstitutionalAccessPolicy policy,
+                                            AccountBans bans) {
         this.objectMapper = objectMapper;
         this.policy = policy;
+        this.bans = bans;
     }
 
     @Override
@@ -40,9 +43,18 @@ public class InstitutionalAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
         ExceptionWrapper body = new ExceptionWrapper(
-                HttpStatus.FORBIDDEN.value(), reasonFor(currentEmail()), request.getRequestURI());
+                HttpStatus.FORBIDDEN.value(), reason(), request.getRequestURI());
 
         objectMapper.writeValue(response.getOutputStream(), body);
+    }
+
+    /** A ban (#113) is named first: it is the reason that applies whatever else is true. */
+    private String reason() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwt && bans.isBanned(jwt.getToken())) {
+            return AccountBans.BANNED_MESSAGE;
+        }
+        return reasonFor(currentEmail());
     }
 
     /**

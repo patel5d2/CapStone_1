@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.community;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +10,16 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface GroupRepository extends JpaRepository<Group, Long> {
+
+    /** Every group whose name, description or creator matches; for an administrator (#113). */
+    @Query("""
+            SELECT g FROM Group g
+            WHERE LOWER(g.name) LIKE :pattern ESCAPE '!'
+               OR LOWER(g.description) LIKE :pattern ESCAPE '!'
+               OR LOWER(g.createdByEmail) LIKE :pattern ESCAPE '!'
+            """)
+    Page<Group> adminSearch(@Param("pattern") String pattern, Pageable pageable);
+
 
     @Query("""
             SELECT g FROM Group g

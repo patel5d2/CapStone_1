@@ -1,5 +1,7 @@
 package com.jonathansoriano.enterprisedevgroupproject.marketplace;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +20,28 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
             WHERE seller_subject IS NULL AND lower(seller_email) = lower(:email)
             """)
     int claim(@Param("email") String email, @Param("subject") String subject);
+
+    /**
+     * Every listing whose title, description or seller matches, for an administrator (#113);
+     * with {@code reportedOnly}, just the ones at least one student has reported.
+     */
+    @Query(value = """
+            SELECT l FROM Listing l
+            WHERE (LOWER(l.title) LIKE :pattern ESCAPE '!'
+                   OR LOWER(l.description) LIKE :pattern ESCAPE '!'
+                   OR LOWER(l.sellerEmail) LIKE :pattern ESCAPE '!')
+              AND (:reportedOnly = FALSE
+                   OR EXISTS (SELECT r.id FROM ListingReport r WHERE r.listingId = l.id))
+            """, countQuery = """
+            SELECT COUNT(l) FROM Listing l
+            WHERE (LOWER(l.title) LIKE :pattern ESCAPE '!'
+                   OR LOWER(l.description) LIKE :pattern ESCAPE '!'
+                   OR LOWER(l.sellerEmail) LIKE :pattern ESCAPE '!')
+              AND (:reportedOnly = FALSE
+                   OR EXISTS (SELECT r.id FROM ListingReport r WHERE r.listingId = l.id))
+            """)
+    Page<Listing> adminSearch(@Param("pattern") String pattern, @Param("reportedOnly") boolean reportedOnly,
+                              Pageable pageable);
 
     @Query("""
             SELECT l FROM Listing l
