@@ -82,8 +82,8 @@ constitute team approval or completed implementation.
 2. **Profile sync (proposed implementation)** — a `user.created` webhook creates the
    student record keyed by **Clerk user ID**; the email domain maps to the school.
    Today profile creation is an explicit API action and ownership uses email.
-3. **Complete profile** — name, school, major, graduation year, bio, photo, and
-   per-field privacy settings.
+3. **Complete profile** — name, school, major, graduation year, bio and photo. There
+   are no per-field privacy settings (#112): every profile shows the same fields.
 4. **List an item** — title, description, category, price, condition, pickup
    location, up to five photos.
 5. **Find an item** — filter by school, category, price range, condition; sort by

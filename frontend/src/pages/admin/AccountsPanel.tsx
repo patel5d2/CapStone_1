@@ -220,7 +220,7 @@ export default function AccountsPanel() {
             deleting.hasSignIn
               ? 'Their sign-in is removed. They are signed out and can no longer sign in to CampusBridge.'
               : 'Nobody has signed in to this profile. If a sign-in is registered to its email, that is removed too.',
-            'Their profile and privacy settings are deleted, and they disappear from the student directory.',
+            'Their profile is deleted, and they disappear from the student directory.',
             alsoBan
               ? 'This email is banned, so signing up again will not bring them back.'
               : 'They can sign up again with the same email as a new student, unless you also ban it below.',

@@ -86,17 +86,19 @@ test.beforeEach(async ({ page }) => {
 test('profile: a signed-in student can open and save their profile', async ({ page }) => {
   await page.goto('/profile')
   await expect(page.getByRole('heading', { name: /complete your profile|my profile/i })).toBeVisible()
+  // #112: no per-field visibility controls; the page states what other students see instead.
+  await expect(page.getByLabel(/visibility/i)).toHaveCount(0)
+  await expect(page.getByText(/other students can see your name/i)).toBeVisible()
   const isNew = await page.getByRole('heading', { name: /complete your profile/i }).isVisible()
   if (isNew) {
     await page.getByLabel(/^School/).selectOption({ index: 1 })
-    // By role: "Major visibility" under Optional details is also labelled "Major…".
     await page.getByRole('textbox', { name: /^Major/ }).fill('Information Technology')
     await page.getByLabel(/^City/).fill('Cincinnati')
     await page.getByLabel(/^State/).selectOption('OH')
   }
   await page.getByRole('button', { name: /save profile/i }).click()
   // A first save is the end of sign-up and says so; later saves confirm the save.
-  await expect(page.getByText(/welcome to campusbridge|profile and visibility saved/i).first()).toBeVisible()
+  await expect(page.getByText(/welcome to campusbridge|profile saved/i).first()).toBeVisible()
 })
 
 test('marketplace: post, find in My listings, then delete a listing', async ({ page }) => {

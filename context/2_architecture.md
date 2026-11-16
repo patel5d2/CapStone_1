@@ -10,10 +10,11 @@ User-authorized S1-08 dependency work uses Cloudinary through a server-side sign
 upload relay, with no SDK or new dependency. `CLOUDINARY_URL` is server-only. Uploads
 are bounded to 10 MB, 4000 × 4000, JPEG/PNG/WebP; the application tracks ownership
 and retries deletion of replaced images and uploads abandoned for 24 hours. An hourly
-bounded worker owns cleanup. Profile fields and visibility save in one transaction;
-major, graduation year, bio and photo default private, including legacy profiles.
-Directory responses omit email/social contacts; private major values cannot match
-search. The directory's contact action addresses a student by its database id.
+bounded worker owns cleanup. Profile fields and the photo attachment save in one
+transaction. Every profile shows other students the same fields (#112, Proposed
+decision 024): name, school, year of study, city/state, major, graduation year, bio
+and photo; a student cannot hide any of them. Directory responses omit email/social
+contacts. The directory's contact action addresses a student by its database id.
 These are implementation directions, **Proposed** pending the Rule 8 minutes. The
 existing contact-bearing DTOs outside the directory remain separate S1-07 debt.
 
@@ -49,8 +50,11 @@ map directly to graded contract objectives.
    landing page is the only anonymous surface.
 4. **Personal contact details are never exposed to another user.** All communication is
    in-platform. Email addresses are never returned by a public-facing API.
-5. **Profile field visibility is the user's choice.** Any field the user marks private is
-   filtered server-side, never merely hidden in the client.
+5. **Profile field visibility is one rule for everyone, enforced server-side.** Other
+   students see the approved fields (name, school, year of study, city/state, major,
+   graduation year, bio, photo) and nothing else; anything outside that list is left out
+   of the response, never merely hidden in the client. Until #112 (Proposed decision 024)
+   this was the user's choice per field.
 6. **All SQL is parameterised.** No string-concatenated queries, ever. *(OWASP A03)*
 7. **Schema changes happen only through a migration.** Never `ddl-auto`, never a manual
    `ALTER`, never an edit to an applied migration.
@@ -156,7 +160,7 @@ changed email orphans that user's rows.
   403 with the reason. It matches the token's address, or the profile bound to the token's
   subject, so signing up again, deleting the account first, and changing the address in
   Clerk all stay banned. A banned profile is kept but left out of the directory.
-- Email is display data, subject to invariant 4 and the user's privacy settings.
+- Email is display data, subject to invariant 4: never shown to another student.
 
 **Current state:** ownership is keyed on **email** across 16 entity columns and 37
 `CurrentUser.emailOf(...)` call sites. Migrating this is Sprint 1 (ADR-005 reversal).
@@ -186,7 +190,7 @@ SPA mirrors it in `ALLOWED_TYPES` (`pages/Marketplace.tsx`) to filter its dropdo
 the two in step. No schema change: rows stored before the rule keep their type until edited.
 
 **Planned tables:** `school_domain`, `offer`, `seller_review`, `notification`,
-`meetup_spot`, `profile_privacy`.
+`meetup_spot`. (`profile_privacy` was built, then removed by #112.)
 
 ## Data flows
 
@@ -297,7 +301,7 @@ From the contract's Ethical and Legal Considerations — these bind the architec
   storage. CampusBridge stores no passwords. Record this so a reader looking for
   bcrypt in the codebase understands why there is none.
 - **Ohio Rev. Code § 1349.19** — a written breach-notification procedure is required.
-- **FERPA posture** — no registrar data; data minimisation; user-controlled field
-  visibility.
+- **FERPA posture** — no registrar data; data minimisation; a fixed, published list of
+  the profile fields other students see, with contact details never on it.
 - **WCAG 2.1 AA** — including contrast across every school theme.
 - **ACM Code of Ethics** — reject a convenient feature that needlessly exposes user data.

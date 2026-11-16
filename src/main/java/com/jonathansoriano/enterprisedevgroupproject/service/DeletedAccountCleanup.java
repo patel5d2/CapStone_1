@@ -24,9 +24,9 @@ import java.util.Map;
  * that an administrator's delete went through ({@code ClerkAccountDeletion}, #113). It is
  * never called on an address match alone.
  *
- * <p><b>What goes and what stays.</b> The {@code student} row goes, and with it the privacy
- * choices (cascade) and the link from any uploaded photo (set null). The {@code app_user}
- * row on the same address goes, and the webhook's record of the identity. Listings, messages
+ * <p><b>What goes and what stays.</b> The {@code student} row goes, and with it the link
+ * from any uploaded photo (set null). The {@code app_user} row on the same address goes,
+ * and the webhook's record of the identity. Listings, messages
  * and posts stay: they are keyed on the old subject, which no future account can present,
  * so they belong to nobody rather than to whoever takes the address next. Erasing those too
  * is Open Question 14.

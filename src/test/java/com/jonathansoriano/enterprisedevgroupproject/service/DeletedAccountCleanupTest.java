@@ -37,7 +37,6 @@ class DeletedAccountCleanupTest {
         clear();
         long deleted = insertStudent(DELETED, DELETED_EMAIL);
         insertStudent(BYSTANDER, BYSTANDER_EMAIL);
-        jdbc.update("INSERT INTO profile_privacy (student_id, show_major) VALUES (?, true)", deleted);
         jdbc.update("INSERT INTO image_asset (id, owner_subject, public_id, student_id) VALUES ('cleanup-asset', ?, 'cleanup/photo', ?)",
                 DELETED, deleted);
         for (String subject : new String[]{DELETED, BYSTANDER}) {
@@ -74,8 +73,6 @@ class DeletedAccountCleanupTest {
         // insertNewStudent refuses an address app_user still holds, so this must go too.
         assertEquals(0, count("app_user", "email", DELETED_EMAIL));
         assertEquals(0, count("clerk_identity", "clerk_user_id", DELETED));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM profile_privacy p WHERE NOT EXISTS "
-                + "(SELECT 1 FROM student s WHERE s.id = p.student_id)", Integer.class), "privacy choices go with the profile");
         // The photo record survives for the image cleanup job, no longer pointing at anyone.
         assertNull(jdbc.queryForObject("SELECT student_id FROM image_asset WHERE id = 'cleanup-asset'", Long.class));
     }

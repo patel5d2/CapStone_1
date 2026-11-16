@@ -73,7 +73,6 @@ class AdminAccountServiceTest {
         studentId = insertStudent("Zelda", "Admintest", STUDENT_EMAIL, STUDENT_SUBJECT);
         unboundId = insertStudent("Yusuf", "Admintest", UNBOUND_EMAIL, null);
         jdbc.update("UPDATE student SET photo_url = 'https://example.com/zelda.png' WHERE id = ?", studentId);
-        jdbc.update("INSERT INTO profile_privacy (student_id, show_major) VALUES (?, false)", studentId);
     }
 
     @AfterEach
@@ -268,15 +267,13 @@ class AdminAccountServiceTest {
     }
 
     @Test
-    void anUpdateLeavesIdentityPhotoAndPrivacyAlone() {
+    void anUpdateLeavesIdentityAndPhotoAlone() {
         service.update(admin(), studentId, edit().build());
 
         Map<String, Object> after = row(studentId);
         assertEquals(STUDENT_EMAIL, after.get("email"));
         assertEquals(STUDENT_SUBJECT, after.get("clerk_user_id"));
         assertEquals("https://example.com/zelda.png", after.get("photo_url"));
-        assertEquals(false, jdbc.queryForObject(
-                "SELECT show_major FROM profile_privacy WHERE student_id = ?", Boolean.class, studentId));
         assertEquals("USER", jdbc.queryForObject("SELECT role FROM app_user WHERE email = ?", String.class, STUDENT_EMAIL));
     }
 
@@ -321,8 +318,6 @@ class AdminAccountServiceTest {
         verify(clerk).delete(STUDENT_SUBJECT, ADMIN_SUBJECT);
         assertNull(row(studentId));
         assertEquals(0, count("app_user", STUDENT_EMAIL));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM profile_privacy WHERE student_id = ?",
-                Integer.class, studentId));
         // No longer an active student account anywhere an administrator or a student looks.
         assertThrows(SearchNotFoundException.class, () -> service.get(admin(), studentId));
         assertThrows(SearchNotFoundException.class, () -> students.findByEmail(STUDENT_EMAIL));

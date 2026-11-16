@@ -589,6 +589,7 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 021 | Listing type is limited by category: no `RENT` for clothes, event tickets or furniture | Renting those makes no sense for students and cluttered the filters. Enforced server-side (400) so the API cannot bypass the UI; the SPA keeps a mirrored table. Whether electronics should stay rentable is open | **Proposed** — implemented 2026-11-02 (#110). Needs a vote (Rule 8) |
 | 022 | The administrator capability is `app_user.role = 'ADMIN'`, granted from server configuration (`CAMPUSBRIDGE_ADMIN_EMAILS`), not a Clerk metadata flag | Works with no Clerk dashboard change and no schema change (the column already exists); the grant never enters the repository; no request can change a role. An admin may edit a student's profile fields and school, not their email, photo or privacy choices. Deleting an account removes the Clerk sign-in first and the profile only after Clerk confirms | **Proposed** — implemented 2026-11-16 (#113). Needs a vote (Rule 8); see Open Question 15 |
 | 023 | A ban is `app_user.role = 'BANNED'` on the email address, checked on every request; administrators remove student content but never edit it; support requests stay anonymous to administrators | No schema change, so it works on the dev database as it is. Banning the address is what stops a banned student signing up again; checking per request makes a ban, and lifting one, immediate. Removing rather than editing means nothing appears under a student's name that they did not write | **Proposed** — implemented 2026-11-16 (#113). Needs a vote (Rule 8) |
+| 024 | Students no longer choose which profile fields other students see; every profile shows the same approved fields | Issue #112. One rule is simpler to explain and to test than four switches per student, and the directory and its major search work for every profile. Shown: name, school, year of study, city/state, major, graduation year, bio, photo. Never shown: email and social link (invariant 4, unchanged). Rewrites invariant 5. The `profile_privacy` table and its classes are removed. **Effect on existing students:** fields a student had set to "Only me" (the default) are now visible to other signed-in students | **Proposed** — implemented 2026-11-16 (#112). Needs a vote (Rule 8) |
 
 ---
 
@@ -894,3 +895,14 @@ Raise at the next weekly meeting. Do not guess these in code.
     **Not verified:** any of it against a real Clerk sign-in or the dev Postgres database
     (the tests run on H2), a real Clerk delete (the Backend API is stood in for by a local
     server in `ClerkAccountDeletionTest`), light mode, and Firefox/Safari.
+- **Profile visibility controls removed, #112 (2026-11-16), on top of #113.** My profile
+  no longer has the four "visibility" dropdowns; it states what other students see
+  instead. The directory returns major, graduation year, bio and photo for every profile
+  and still never returns email or social link (decision 024, which rewrites invariant 5).
+  Removed: `ProfilePrivacy`, `ProfilePrivacyRepository`, `ProfileVisibility`, the
+  `visibility` field on the profile request and response objects, and the
+  `profile_privacy` table in `schema.sql`. A request that still sends `visibility` (a page
+  loaded before the change) is accepted and the field ignored.
+  - **Existing databases:** H2 is rebuilt from `schema.sql` on every start. The dev (Aiven)
+    and neon databases keep an unused `profile_privacy` table until someone runs
+    `DROP TABLE IF EXISTS profile_privacy;`. Nothing reads it and startup does not check it.
