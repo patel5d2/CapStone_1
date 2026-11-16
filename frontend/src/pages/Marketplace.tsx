@@ -62,6 +62,30 @@ export default function Marketplace() {
   const [saving, setSaving] = useState(false)
   // Set while editing an existing listing; null means the form creates a new one.
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [galleryPhotos, setGalleryPhotos] = useState<ListingImage[]>([])
+  const [galleryIndex, setGalleryIndex] = useState(0)
+
+  const openGallery = (photos: ListingImage[], index: number) => {
+    setGalleryPhotos(photos)
+    setGalleryIndex(index)
+  }
+
+  const closeGallery = () => {
+    setGalleryPhotos([])
+    setGalleryIndex(0)
+  }
+
+  const previousPhoto = () => {
+    setGalleryIndex((current) =>
+        (current - 1 + galleryPhotos.length) % galleryPhotos.length,
+    )
+  }
+
+  const nextPhoto = () => {
+    setGalleryIndex((current) =>
+        (current + 1) % galleryPhotos.length,
+    )
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -86,7 +110,25 @@ export default function Marketplace() {
     // itself re-runs the query automatically.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view])
+  useEffect(() => {
+    if (galleryPhotos.length === 0) return
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeGallery()
+      } else if (event.key === 'ArrowLeft') {
+        previousPhoto()
+      } else if (event.key === 'ArrowRight') {
+        nextPhoto()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [galleryPhotos, galleryIndex])
   const closeForm = () => {
     setCreateOpen(false)
     setEditingId(null)
@@ -380,6 +422,7 @@ export default function Marketplace() {
               onDelete={() => remove(listing)}
               onReport={() => report(listing)}
               onEdit={() => openEdit(listing)}
+              onOpenGallery={openGallery}
             />
           ))}
         </div>
@@ -551,6 +594,71 @@ export default function Marketplace() {
           </div>
         </div>
       </Modal>
+      {galleryPhotos.length > 0 && (
+          <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+              onClick={closeGallery}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Listing photo gallery"
+          >
+            {/* Close button */}
+            <button
+                type="button"
+                onClick={closeGallery}
+                className="absolute right-5 top-5 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+                aria-label="Close gallery"
+            >
+              <span className="text-2xl leading-none">&times;</span>
+            </button>
+
+            {/* Previous image */}
+            {galleryPhotos.length > 1 && (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      previousPhoto()
+                    }}
+                    className="absolute left-4 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+                    aria-label="Previous image"
+                >
+                  <span className="text-3xl leading-none">&lsaquo;</span>
+                </button>
+            )}
+
+            {/* Enlarged image */}
+            <div
+                className="flex h-full max-h-[85vh] w-full max-w-6xl flex-col items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                  src={galleryPhotos[galleryIndex].photoUrl}
+                  alt={`Listing photo ${galleryIndex + 1}`}
+                  className="max-h-[75vh] max-w-full rounded-lg object-contain"
+              />
+
+              <p className="mt-4 text-sm text-white">
+                {galleryIndex + 1} / {galleryPhotos.length}
+              </p>
+            </div>
+
+            {/* Next image */}
+            {galleryPhotos.length > 1 && (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      nextPhoto()
+                    }}
+                    className="absolute right-4 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+                    aria-label="Next image"
+                >
+                  <span className="text-3xl leading-none">&rsaquo;</span>
+                </button>
+            )}
+          </div>
+      )}
     </>
   )
 }
@@ -565,6 +673,7 @@ function ListingCard({
   onDelete,
   onReport,
   onEdit,
+  onOpenGallery,
 }: {
   listing: Listing
   schoolName: string | null
@@ -575,6 +684,7 @@ function ListingCard({
   onDelete: () => void
   onReport: () => void
   onEdit: () => void
+  onOpenGallery: (photos: ListingImage[], index: number) => void
 }) {
   const priceLabel =
     listing.price != null
@@ -593,15 +703,22 @@ function ListingCard({
       {listing.photos && listing.photos.length > 0 && (
           <div className="grid grid-cols-2 gap-1">
             {listing.photos.slice(0, 4).map((photo, index) => (
-                <img
+                <button
                     key={photo.id}
-                    src={photo.photoUrl}
-                    alt={`${listing.title} photo ${index + 1}`}
-                    className="h-40 w-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }}
-                />
+                    type="button"
+                    className="group relative cursor-pointer overflow-hidden"
+                    onClick={() => onOpenGallery(listing.photos, index)}
+                    aria-label={`View photo ${index + 1} of ${listing.photos.length}`}
+                >
+                  <img
+                      src={photo.photoUrl}
+                      alt={`${listing.title} photo ${index + 1}`}
+                      className="h-40 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                  />
+                </button>
             ))}
           </div>
       )}
