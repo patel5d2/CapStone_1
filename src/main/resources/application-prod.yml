@@ -1,2 +1,26 @@
-# Production. Uses the same H2 in-memory datasource as application.yml: all data is
-# lost whenever the application restarts.
+# Production: the deployed backend on VM 104. Its PostgreSQL database is whatever the three
+# variables below name. Nothing about it is in the repository: the deploy job writes them
+# to /opt/campusbridge/production.env from the GitHub `production` environment's secrets, and
+# the campusbridge service loads that file. To move production to another database, change
+# those secrets and redeploy.
+#
+# There are no defaults on purpose. A missing value stops startup instead of quietly
+# falling back to the in-memory H2 in application.yml, which would lose every write on the
+# next restart. A missing DATABASE_URL shows up as: 'url' must start with "jdbc".
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    # Same reasons as application-dev.yml: Aiven drops idle connections, and its
+    # connection limit is shared with every developer's backend while prod points at it.
+    hikari:
+      max-lifetime: 300000   # 5 min
+      keepalive-time: 120000 # 2 min
+      maximum-pool-size: 5
+      minimum-idle: 1
+  # The schema is applied to this database by hand, never by startup; Hibernate still
+  # validates it (ddl-auto: validate in application.yml) and refuses to start on drift.
+  sql:
+    init:
+      mode: never

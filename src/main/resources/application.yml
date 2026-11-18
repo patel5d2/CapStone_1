@@ -1,7 +1,14 @@
 spring:
   profiles:
-    active: default #- second application.yml file name has to have dev in it for Spring Boot to load it. (application-dev.yml)
-                    #- we can go back to the base application.yml file with the 'default' profile.
+    # With no profile chosen, the app runs on the shared Aiven PostgreSQL database
+    # (application-dev.yml), so data survives a restart. DATABASE_PASSWORD must be set, in
+    # the git-ignored .env at the project root or the environment. For the throwaway
+    # in-memory H2 database below, choose the 'default' profile instead:
+    #   ./mvnw spring-boot:run -Dspring-boot.run.profiles=default
+    # Tests always use H2 (src/test/resources/application.properties); so do the Playwright
+    # run and the CI container check (SPRING_PROFILES_ACTIVE=default). The deployed backend
+    # runs 'prod', whose database comes from GitHub secrets (application-prod.yml).
+    default: dev
 
   servlet:
     multipart:
@@ -11,9 +18,11 @@ spring:
   application:
     name: EnterpriseDevGroupProject
 
-  # H2 in-memory database in every environment: `./mvnw spring-boot:run` needs no
-  # Docker and no local database. PostgreSQL mode keeps the SQL close to what the
-  # schema was written for. Everything is lost when the app stops.
+  # H2 in-memory database for the 'default' profile and for tests. The dev profile (the
+  # default when none is chosen) replaces it with Aiven PostgreSQL, and prod with the
+  # database its environment names.
+  # PostgreSQL mode keeps the SQL close to what the schema was written for. Everything
+  # is lost when the app stops.
   datasource:
     url: jdbc:h2:mem:campusbridge;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
     username: sa
