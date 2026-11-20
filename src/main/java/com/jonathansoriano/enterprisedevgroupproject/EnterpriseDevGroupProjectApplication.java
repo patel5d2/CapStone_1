@@ -1,6 +1,5 @@
 package com.jonathansoriano.enterprisedevgroupproject;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -8,8 +7,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class EnterpriseDevGroupProjectApplication implements CommandLineRunner {
 
-    @Value("${spring.profiles.active:default}")
-    private String activeProfile;
+    // The profiles actually in use, including one chosen by spring.profiles.default, which
+    // spring.profiles.active does not report.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.core.env.Environment environment;
     public static void main(String[] args) {
         SpringApplication.run(EnterpriseDevGroupProjectApplication.class, args);
     }
@@ -24,7 +25,9 @@ public class EnterpriseDevGroupProjectApplication implements CommandLineRunner {
      */
     @Override
     public void run(String... args) throws Exception {
-        System.out.println("Active Profile: " + activeProfile);
+        String[] active = environment.getActiveProfiles();
+        System.out.println("Active Profile: " + String.join(", ",
+                active.length > 0 ? active : environment.getDefaultProfiles()));
     }
 
 }
