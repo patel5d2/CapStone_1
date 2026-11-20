@@ -1,5 +1,6 @@
-# Development profile. The H2 in-memory datasource in application.yml gets overridden here
-# if datasource change. This file contains cloud-based datasource (Aiven PostgreSQL)
+# Development profile, and the profile used when none is chosen (application.yml). It
+# replaces the H2 in-memory datasource with the shared Aiven PostgreSQL database, whose
+# data survives restarts.
 # The password is read from DATABASE_PASSWORD: set it in the git-ignored .env file at the
 # project root (loaded below), or as an environment variable / Run Configuration.
 spring:
@@ -15,6 +16,11 @@ spring:
     hikari:
       max-lifetime: 300000   # 5 min
       keepalive-time: 120000 # 2 min
+      # Everyone's running backend shares this database's small connection limit, and
+      # Hikari's default pool of 10 per backend filled it ("remaining connection slots are
+      # reserved"). Three is plenty for one developer.
+      maximum-pool-size: 3
+      minimum-idle: 1
   sql:
     init:
       mode: never
