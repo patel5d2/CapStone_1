@@ -105,4 +105,29 @@ class DeletedAccountCleanupTest {
 
         assertEquals(1, count("app_user", "email", DELETED_EMAIL));
     }
+
+    @Test
+    void anUnboundProfile_isRemovedByRowId_withItsAccountRow() {
+        // The administrator path (#113) for a row no Clerk account is bound to.
+        jdbc.update("UPDATE student SET clerk_user_id = NULL WHERE email = ?", DELETED_EMAIL);
+        long id = jdbc.queryForObject("SELECT id FROM student WHERE email = ?", Long.class, DELETED_EMAIL);
+
+        assertTrue(cleanup.retireUnbound(id));
+
+        assertEquals(0, count("student", "email", DELETED_EMAIL));
+        assertEquals(0, count("app_user", "email", DELETED_EMAIL));
+        assertEquals(1, count("student", "clerk_user_id", BYSTANDER));
+        assertFalse(cleanup.retireUnbound(id), "a second call finds nothing to remove");
+    }
+
+    @Test
+    void aBoundProfile_isNeverRemovedByRowIdAlone() {
+        // A profile with a Clerk account behind it needs Clerk's word first; see retire().
+        long id = jdbc.queryForObject("SELECT id FROM student WHERE email = ?", Long.class, DELETED_EMAIL);
+
+        assertFalse(cleanup.retireUnbound(id));
+
+        assertEquals(1, count("student", "clerk_user_id", DELETED));
+        assertEquals(1, count("app_user", "email", DELETED_EMAIL));
+    }
 }

@@ -39,6 +39,11 @@ class InstitutionalAccessEnforcementTest {
     @Autowired
     private MockMvc mockMvc;
 
+    // The ban check (#113) sits beside the access policy in the converter. A mock answers
+    // "not banned"; what a ban does is AccountBansTest's and the converter test's job.
+    @MockitoBean
+    private com.jonathansoriano.enterprisedevgroupproject.security.AccountBans accountBans;
+
     @MockitoBean
     private SchoolRepository schoolRepository;
 

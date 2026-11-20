@@ -90,6 +90,21 @@ public class ExceptionTranslator {
         return new ResponseEntity<>(wrapper, HttpStatus.BAD_REQUEST);
     }
 
+    // A path or query value of the wrong type, e.g. /api/admin/students/abc where an id is
+    // expected. The caller's mistake, so 400 rather than the catch-all's 500, and the
+    // message names the parameter without echoing the value back.
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ExceptionWrapper> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
+        log.warn("Wrong type for parameter '{}' at {}", ex.getName(), request.getRequestURI());
+
+        ExceptionWrapper wrapper = new ExceptionWrapper(HttpStatus.BAD_REQUEST.value(),
+                "'" + ex.getName() + "' is not a valid value.", request.getRequestURI());
+
+        return new ResponseEntity<>(wrapper, HttpStatus.BAD_REQUEST);
+    }
+
     // Carries its own status (e.g. a request whose Clerk token has no email claim).
     // Without this handler the catch-all below would turn it into a 500.
     @ExceptionHandler(ResponseStatusException.class)

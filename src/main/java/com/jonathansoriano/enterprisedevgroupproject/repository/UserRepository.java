@@ -8,6 +8,9 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +38,51 @@ public class UserRepository {
     
     public UserRepository(NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /**
+     * Changes one account's role. Called only by {@code AdminAccountSeeder}, from server
+     * configuration: no request can reach it, which is what keeps the role out of a
+     * student's hands (#113).
+     *
+     * @return the number of rows changed
+     */
+    public int updateRole(Long id, String role) {
+        return jdbcTemplate.update("UPDATE app_user SET role = :role WHERE id = :id",
+                new MapSqlParameterSource().addValue("id", id).addValue("role", role));
+    }
+
+    /**
+     * The role each of these addresses holds, in one query rather than one per row of an
+     * account list. An address with no {@code app_user} row is simply absent from the map.
+     */
+    public Map<String, String> rolesOf(Collection<String> emails) {
+        Map<String, String> roles = new HashMap<>();
+        if (emails.isEmpty()) {
+            return roles;
+        }
+        jdbcTemplate.query("SELECT email, role FROM app_user WHERE email IN (:emails)",
+                new MapSqlParameterSource("emails", emails),
+                row -> { roles.put(row.getString("email"), row.getString("role")); });
+        return roles;
+    }
+
+    /** One page of banned addresses (#113), in a stable order. */
+    public List<String> findBannedEmails(int limit, long offset) {
+        return jdbcTemplate.queryForList(
+                "SELECT email FROM app_user WHERE role = 'BANNED' ORDER BY email LIMIT :limit OFFSET :offset",
+                new MapSqlParameterSource().addValue("limit", limit).addValue("offset", offset), String.class);
+    }
+
+    public long countBanned() {
+        Long count = jdbcTemplate.queryForObject("SELECT count(*) FROM app_user WHERE role = 'BANNED'",
+                new MapSqlParameterSource(), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    /** Removes an account row outright: lifting a ban on an address that has no profile left. */
+    public int deleteById(Long id) {
+        return jdbcTemplate.update("DELETE FROM app_user WHERE id = :id", new MapSqlParameterSource("id", id));
     }
 
     /**

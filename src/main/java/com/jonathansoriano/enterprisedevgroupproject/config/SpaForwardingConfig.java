@@ -17,7 +17,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class SpaForwardingConfig implements WebMvcConfigurer {
 
     private static final String[] SPA_ROUTES = {
-            "/marketplace", "/messages", "/community", "/support", "/directory", "/profile"
+            "/marketplace", "/messages", "/community", "/support", "/directory", "/profile",
+            // Only the page shell. The accounts it lists come from /api/admin, which checks
+            // the administrator role on every request (AdminAccess).
+            "/admin"
     };
 
     @Override

@@ -10,7 +10,7 @@ export function markProfileComplete(userId: string | undefined) {
 
 export type ProfileCheck =
   | { status: 'checking' | 'missing' | 'complete' }
-  | { status: 'failed'; message: string; retryable: boolean }
+  | { status: 'failed'; message: string; retryable: boolean; refused: boolean }
 
 /**
  * Whether this student is registered, meaning their profile exists. Only the server's 404
@@ -21,6 +21,11 @@ export type ProfileCheck =
  * A 409 is the one failure asking again cannot change: the profile on this address is
  * bound to another Clerk account (`StudentIdentityService`), which happens when an account
  * is deleted and made again with the same email. Only a person can settle whose it is.
+ *
+ * A 403 is `refused`: the server will not serve this account at all. By the time this check
+ * runs the email and second factor have already passed, so in practice that means an
+ * administrator banned it (#113). Asking again cannot change that either, and the server's
+ * message says why.
  */
 export function useProfileCheck(userId: string | undefined): ProfileCheck & { retry: () => void } {
   // Kept with the user it is about, so one student's answer is never read for the next.
@@ -45,7 +50,8 @@ export function useProfileCheck(userId: string | undefined): ProfileCheck & { re
             : {
                 status: 'failed',
                 message: refusal?.message ?? 'CampusBridge could not be reached. Check your connection.',
-                retryable: refusal?.status !== 409,
+                retryable: refusal?.status !== 409 && refusal?.status !== 403,
+                refused: refusal?.status === 403,
               },
         })
       })

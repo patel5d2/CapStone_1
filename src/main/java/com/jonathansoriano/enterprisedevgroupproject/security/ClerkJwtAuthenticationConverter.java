@@ -34,14 +34,19 @@ public class ClerkJwtAuthenticationConverter implements Converter<Jwt, AbstractA
     static final String STUDENT_ROLE = "ROLE_STUDENT";
 
     private final InstitutionalAccessPolicy policy;
+    private final AccountBans bans;
 
-    public ClerkJwtAuthenticationConverter(InstitutionalAccessPolicy policy) {
+    public ClerkJwtAuthenticationConverter(InstitutionalAccessPolicy policy, AccountBans bans) {
         this.policy = policy;
+        this.bans = bans;
     }
 
     @Override
     public AbstractAuthenticationToken convert(Jwt clerkSession) {
-        Set<GrantedAuthority> authorities = policy.grantsStudentAccess(clerkSession)
+        // A banned account (#113) is refused here for the same reason the policy is applied
+        // here: one check covers every route, including the ones added later. The policy
+        // is asked first because it needs no database.
+        Set<GrantedAuthority> authorities = policy.grantsStudentAccess(clerkSession) && !bans.isBanned(clerkSession)
                 ? Set.of(new SimpleGrantedAuthority(STUDENT_ROLE))
                 : Set.of();
 
