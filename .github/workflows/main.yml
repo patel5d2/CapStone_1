@@ -46,7 +46,7 @@ jobs:
           -color
 
       - name: zizmor
-        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with:
           version: 1.30.1
           advanced-security: false
@@ -109,7 +109,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           java-version: "21"
           distribution: temurin
@@ -175,7 +175,7 @@ jobs:
         run: npm ci
 
       - name: Set up JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           java-version: "21"
           distribution: temurin
@@ -298,6 +298,15 @@ jobs:
   # The runner user owns /opt/campusbridge and may only `systemctl restart campusbridge`.
   # It waits for the release, so only a scanned, attested build reaches the VM, and for a
   # reviewer to approve the production environment.
+  #
+  # The backend's secrets come from this environment and are written to
+  # /opt/campusbridge/production.env (mode 600) on every deploy. Required: DATABASE_URL,
+  # DATABASE_USERNAME, DATABASE_PASSWORD (application-prod.yml); change them and redeploy to
+  # point production at another database. Optional, written only when set: CLERK_SECRET_KEY,
+  # CLERK_WEBHOOK_SECRET, CLOUDINARY_URL, CAMPUSBRIDGE_ADMIN_EMAILS. The service loads the
+  # file through a drop-in (/etc/systemd/system/campusbridge.service.d/production-env.conf):
+  #   [Service]
+  #   EnvironmentFile=-/opt/campusbridge/production.env
   deploy-backend:
     name: Deploy backend to VM 104
     runs-on: [self-hosted, linux, campusbridge-vm]
@@ -314,6 +323,47 @@ jobs:
         with:
           name: backend-jar
           path: artifact
+
+      # Secrets reach the script only through env, never interpolated into it.
+      - name: Write the production secrets
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+          CAMPUSBRIDGE_ADMIN_EMAILS: ${{ secrets.CAMPUSBRIDGE_ADMIN_EMAILS }}
+        run: |
+          set -euo pipefail
+          required=(DATABASE_URL DATABASE_USERNAME DATABASE_PASSWORD)
+          optional=(CLERK_SECRET_KEY CLERK_WEBHOOK_SECRET CLOUDINARY_URL CAMPUSBRIDGE_ADMIN_EMAILS)
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is not set in the production environment"; exit 1
+            fi
+          done
+          dir=/opt/campusbridge
+          # Without this the service never sees the file, and starts without a database.
+          if ! systemctl show campusbridge -p EnvironmentFiles | grep -q "$dir/production.env"; then
+            echo "::error::The campusbridge service does not load $dir/production.env. On the VM run" \
+              "'sudo systemctl edit campusbridge', add 'EnvironmentFile=-$dir/production.env' under [Service], then re-run this job."
+            exit 1
+          fi
+          # systemd reads double-quoted values; escape what would end the quoting early.
+          quote() { local v=${1//\\/\\\\}; v=${v//\"/\\\"}; printf '"%s"' "$v"; }
+          umask 077
+          {
+            echo "SPRING_PROFILES_ACTIVE=prod"
+            for name in "${required[@]}" "${optional[@]}"; do
+              if [ -n "${!name}" ]; then echo "$name=$(quote "${!name}")"; fi
+            done
+          } > "$dir/production.env.new"
+          mv "$dir/production.env.new" "$dir/production.env"
+          for name in "${optional[@]}"; do
+            if [ -z "${!name}" ]; then echo "::notice::Optional secret $name is not set; left out."; fi
+          done
 
       - name: Install jar and restart, rolling back if unhealthy
         shell: bash

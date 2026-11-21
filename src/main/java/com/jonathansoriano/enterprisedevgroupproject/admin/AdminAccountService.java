@@ -67,6 +67,10 @@ public class AdminAccountService {
     static final String NO_CLERK_KEY_MESSAGE =
             "This account's sign-in could not be removed because the server has no Clerk secret key "
                     + "(CLERK_SECRET_KEY). Nothing was deleted.";
+    static final String CLERK_KEY_REJECTED_MESSAGE =
+            "Clerk rejected the server's secret key (CLERK_SECRET_KEY), so nothing was deleted. The key is "
+                    + "mistyped, was rotated, or belongs to a different Clerk app than the one students sign in "
+                    + "to. Set it to that app's secret key and restart the server.";
     static final String CLERK_UNCONFIRMED_MESSAGE =
             "Clerk did not confirm that this account's sign-in was removed, so nothing was deleted. "
                     + "Try again in a moment.";
@@ -271,6 +275,8 @@ public class AdminAccountService {
                 case REMOVED -> { }
                 case NOT_CONFIGURED ->
                         throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, NO_CLERK_KEY_MESSAGE);
+                case KEY_REJECTED ->
+                        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, CLERK_KEY_REJECTED_MESSAGE);
                 case UNCONFIRMED ->
                         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, CLERK_UNCONFIRMED_MESSAGE);
             }

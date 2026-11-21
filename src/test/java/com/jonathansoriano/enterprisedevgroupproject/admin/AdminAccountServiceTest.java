@@ -337,6 +337,12 @@ class AdminAccountServiceTest {
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, noKey.getStatusCode());
         assertEquals(AdminAccountService.NO_CLERK_KEY_MESSAGE, noKey.getReason());
 
+        when(clerk.delete(any(), any())).thenReturn(Outcome.KEY_REJECTED);
+        ResponseStatusException rejected = assertThrows(ResponseStatusException.class,
+                () -> service.delete(admin(), studentId, false, false));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, rejected.getStatusCode());
+        assertEquals(AdminAccountService.CLERK_KEY_REJECTED_MESSAGE, rejected.getReason());
+
         when(clerk.delete(any(), any())).thenReturn(Outcome.UNCONFIRMED);
         ResponseStatusException unconfirmed = assertThrows(ResponseStatusException.class,
                 () -> service.delete(admin(), studentId, false, false));

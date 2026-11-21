@@ -31,6 +31,11 @@ public class ClerkAccountDeletion {
         REMOVED,
         /** There is no secret key, so Clerk was not asked. */
         NOT_CONFIGURED,
+        /**
+         * Clerk refused the secret key itself (401/403): it is mistyped, was rotated, or is not
+         * a key of this Clerk instance. Retrying cannot help; the key has to be fixed.
+         */
+        KEY_REJECTED,
         /** Clerk was asked and did not confirm; the account may still exist. */
         UNCONFIRMED
     }
@@ -82,7 +87,11 @@ public class ClerkAccountDeletion {
             if (status == 404) {
                 return lookup.isDeleted(clerkUserId, caller) ? Outcome.REMOVED : Outcome.UNCONFIRMED;
             }
-            // 401 is the one worth reading: the secret key is wrong or was rotated.
+            if (status == 401 || status == 403) {
+                log.warn("Clerk rejected CLERK_SECRET_KEY ({}) when asked to delete account {}; nothing was "
+                        + "deleted. Set it to the secret key of the instance in CLERK_ISSUER.", status, clerkUserId);
+                return Outcome.KEY_REJECTED;
+            }
             log.warn("Clerk answered {} when asked to delete account {}; nothing was deleted.", status, clerkUserId);
             return Outcome.UNCONFIRMED;
         } catch (InterruptedException interrupted) {
