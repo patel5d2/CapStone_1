@@ -40,6 +40,9 @@ if (process.env.CI && !signedIn && process.env.TEST_WORKER_INDEX === undefined) 
  */
 export default defineConfig({
   testDir: './e2e',
+  // Once per run, before any worker starts: makes sure the Clerk test account the signed-in
+  // suite uses exists and has its second factor, recreating it if it was deleted.
+  globalSetup: signedIn ? './e2e/clerk-account.setup.ts' : undefined,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

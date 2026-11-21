@@ -95,17 +95,23 @@ a stray `url=...` value. Verified with
 After that is corrected, a separate recorded PostgreSQL failure remains:
 `SupportResourceSeeder` queries the missing `university` table. The SQL initialization
 scripts are neither mounted into Postgres nor enabled by the Postgres profiles.
-See [5_progress.md](context/5_progress.md). Use the default H2 development path below.
+See [5_progress.md](context/5_progress.md). Use the development path below.
 
 ### Local development — hot reload
 
 Prerequisites: **JDK 21**, **Node.js 22.12+ in the 22.x line** (matching CI), npm, and
 network access to download dependencies and sign in through Clerk. Maven is provided by
-the wrapper. H2 is in memory: restarting the backend discards development data.
+the wrapper.
+
+With no profile chosen the backend uses the team's shared **Aiven PostgreSQL** database
+(the `dev` profile), so data survives restarts. Put `DATABASE_PASSWORD` in the
+git-ignored `.env` at the project root (ask a teammate for it; never commit it). For a
+throwaway in-memory H2 database rebuilt from `schema.sql` and `data.sql` on every start,
+add `-Dspring-boot.run.profiles=default`. Tests always use H2.
 
 ```bash
-# Terminal 1 — API on http://localhost:8080 (H2 in-memory)
-./mvnw spring-boot:run -Dspring-boot.run.profiles=default
+# Terminal 1 — API on http://localhost:8080 (shared Aiven PostgreSQL)
+./mvnw spring-boot:run
 
 # Terminal 2 — SPA on http://localhost:5173 (proxies /api and /student to :8080)
 cd frontend
@@ -117,7 +123,8 @@ npm run dev
 The frontend requires `VITE_CLERK_PUBLISHABLE_KEY`; the example matches the backend's
 development defaults. A different instance requires matching `CLERK_ISSUER` and
 `CLERK_JWKS_URI` in the backend process environment and the custom session claim
-`email`. Spring Boot does not automatically load the root `.env` file. Current code
+`email`. Only the `dev` profile loads the root `.env` file, and only when the backend is
+started from the project root. Current code
 validates Clerk JWTs but does not enforce institutional domains or 2FA itself.
 
 ### Single server
@@ -131,7 +138,7 @@ npm ci
 # Configure frontend/.env as above before building.
 npm run build
 cd ..
-./mvnw spring-boot:run -Dspring-boot.run.profiles=default
+./mvnw spring-boot:run
 ```
 
 The compiled bundle is generated, not committed, so `npm run build` must run at least
@@ -184,7 +191,7 @@ A **modular monolith**: one Spring Boot deployable serving a compiled React SPA 
 own static resources, organised package-by-feature.
 
 ```
-Browser ──► Spring Boot (:8080) ──► H2 (default) / PostgreSQL 16 (blocked)
+Browser ──► Spring Boot (:8080) ──► Aiven PostgreSQL (default) / H2 (tests, `default` profile)
   │           ├── /            React SPA
   │           ├── /api/**      REST, Clerk JWT required
   │           ├── /student/**  legacy directory REST, Clerk JWT required
@@ -195,7 +202,7 @@ Browser ──► Spring Boot (:8080) ──► H2 (default) / PostgreSQL 16 (bl
 | Layer | Technology |
 |---|---|
 | Backend | Spring Boot 4.1.1, Java 21, Maven |
-| Persistence | Spring Data JPA + legacy JDBC · H2 default · PostgreSQL 16 blocked · Flyway planned |
+| Persistence | Spring Data JPA + legacy JDBC · Aiven PostgreSQL by default · H2 for tests and the `default` profile · Flyway planned |
 | Frontend | React 19 · TypeScript · Vite 8 · Tailwind CSS 4 · React Router 7 |
 | Auth | Clerk — `@clerk/clerk-react` in the SPA, OAuth2 resource server in the API |
 | Images | Cloudinary or S3 *(planned)* |

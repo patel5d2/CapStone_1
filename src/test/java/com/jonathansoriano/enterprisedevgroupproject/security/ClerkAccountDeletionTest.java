@@ -91,9 +91,17 @@ class ClerkAccountDeletionTest {
     }
 
     @Test
+    void aRefusedKey_isReportedAsSuch_notAsSomethingToRetry() {
+        for (int status : new int[]{401, 403}) {
+            answers.put("DELETE " + STUDENT, status);
+            assertEquals(Outcome.KEY_REJECTED, deletion(KEY).delete(STUDENT, ADMIN), "status " + status);
+        }
+    }
+
+    @Test
     void anyOtherAnswer_isUnconfirmed() {
         answers.put("GET " + ADMIN, 200);
-        for (int status : new int[]{400, 401, 403, 422, 429, 500, 503}) {
+        for (int status : new int[]{400, 422, 429, 500, 503}) {
             answers.put("DELETE " + STUDENT, status);
             assertEquals(Outcome.UNCONFIRMED, deletion(KEY).delete(STUDENT, ADMIN), "status " + status);
         }

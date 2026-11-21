@@ -243,9 +243,10 @@ the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one
 
 | Variable | Purpose |
 |---|---|
-| `SPRING_PROFILES_ACTIVE` | `default` · `dev` · `prod` |
-| `DATABASE_HOST` / `DATABASE_PORT` | Postgres location |
-| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | Postgres credentials |
+| `SPRING_PROFILES_ACTIVE` | `dev` (used when none is set: shared Aiven PostgreSQL) · `default` (in-memory H2) · `prod` (the deployed backend) |
+| `DATABASE_URL` | JDBC URL of the `prod` database. Required by `prod`, no default. Deployed from the GitHub `production` environment secret of the same name |
+| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | Postgres credentials. `dev` reads only the password (from the root `.env`); `prod` reads both, from `production` secrets |
+| `DATABASE_HOST` / `DATABASE_PORT` | Postgres location (Docker Compose only) |
 | `DEV_DATABASE_NAME` / `PROD_DATABASE_NAME` | Database name per profile |
 | `CLERK_ISSUER` | Clerk issuer URL, validates `iss` |
 | `CLERK_JWKS_URI` | JWKS endpoint; keys load lazily, not at boot |
