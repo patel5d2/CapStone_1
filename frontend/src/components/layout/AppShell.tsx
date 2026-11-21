@@ -42,6 +42,65 @@ function useNavigation() {
   }
 }
 
+// Style objects, not Tailwind classes: Clerk's own styles outrank Tailwind's layered
+// utilities, so classes here are ignored. Matches the nav rows above: full width, avatar
+// first, name from 1024px (the rail shows the avatar alone).
+const LG = '@media (min-width: 1024px)'
+const SIDEBAR_ACCOUNT_ELEMENTS = {
+  rootBox: { width: '100%' },
+  userButtonTrigger: {
+    width: '100%',
+    justifyContent: 'center',
+    padding: '0.5rem 0',
+    borderRadius: '0.75rem',
+    '&:hover': { backgroundColor: 'var(--color-surface-muted)' },
+    [LG]: { justifyContent: 'flex-start', padding: '0.5rem 0.75rem' },
+  },
+  // Clerk renders the name before the avatar; reversed, the avatar leads like the nav icons.
+  userButtonBox: { flexDirection: 'row-reverse', gap: '0.75rem', minWidth: 0 },
+  userButtonOuterIdentifier: {
+    display: 'none',
+    padding: 0,
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-ink-muted)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    [LG]: { display: 'block' },
+  },
+} as const
+
+/**
+ * The one account control: Clerk's avatar button, whose menu opens on the CampusBridge
+ * profile first, then Clerk's own account page and sign-out. The sidebar shows the
+ * person's name beside the avatar at ≥1024px; the rail and the phone header show the
+ * avatar alone. A dedicated administrator account has no student profile, so its menu
+ * keeps only Clerk's items.
+ */
+function AccountButton({ showProfile, inSidebar = false }: { showProfile: boolean; inSidebar?: boolean }) {
+  const navigate = useNavigate()
+  return (
+    <UserButton
+      afterSignOutUrl="/"
+      showName={inSidebar}
+      appearance={inSidebar ? { elements: SIDEBAR_ACCOUNT_ELEMENTS } : undefined}
+    >
+      {showProfile && (
+        <UserButton.MenuItems>
+          <UserButton.Action
+            label="My profile"
+            labelIcon={<UserRound className="h-4 w-4" />}
+            onClick={() => navigate('/profile')}
+          />
+          <UserButton.Action label="manageAccount" />
+          <UserButton.Action label="signOut" />
+        </UserButton.MenuItems>
+      )}
+    </UserButton>
+  )
+}
+
 /**
  * Sidebar at ≥1024px, icon-only rail between 640 and 1023px. One element rather than
  * two: the label collapses, the destinations do not change.
@@ -97,24 +156,7 @@ function SideNav({ items, showProfile }: { items: NavItem[]; showProfile: boolea
       {/* Pinned to the bottom, per the target shell. Notifications land here too once
           the notification centre exists. */}
       <div className="border-t border-[var(--color-border)] p-2 lg:p-3">
-        {showProfile && <NavLink
-          to="/profile"
-          title="My profile"
-          className={({ isActive }) =>
-            `relative mb-2 flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold transition-colors
-             justify-center lg:justify-start px-0 lg:px-3 ${
-               isActive
-                 ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
-                 : 'text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink)]'
-             }`
-          }
-        >
-          <UserRound className="h-5 w-5 shrink-0" />
-          <span className="hidden lg:inline">My profile</span>
-        </NavLink>}
-        <div className="flex justify-center lg:justify-start lg:px-3">
-          <UserButton afterSignOutUrl="/" />
-        </div>
+        <AccountButton showProfile={showProfile} inSidebar />
       </div>
     </aside>
   )
@@ -158,8 +200,6 @@ function BottomBar({ items }: { items: NavItem[] }) {
 }
 
 export function AppShell() {
-  // Used by the mobile account menu below; the sidebar uses NavLink directly.
-  const navigate = useNavigate()
   // The offset has to track whether the sidebar is actually rendered. <SignedIn> can
   // only gate children, not a class on this wrapper, so a signed-out visitor was
   // getting a 240px indent against empty space.
@@ -180,20 +220,8 @@ export function AppShell() {
               every larger width, so repeating them here would be noise. */}
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]/85 px-4 backdrop-blur-lg sm:hidden">
             <Wordmark />
-            {/* Below 640px the sidebar is hidden, so this menu was the only account
-                surface and it carried Clerk's items alone — leaving no way to reach
-                /profile at phone width at all. The sidebar's visible "My profile" link
-                covers every wider width, so the entry is added here rather than
-                duplicated into both. */}
-            <UserButton afterSignOutUrl="/">
-              {showProfile && <UserButton.MenuItems>
-                <UserButton.Action
-                  label="My CampusBridge profile"
-                  labelIcon={<UserRound className="h-4 w-4" />}
-                  onClick={() => navigate('/profile')}
-                />
-              </UserButton.MenuItems>}
-            </UserButton>
+            {/* Below 640px the sidebar is hidden; the same account menu lives here. */}
+            <AccountButton showProfile={showProfile} />
           </header>
         </SignedIn>
 
