@@ -33,7 +33,7 @@ class EnterpriseDevGroupProjectApplicationTests {
                 "listing_favorite", "listing_report", "conversation", "conversation_participant",
                 "message", "blocked_user", "user_report", "post", "post_comment", "post_like",
                 "app_group", "group_membership", "event", "support_resource", "anonymous_request",
-                "clerk_identity", "profile_privacy", "image_asset");
+                "clerk_identity", "image_asset");
     }
 
     @Test

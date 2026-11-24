@@ -22,13 +22,6 @@ export interface Student {
   photoUrl?: string | null
 }
 
-export interface ProfileVisibility {
-  showMajor: boolean
-  showGraduationYear: boolean
-  showBio: boolean
-  showPhoto: boolean
-}
-
 /** Owner-only fields are kept separate from the directory response. */
 export interface StudentAccountDetails extends Omit<Student, 'id'> {
   email: string
@@ -38,7 +31,6 @@ export interface StudentAccountDetails extends Omit<Student, 'id'> {
   graduationYear: number | null
   bio: string | null
   photoUrl: string | null
-  visibility: ProfileVisibility
 }
 
 export interface ProfileSaveRequest {
@@ -54,7 +46,6 @@ export interface ProfileSaveRequest {
   graduationYear: number | null
   bio: string | null
   photoUrl: string | null
-  visibility: ProfileVisibility
 }
 
 export interface ProfileImageResponse {

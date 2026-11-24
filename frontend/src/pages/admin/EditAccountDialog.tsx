@@ -138,8 +138,8 @@ export function EditAccountDialog({ account, schools, onClose, onSaved, onMissin
     >
       <form id="admin-edit-form" onSubmit={save} noValidate className="space-y-4">
         <p className="text-sm text-[var(--color-ink-muted)]">
-          You are editing this student&rsquo;s account as an administrator. Their email, photo and privacy
-          choices are theirs and cannot be changed here.
+          You are editing this student&rsquo;s account as an administrator. Their email and photo are
+          theirs and cannot be changed here.
         </p>
         {failure && <p role="alert" className="rounded-xl bg-[var(--color-danger-bg)] px-3 py-2 text-sm text-[var(--color-danger)]">{failure}</p>}
         <div className="grid gap-4 sm:grid-cols-2">

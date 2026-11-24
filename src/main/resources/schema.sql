@@ -417,17 +417,13 @@ ALTER TABLE student ADD COLUMN bio             varchar(1000);
 ALTER TABLE student ADD COLUMN photo_url       varchar(255);
 
 -- ===========================================================================
--- V7 profile privacy and images
+-- V7 profile images
 -- ===========================================================================
 
--- S1-08 dependencies. Existing profiles have no privacy row and default private.
-CREATE TABLE profile_privacy (
-    student_id bigint PRIMARY KEY REFERENCES student(id) ON DELETE CASCADE,
-    show_major boolean NOT NULL DEFAULT false,
-    show_graduation_year boolean NOT NULL DEFAULT false,
-    show_bio boolean NOT NULL DEFAULT false,
-    show_photo boolean NOT NULL DEFAULT false
-);
+-- The profile_privacy table that used to sit here is gone (#112): students no longer choose
+-- which profile fields other students see, so there is nothing to store per student. A
+-- database created before this change (the dev and neon profiles) still has the table;
+-- nothing reads it, and `DROP TABLE IF EXISTS profile_privacy;` removes it.
 
 -- Record the provider id BEFORE upload, so even ambiguous/time-out outcomes can
 -- be cleaned up. No provider credentials are stored here.

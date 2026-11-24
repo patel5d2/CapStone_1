@@ -2,7 +2,6 @@ package com.jonathansoriano.enterprisedevgroupproject.profile;
 
 import com.jonathansoriano.enterprisedevgroupproject.domain.*;
 import com.jonathansoriano.enterprisedevgroupproject.image.*;
-import com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,11 +18,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class ProfileCompletionTest {
     @Autowired ProfileCompletionService profiles;
     @Autowired ImageAssetRepository assets;
-    @Autowired ProfilePrivacyRepository privacy;
     @Autowired ObjectMapper mapper;
+    @Autowired jakarta.persistence.EntityManager entities;
     private static final String EMAIL = "completion-test@mail.uc.edu";
     private static final String SUBJECT = "user_completion_test";
-    private static final ProfileVisibility SHARED = new ProfileVisibility(true, true, true, true);
 
     private Jwt jwt(String subject, String email) {
         return Jwt.withTokenValue("test-only").header("alg", "RS256").subject(subject).claim("email", email).build();
@@ -32,13 +30,13 @@ class ProfileCompletionTest {
     private StudentSignupRequest.StudentSignupRequestBuilder signup() {
         return StudentSignupRequest.builder().firstName("UniqueCompletion").lastName("Student")
                 .residentCity("Cincinnati").residentState("OH").universityId(1)
-                .grade("Senior").major("PrivateMajorFixture").email(EMAIL)
+                .grade("Senior").major("DirectoryMajorFixture").email(EMAIL)
                 .graduationYear(2027).bio("About this student");
     }
     private EditStudentDetailsRequest.EditStudentDetailsRequestBuilder edit() {
         return EditStudentDetailsRequest.builder().firstName("UniqueCompletion").lastName("Student")
                 .residentCity("Cincinnati").residentState("OH").universityId(1)
-                .grade("Senior").major("PrivateMajorFixture").email(EMAIL)
+                .grade("Senior").major("DirectoryMajorFixture").email(EMAIL)
                 .graduationYear(2028).bio("Updated biography");
     }
     private StudentRequest query() { return StudentRequest.builder().firstName("UniqueCompletion").build(); }
@@ -56,47 +54,58 @@ class ProfileCompletionTest {
         var error = assertThrows(ResponseStatusException.class, () -> profiles.read(owner()));
         assertEquals(404, error.getStatusCode().value());
     }
-    @Test void createAndRefreshRetainsEveryFieldAndVisibility() {
+    @Test void createAndRefreshRetainsEveryField() {
         String url = uploaded(SUBJECT);
-        profiles.create(owner(), signup().photoUrl(url).visibility(SHARED).build());
+        profiles.create(owner(), signup().photoUrl(url).build());
         var saved = profiles.read(owner());
         assertEquals(2027, saved.getGraduationYear());
         assertEquals("About this student", saved.getBio());
         assertEquals(url, saved.getPhotoUrl());
-        assertEquals(SHARED, saved.getVisibility());
         assertEquals(1L, saved.getUniversityId());
         assertNotNull(assets.findByUrl(url).orElseThrow().getStudentId());
         assertNull(assets.findByUrl(url).orElseThrow().getDeleteAfter());
     }
-    @Test void preferencesDefaultPrivateAndContactsNeverSerialize() {
-        profiles.create(owner(), signup().build());
-        var student = profiles.directory(query()).getFirst();
-        var json = mapper.valueToTree(student);
+    // #112: one visibility rule for every profile, with nothing for a student to switch off.
+    @Test void directoryShowsTheSameFieldsForEveryProfileAndNeverContactDetails() {
+        String url = uploaded(SUBJECT);
+        profiles.create(owner(), signup().photoUrl(url).build());
+        var json = mapper.valueToTree(profiles.directory(query()).getFirst());
+        assertEquals("DirectoryMajorFixture", json.get("major").asString());
+        assertEquals(2027, json.get("graduationYear").asInt());
+        assertEquals("About this student", json.get("bio").asString());
+        assertEquals(url, json.get("photoUrl").asString());
         assertFalse(json.has("email"));
         assertFalse(json.has("socialMediaLink"));
-        assertFalse(json.has("major"));
-        assertFalse(json.has("bio"));
-        assertFalse(json.has("graduationYear"));
-        assertEquals(ProfileVisibility.privateByDefault(), profiles.read(owner()).getVisibility());
-        assertEquals("PrivateMajorFixture", profiles.read(owner()).getMajor());
     }
-    @Test void privateMajorCannotMatchASearch() {
+    @Test void aProfileIsFoundBySearchingItsMajor() {
         profiles.create(owner(), signup().build());
-        assertTrue(profiles.directory(StudentRequest.builder().major("PrivateMajorFixture").build()).isEmpty());
+        var found = profiles.directory(StudentRequest.builder().major("DirectoryMajorFixture").build());
+        assertEquals(1, found.size());
+        assertEquals("UniqueCompletion", found.getFirst().getFirstName());
     }
-    @Test void visibilityChangesApplyImmediatelyToSearchAndPayload() {
-        profiles.create(owner(), signup().visibility(SHARED).build());
-        assertEquals("PrivateMajorFixture", profiles.directory(query()).getFirst().getMajor());
-        profiles.update(owner(), edit().visibility(ProfileVisibility.privateByDefault()).build());
-        assertNull(profiles.directory(query()).getFirst().getMajor());
-        assertNull(profiles.directory(query()).getFirst().getBio());
+    @Test void aSavedEditReachesTheDirectoryImmediately() {
+        profiles.create(owner(), signup().build());
+        profiles.update(owner(), edit().build());
+        // The edit is written with JDBC and the directory reads through JPA. This test is one
+        // transaction, so drop JPA's cached row, as the next request's own transaction does.
+        entities.clear();
+        var listed = profiles.directory(query()).getFirst();
+        assertEquals("Updated biography", listed.getBio());
+        assertEquals(2028, listed.getGraduationYear());
         assertEquals(2028, profiles.read(owner()).getGraduationYear());
+    }
+    @Test void thereAreNoVisibilityPreferencesToReadOrSend() {
+        profiles.create(owner(), signup().build());
+        assertFalse(mapper.valueToTree(profiles.read(owner())).has("visibility"));
+        // A page loaded before this change still sends the old field; it is ignored, not refused.
+        assertDoesNotThrow(() -> mapper.readValue(
+                "{\"firstName\":\"Old\",\"visibility\":{\"showMajor\":false}}", EditStudentDetailsRequest.class));
     }
     @Test void anotherSubjectsImageIsRejectedBeforeProfileChanges() {
         profiles.create(owner(), signup().build());
         String url = uploaded("user_another");
         var error = assertThrows(ResponseStatusException.class,
-                () -> profiles.update(owner(), edit().photoUrl(url).visibility(SHARED).build()));
+                () -> profiles.update(owner(), edit().photoUrl(url).build()));
         assertEquals(403, error.getStatusCode().value());
         assertEquals("About this student", profiles.read(owner()).getBio());
     }
@@ -116,10 +125,9 @@ class ProfileCompletionTest {
         assertNull(assets.findByUrl(second).orElseThrow().getDeleteAfter());
     }
     @Test void emailChangeKeepsTheSameProfileAndSchoolIsImmutable() {
-        profiles.create(owner(), signup().visibility(SHARED).build());
+        profiles.create(owner(), signup().build());
         profiles.update(jwt(SUBJECT, "changed@mail.uc.edu"), edit().universityId(2).build());
         assertEquals(1L, profiles.read(owner()).getUniversityId());
-        assertEquals(SHARED, profiles.read(owner()).getVisibility());
     }
     @Test void anotherAccountCannotReadOrUpdateBoundProfile() {
         profiles.create(owner(), signup().build());

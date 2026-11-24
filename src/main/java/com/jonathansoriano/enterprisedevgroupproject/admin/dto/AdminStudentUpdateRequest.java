@@ -20,7 +20,6 @@ import lombok.NoArgsConstructor;
  * <ul>
  *   <li><b>email</b> is the Clerk identity the row hangs off, changed only in Clerk;</li>
  *   <li><b>photo</b> is an upload its owner made, tracked by {@code image_asset};</li>
- *   <li><b>visibility</b> is the student's own choice (invariant 5);</li>
  *   <li><b>role</b> is never granted through a request ({@code AdminAccess}).</li>
  * </ul>
  * The school <em>is</em> here although a student cannot change their own: correcting a wrong

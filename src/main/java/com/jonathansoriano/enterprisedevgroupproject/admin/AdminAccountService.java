@@ -249,8 +249,8 @@ public class AdminAccountService {
      * gone" and the rest is removed.
      *
      * <p>What is removed and what is kept is the existing rule for a deleted account, applied
-     * by {@link DeletedAccountCleanup} rather than restated here: the profile, its privacy
-     * choices and its {@code app_user} row go; listings, messages and posts stay, belonging
+     * by {@link DeletedAccountCleanup} rather than restated here: the profile and its
+     * {@code app_user} row go; listings, messages and posts stay, belonging
      * to nobody — unless {@code removeContent} asks for those to go too.
      *
      * <p>A row with no Clerk account bound to it (the demo data) has no sign-in to remove,
