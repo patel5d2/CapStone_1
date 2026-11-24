@@ -7,7 +7,7 @@
 # Stage 1a: Frontend build (React + TypeScript SPA)
 # ============================================================
 # Node 22 everywhere: frontend/.node-version drives CI and Cloudflare to the same major.
-FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS frontend
 WORKDIR /frontend
 
 # Install dependencies first so this layer caches on lockfile changes only
