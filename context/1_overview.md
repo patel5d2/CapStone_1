@@ -43,7 +43,7 @@ eight seeded schools (see [UI design](4_ui_design.md#school-theming--objective-8
 |---|---|---|
 | **Visitor** | Not signed in | Landing and authentication pages; no protected application data |
 | **Student** | Clerk account on a verified institutional email | Everything except moderation |
-| **Admin** | Proposed Clerk metadata capability | Delete listings, suspend accounts, process reports, manage schools and categories |
+| **Admin** | `app_user.role = ADMIN`, granted from `CAMPUSBRIDGE_ADMIN_EMAILS` (#113, Proposed decision 022; a Clerk metadata flag was the earlier proposal) | **Built at `/admin`:** find, edit, ban and delete student accounts; delete listings and review or dismiss the reports on them; delete posts, comments, groups and events; close or delete support requests; add, edit and delete campus support resources; review reports about students. **Planned:** manage schools and categories |
 
 The target authorization model combines ownership checks with an admin capability.
 Currently the app validates Clerk JWTs and uses email-based ownership; admin
@@ -82,8 +82,8 @@ constitute team approval or completed implementation.
 2. **Profile sync (proposed implementation)** — a `user.created` webhook creates the
    student record keyed by **Clerk user ID**; the email domain maps to the school.
    Today profile creation is an explicit API action and ownership uses email.
-3. **Complete profile** — name, school, major, graduation year, bio, photo, and
-   per-field privacy settings.
+3. **Complete profile** — name, school, major, graduation year, bio and photo. There
+   are no per-field privacy settings (#112): every profile shows the same fields.
 4. **List an item** — title, description, category, price, condition, pickup
    location, up to five photos.
 5. **Find an item** — filter by school, category, price range, condition; sort by

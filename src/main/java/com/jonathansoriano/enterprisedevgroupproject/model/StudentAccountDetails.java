@@ -25,5 +25,4 @@ public class StudentAccountDetails {
     private String bio;
     private String photoUrl;
     private Long universityId;
-    private com.jonathansoriano.enterprisedevgroupproject.profile.dto.ProfileVisibility visibility;
 }

@@ -10,10 +10,11 @@ User-authorized S1-08 dependency work uses Cloudinary through a server-side sign
 upload relay, with no SDK or new dependency. `CLOUDINARY_URL` is server-only. Uploads
 are bounded to 10 MB, 4000 × 4000, JPEG/PNG/WebP; the application tracks ownership
 and retries deletion of replaced images and uploads abandoned for 24 hours. An hourly
-bounded worker owns cleanup. Profile fields and visibility save in one transaction;
-major, graduation year, bio and photo default private, including legacy profiles.
-Directory responses omit email/social contacts; private major values cannot match
-search. The directory's contact action addresses a student by its database id.
+bounded worker owns cleanup. Profile fields and the photo attachment save in one
+transaction. Every profile shows other students the same fields (#112, Proposed
+decision 024): name, school, year of study, city/state, major, graduation year, bio
+and photo; a student cannot hide any of them. Directory responses omit email/social
+contacts. The directory's contact action addresses a student by its database id.
 These are implementation directions, **Proposed** pending the Rule 8 minutes. The
 existing contact-bearing DTOs outside the directory remain separate S1-07 debt.
 
@@ -49,8 +50,11 @@ map directly to graded contract objectives.
    landing page is the only anonymous surface.
 4. **Personal contact details are never exposed to another user.** All communication is
    in-platform. Email addresses are never returned by a public-facing API.
-5. **Profile field visibility is the user's choice.** Any field the user marks private is
-   filtered server-side, never merely hidden in the client.
+5. **Profile field visibility is one rule for everyone, enforced server-side.** Other
+   students see the approved fields (name, school, year of study, city/state, major,
+   graduation year, bio, photo) and nothing else; anything outside that list is left out
+   of the response, never merely hidden in the client. Until #112 (Proposed decision 024)
+   this was the user's choice per field.
 6. **All SQL is parameterised.** No string-concatenated queries, ever. *(OWASP A03)*
 7. **Schema changes happen only through a migration.** Never `ddl-auto`, never a manual
    `ALTER`, never an edit to an applied migration.
@@ -145,8 +149,18 @@ changed email orphans that user's rows.
 
 - `user.created` webhook → create `student` with `clerk_user_id`.
 - Email domain → school mapping at creation.
-- Admin role → a Clerk metadata flag, read from the token.
-- Email is display data, subject to invariant 4 and the user's privacy settings.
+- Admin role → `app_user.role = 'ADMIN'` on the token's verified address, read on every
+  admin request by `admin/AdminAccess` (#113, Proposed decision 022). `AdminAccountSeeder`
+  writes it at startup from `CAMPUSBRIDGE_ADMIN_EMAILS`; no endpoint can change a role. A
+  Clerk metadata flag on the token was the earlier proposal and needs a Clerk dashboard
+  change this repository cannot make (Open Question 15).
+- Banned → `app_user.role = 'BANNED'` (#113, Proposed decision 023). It bans the **email
+  address**: `security/AccountBans` is asked by `ClerkJwtAuthenticationConverter` on every
+  request and withholds `ROLE_STUDENT`, so every `/api/**` and `/student/**` route answers
+  403 with the reason. It matches the token's address, or the profile bound to the token's
+  subject, so signing up again, deleting the account first, and changing the address in
+  Clerk all stay banned. A banned profile is kept but left out of the directory.
+- Email is display data, subject to invariant 4: never shown to another student.
 
 **Current state:** ownership is keyed on **email** across 16 entity columns and 37
 `CurrentUser.emailOf(...)` call sites. Migrating this is Sprint 1 (ADR-005 reversal).
@@ -176,7 +190,7 @@ SPA mirrors it in `ALLOWED_TYPES` (`pages/Marketplace.tsx`) to filter its dropdo
 the two in step. No schema change: rows stored before the rule keep their type until edited.
 
 **Planned tables:** `school_domain`, `offer`, `seller_review`, `notification`,
-`meetup_spot`, `profile_privacy`.
+`meetup_spot`. (`profile_privacy` was built, then removed by #112.)
 
 ## Data flows
 
@@ -197,6 +211,29 @@ and it authenticates by signature.
 `/api/community/{posts,groups,events}`, `/api/support`, `/api/users/{block,report}`,
 `/api/schools`, and the legacy `/student`.
 
+`/api/admin` (#113) is the administrator console. Every route but `GET /access` (the
+caller's own capability) answers **403** to a caller without the admin role; the check is
+the first line of each method in `AdminAccountService` and `AdminModerationService`, not
+the path. Every list is paginated, size capped at 50.
+
+- **Accounts:** `GET /students?query=`, `GET` / `PUT` / `DELETE /students/{id}`
+  (`?ban=&removeContent=`), `POST /students/{id}/ban`, `GET /bans`, `POST /bans/lift`,
+  `GET /user-reports`, `DELETE /user-reports/{id}`. A delete removes the Clerk sign-in
+  first (`ClerkAccountDeletion`, needs `CLERK_SECRET_KEY`) and the profile only once Clerk
+  confirms, then applies the existing deleted-account rule (`DeletedAccountCleanup`).
+- **Marketplace:** `GET /listings?query=&reportedOnly=`, `DELETE /listings/{id}`,
+  `GET` / `DELETE /listings/{id}/reports` (review, or dismiss and keep the listing).
+- **Community:** `GET` and `DELETE` under `/posts`, `/groups`, `/events`;
+  `GET /posts/{id}/comments`, `DELETE /comments/{id}`.
+- **Support:** `GET /support/requests?status=`, `PUT /support/requests/{id}/status`,
+  `DELETE /support/requests/{id}`; `POST` / `PUT` / `DELETE /support/resources`.
+
+An administrator removes content or leaves it; nothing a student wrote is ever edited.
+`removeContent` on a ban or delete also removes what that person posted
+(`AccountContentRemoval`). Admin responses include the poster's email, the one deliberate
+exception to invariant 4's "never returned" wording, **except support requests, which stay
+anonymous to administrators too**.
+
 `/student` is the only base outside `/api` — moving it to `/api/students` also collapses
 the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one rule.
 
@@ -213,7 +250,8 @@ the hardcoded route lists in `SecurityConfig` and `SpaForwardingConfig` into one
 | `DEV_DATABASE_NAME` / `PROD_DATABASE_NAME` | Database name per profile |
 | `CLERK_ISSUER` | Clerk issuer URL, validates `iss` |
 | `CLERK_JWKS_URI` | JWKS endpoint; keys load lazily, not at boot |
-| `CLERK_SECRET_KEY` | Backend API. **Server-only.** |
+| `CLERK_SECRET_KEY` | Backend API. **Server-only.** Also required for an admin to delete a signed-up student (#113) |
+| `CAMPUSBRIDGE_ADMIN_EMAILS` | Comma-separated emails of the Clerk accounts that are administrators (#113). Empty = nobody |
 | `CLERK_WEBHOOK_SECRET` | *(planned)* Svix signature verification |
 | `CLOUDINARY_URL` *or* `AWS_S3_BUCKET` / `AWS_REGION` | *(planned)* image storage |
 | `JAVA_OPTS` | JVM tuning |
@@ -264,7 +302,7 @@ From the contract's Ethical and Legal Considerations — these bind the architec
   storage. CampusBridge stores no passwords. Record this so a reader looking for
   bcrypt in the codebase understands why there is none.
 - **Ohio Rev. Code § 1349.19** — a written breach-notification procedure is required.
-- **FERPA posture** — no registrar data; data minimisation; user-controlled field
-  visibility.
+- **FERPA posture** — no registrar data; data minimisation; a fixed, published list of
+  the profile fields other students see, with contact details never on it.
 - **WCAG 2.1 AA** — including contrast across every school theme.
 - **ACM Code of Ethics** — reject a convenient feature that needlessly exposes user data.

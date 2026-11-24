@@ -49,8 +49,10 @@ style preferences; they are invariants 1, 2 and 4.
   ```
   Never rely on `findByIdAndOwner(...)` alone — a missing row and a forbidden row must
   be distinguishable in the code even when the API response is deliberately vague.
-- **Admin is a capability check, not a route.** Read the admin flag from Clerk metadata
-  on the token and assert it in the service. Never infer it from a URL prefix.
+- **Admin is a capability check, not a route.** Call `AdminAccess.require(jwt)` as the
+  first line of the service method (see `admin/AdminAccountService`); it reads
+  `app_user.role` for the token's verified address on every request. Never infer admin
+  from a URL prefix, a request field or anything else the caller supplies.
 - **Filter private fields server-side.** A profile field the user marked private must
   never appear in a response payload — hiding it in the client is a data leak.
 - **Never return an email address** from a public-facing endpoint (invariant 4).

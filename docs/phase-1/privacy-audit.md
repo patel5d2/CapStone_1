@@ -72,6 +72,11 @@ identifier, and to do the surfaces that already have one first.
 
 ## 4. `profile_privacy` — and the line invariant 5 does not cross
 
+> **Superseded by #112 (2026-11-16).** The per-field preferences described in this section
+> were built and then removed: every profile now shows other students the same fields, and
+> the `profile_privacy` table is gone. The rule in bold below still holds, and more simply:
+> email is never shown, and there is no setting that could change that.
+
 The planned ERD (S0-5) proposes one row per profile with `show_major`,
 `show_graduation_year`, `show_bio`, `show_photo`. Those four are marked "proposed field
 policy" and the ERD's own team acceptance is not recorded, so AC1's *"reviewed"*

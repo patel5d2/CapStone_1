@@ -444,7 +444,7 @@ The graded criteria. Keep this honest; the final report is written from it.
 | 6 | Messaging < 2s, no contacts shared | ⚠️ 5s active-chat polling; multiple DTOs expose personal emails | Sprint 6 |
 | 7 | Post/reply/report on both feed types | ⚠️ post/reply/like exist; no post-report endpoint or separate school/major feeds | Sprint 8 |
 | 8 | School theming automatic on login | ⚠️ seven contrast-checked palettes applied on sign-in from the profile's school, and since 2026-11-02 to school filters and per-school cards; two schools' colours still to confirm; not yet checked in a browser | Sprint 2 |
-| 9 | All reports actionable from one admin view | ❌ reports stored; no admin role or view | Sprint 11 |
+| 9 | All reports actionable from one admin view | ⚠️ `/admin` → Marketplace → "Reported only" lists every reported listing; each can be reviewed, dismissed or deleted there (#113, 2026-11-16). Not yet demonstrated against a real Clerk sign-in | Sprint 11 |
 | 10 | No high-severity OWASP findings | ❌ no recorded OWASP assessment; release Trivy is non-blocking, no CodeQL analysis | Sprint 12 |
 | 11 | 99% availability | ⚠️ Compose parses, Flyway owns the schema, CI now starts the container it builds and smoke-tests health/SPA/monitoring, Grafana dashboard and latency histograms verified. **Remaining: no deployed environment and therefore no uptime evidence** — availability cannot be measured from CI | Sprint 0 |
 
@@ -587,6 +587,9 @@ as accepted. A proposed replacement does not yet supersede an implemented decisi
 | 019 | School themes override the primary scale **and the decorative accent**; a brand colour that cannot carry white text gets an accessible in-app variant at `primary-600` | The accent is decorative only, so a school's second colour (NKU gold, MSJ gold) can show without becoming an action colour. NKU gold is 1.6:1 under white text, so its buttons use a bronze-gold (4.93:1) and dark mode shows the true gold | **Proposed** — implemented 2026-10-06. Needs a vote (Rule 8) |
 | 020 | School palettes apply to any `[data-school]` element, not only `<html>` | Lets a filtered section or a single card show another school's colours while the rest of the page keeps the viewer's, with no new tokens or classes — custom properties inherit | **Proposed** — implemented 2026-11-02 (#110). Needs a vote (Rule 8) |
 | 021 | Listing type is limited by category: no `RENT` for clothes, event tickets or furniture | Renting those makes no sense for students and cluttered the filters. Enforced server-side (400) so the API cannot bypass the UI; the SPA keeps a mirrored table. Whether electronics should stay rentable is open | **Proposed** — implemented 2026-11-02 (#110). Needs a vote (Rule 8) |
+| 022 | The administrator capability is `app_user.role = 'ADMIN'`, granted from server configuration (`CAMPUSBRIDGE_ADMIN_EMAILS`), not a Clerk metadata flag | Works with no Clerk dashboard change and no schema change (the column already exists); the grant never enters the repository; no request can change a role. An admin may edit a student's profile fields and school, not their email, photo or privacy choices. Deleting an account removes the Clerk sign-in first and the profile only after Clerk confirms | **Proposed** — implemented 2026-11-16 (#113). Needs a vote (Rule 8); see Open Question 15 |
+| 023 | A ban is `app_user.role = 'BANNED'` on the email address, checked on every request; administrators remove student content but never edit it; support requests stay anonymous to administrators | No schema change, so it works on the dev database as it is. Banning the address is what stops a banned student signing up again; checking per request makes a ban, and lifting one, immediate. Removing rather than editing means nothing appears under a student's name that they did not write | **Proposed** — implemented 2026-11-16 (#113). Needs a vote (Rule 8) |
+| 024 | Students no longer choose which profile fields other students see; every profile shows the same approved fields | Issue #112. One rule is simpler to explain and to test than four switches per student, and the directory and its major search work for every profile. Shown: name, school, year of study, city/state, major, graduation year, bio, photo. Never shown: email and social link (invariant 4, unchanged). Rewrites invariant 5. The `profile_privacy` table and its classes are removed. **Effect on existing students:** fields a student had set to "Only me" (the default) are now visible to other signed-in students | **Proposed** — implemented 2026-11-16 (#112). Needs a vote (Rule 8) |
 
 ---
 
@@ -731,6 +734,24 @@ Raise at the next weekly meeting. Do not guess these in code.
     technical one. Raised 2026-11-10, after it locked out a team test account on the dev
     database (see session notes).
 
+15. **Where should the admin capability live long term?** #113 keeps it in `app_user.role`
+    (decision 022), which is the part of Open Question 10 the admin story was left to
+    settle: `app_user` now has a second job, so retiring it means moving the role first.
+    The earlier proposal was a Clerk metadata flag on the token, which needs the session
+    token customised in the Clerk dashboard. Three smaller points ride with it: admin
+    responses show a student's email (needed to tell accounts apart, but invariant 4 says
+    "never"); and on a persistent database, removing an address from
+    `CAMPUSBRIDGE_ADMIN_EMAILS` does not demote the row. Raised 2026-11-16.
+
+16. **Limits of the ban and of moderation (#113), for the team to accept or extend.** A ban
+    is on an email address, so someone who registers a different address is a new person to
+    this application. Banning does not stop other students sending messages into an
+    existing conversation with the banned student. Nobody is notified when their content is
+    removed or their account banned, because there is no notification system yet. Posts,
+    comments, groups and events have no "report" button for students, so an administrator
+    finds problems there by reading and searching; only listings and users can be reported.
+    Removed content is deleted, not hidden, and cannot be restored. Raised 2026-11-16.
+
 ---
 
 ## Session notes
@@ -855,3 +876,33 @@ Raise at the next weekly meeting. Do not guess these in code.
   path like any unbound row. Rows in other tables keyed on the old subject were left as
   they were. The cause is Open Question 14. The frontend now shows that 409 as "This email
   already has a profile" with no retry, since asking again cannot change it.
+- **Admin account management, #113 (2026-11-16).** New `admin` package and `/admin` page:
+  an administrator finds student accounts (name or email, paginated), edits their profile
+  fields and school, and deletes them. Who is an administrator is decision 022. Delete
+  removes the Clerk sign-in, then the profile under the existing deleted-account rule;
+  without `CLERK_SECRET_KEY` a signed-up student cannot be deleted and the request says
+  so (503), while unbound rows such as the mock students still can. No schema change.
+  - **Ban and moderation (same day, decision 023).** An administrator can ban a student
+    (refused from their next request; signing up again, self-deleting and changing address
+    in Clerk do not get round it), lift a ban, delete and ban in one step, and choose to
+    remove everything the person posted. The console gained Marketplace (all listings,
+    the reported-listings queue, delete, dismiss reports), Community (posts, comments,
+    groups, events) and Support (help requests, campus resources) areas, plus reports about
+    students. A banned student sees one screen saying so. Limits are Open Question 16.
+  - Verified 2026-11-16: `./mvnw --batch-mode verify` (303 tests, 0 failures); frontend
+    `npm test` (68 pass), `npm run lint`, `npm run build`. Every tab and dialog was looked
+    at in Chrome at desktop and phone width **against stubbed data**, dark mode only.
+    **Not verified:** any of it against a real Clerk sign-in or the dev Postgres database
+    (the tests run on H2), a real Clerk delete (the Backend API is stood in for by a local
+    server in `ClerkAccountDeletionTest`), light mode, and Firefox/Safari.
+- **Profile visibility controls removed, #112 (2026-11-16), on top of #113.** My profile
+  no longer has the four "visibility" dropdowns; it states what other students see
+  instead. The directory returns major, graduation year, bio and photo for every profile
+  and still never returns email or social link (decision 024, which rewrites invariant 5).
+  Removed: `ProfilePrivacy`, `ProfilePrivacyRepository`, `ProfileVisibility`, the
+  `visibility` field on the profile request and response objects, and the
+  `profile_privacy` table in `schema.sql`. A request that still sends `visibility` (a page
+  loaded before the change) is accepted and the field ignored.
+  - **Existing databases:** H2 is rebuilt from `schema.sql` on every start. The dev (Aiven)
+    and neon databases keep an unused `profile_privacy` table until someone runs
+    `DROP TABLE IF EXISTS profile_privacy;`. Nothing reads it and startup does not check it.

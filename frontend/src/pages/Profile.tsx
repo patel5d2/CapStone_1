@@ -9,15 +9,8 @@ import { GRADES, pendingSignupProfile, SIGNUP_PROFILE_KEY, US_STATES, withoutSig
 import { useToast } from '../components/ui/Toast'
 import { PageHeader } from '../components/ui/Tabs'
 import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback'
-import type { ProfileImageResponse, ProfileSaveRequest, ProfileVisibility, School, StudentAccountDetails } from '../types'
+import type { ProfileImageResponse, ProfileSaveRequest, School, StudentAccountDetails } from '../types'
 
-const PRIVATE: ProfileVisibility = { showMajor: false, showGraduationYear: false, showBio: false, showPhoto: false }
-const VISIBILITY: { key: keyof ProfileVisibility; label: string }[] = [
-  { key: 'showMajor', label: 'Major' },
-  { key: 'showGraduationYear', label: 'Graduation year' },
-  { key: 'showBio', label: 'About you' },
-  { key: 'showPhoto', label: 'Profile photo' },
-]
 interface ProfileForm {
   firstName: string
   lastName: string
@@ -86,7 +79,6 @@ export default function Profile({ signup = false }: { signup?: boolean }) {
   const navigate = useNavigate()
   const email = user?.primaryEmailAddress?.emailAddress ?? ''
   const [form, setForm] = useState<ProfileForm>(EMPTY)
-  const [visibility, setVisibility] = useState<ProfileVisibility>(PRIVATE)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [schools, setSchools] = useState<School[]>([])
   const [loading, setLoading] = useState(true)
@@ -139,7 +131,6 @@ export default function Profile({ signup = false }: { signup?: boolean }) {
         } : fromClerk(user?.firstName, user?.lastName))
         setFromAccount(value ? [] : accountFields(user?.firstName, user?.lastName))
         setEditAccountFields(false)
-        setVisibility(value?.visibility ?? PRIVATE)
         setPhotoUrl(value?.photoUrl ?? null)
         setSaved(false)
         setSaveError(null)
@@ -207,7 +198,7 @@ export default function Profile({ signup = false }: { signup?: boolean }) {
     const body: ProfileSaveRequest = {
       ...form, email, universityId: Number(form.universityId),
       graduationYear: form.graduationYear ? Number(form.graduationYear) : null,
-      socialMediaLink: form.socialMediaLink || null, bio: form.bio || null, photoUrl, visibility,
+      socialMediaLink: form.socialMediaLink || null, bio: form.bio || null, photoUrl,
     }
     setSaving(true)
     try {
@@ -229,7 +220,7 @@ export default function Profile({ signup = false }: { signup?: boolean }) {
       }
       // Their school's colours apply as soon as the school is saved (objective 8).
       applySchoolTheme(slugForSchool(schools.find((school) => school.id === Number(form.universityId))?.name))
-      push(signup ? 'Welcome to CampusBridge! Your account is ready.' : 'Profile and visibility saved', 'success')
+      push(signup ? 'Welcome to CampusBridge! Your account is ready.' : 'Profile saved', 'success')
       // First save finishes sign-up: let them into the app.
       if (isNew) navigate('/marketplace')
     } catch (error) {
@@ -364,27 +355,15 @@ export default function Profile({ signup = false }: { signup?: boolean }) {
         </fieldset>
         <div role="status" aria-live="polite">{uploading && <Spinner label="Uploading your photo…" />}</div>
 
-        <fieldset disabled={busy} className="mt-6 min-w-0 border-t border-[var(--color-border)] pt-5">
-          <legend className="text-sm font-bold">What other students can see</legend>
-          <p className="mb-4 text-sm text-[var(--color-ink-muted)]">
-            Name, school, year of study and city/state appear in the directory. Email and social links are not shown.
-            The fields below stay private unless you choose to share them. Changes take effect when you save.
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {VISIBILITY.map(({ key, label }) => <div key={key}>
-              <label htmlFor={`visibility-${key}`} className="mb-1.5 block text-sm font-semibold">{label} visibility</label>
-              <select id={`visibility-${key}`} className="field" value={visibility[key] ? 'students' : 'private'}
-                onChange={(event) => { setVisibility({ ...visibility, [key]: event.target.value === 'students' }); setSaved(false) }}>
-                <option value="private">Only me</option>
-                <option value="students">Other students</option>
-              </select>
-            </div>)}
-          </div>
-        </fieldset>
         </details>
+        {/* The same for every student (#112): a statement of what is shown, not a setting. */}
+        <p className="mt-5 text-sm text-[var(--color-ink-muted)]">
+          Other students can see your name, school, year of study, city and state, major, graduation year,
+          about you and photo. Your email and social link are never shown to them.
+        </p>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
           <p role="status" aria-live="polite" className="text-sm text-[var(--color-ink-muted)]">
-            {saving ? 'Saving profile and visibility…' : saved ? <span className="flex items-center gap-2"><Check className="h-4 w-4" aria-hidden="true" />Profile and visibility saved</span> : 'Changes are saved when you select Save profile.'}
+            {saving ? 'Saving profile…' : saved ? <span className="flex items-center gap-2"><Check className="h-4 w-4" aria-hidden="true" />Profile saved</span> : 'Changes are saved when you select Save profile.'}
           </p>
           <button className="btn-primary" type="submit" disabled={busy || Boolean(file)}>
             <Save className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save profile'}

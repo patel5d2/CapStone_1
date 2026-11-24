@@ -71,6 +71,13 @@ public class StudentRepository {
 
     public static final String AND_EMAIL = "AND s.email = :email";
 
+    // A student an administrator has banned (#113) is left out of the directory. Always
+    // applied to the directory search; a fixed clause, with nothing from the request in it.
+    public static final String AND_NOT_BANNED = """
+            AND NOT EXISTS (SELECT 1 FROM app_user banned
+                            WHERE banned.role = 'BANNED' AND lower(banned.email) = lower(s.email))
+            """;
+
     public static final String AND_CLERK_USER_ID = "AND s.clerk_user_id = :clerkUserId";
 
 
@@ -122,6 +129,7 @@ public class StudentRepository {
         // Building the Query based on whether the field from the request object is
         // either null or not.
         StringBuilder sql = new StringBuilder(SELECT_VERSION_UNIVERSITY_NAME)
+                .append(AND_NOT_BANNED)
                 .append(SqlUtils.andAddCondition(AND_FIRSTNAME, request.getFirstName()))
                 .append(SqlUtils.andAddCondition(AND_LASTNAME, request.getLastName()))
                 .append(SqlUtils.andAddCondition(AND_RESIDENT_CITY, request.getResidentCity()))

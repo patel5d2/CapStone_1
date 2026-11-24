@@ -256,13 +256,6 @@ erDiagram
         varchar domain PK "normalized exact institutional domain"
         bigint university_id FK "supported institution"
     }
-    profile_privacy {
-        bigint student_id PK,FK "one row per profile"
-        boolean show_major "proposed field policy"
-        boolean show_graduation_year "proposed field policy"
-        boolean show_bio "proposed field policy"
-        boolean show_photo "proposed field policy"
-    }
     listing {
         bigint id PK "existing"
         bigint seller_student_id FK "proposed replacement for seller_email"
@@ -299,7 +292,6 @@ erDiagram
     }
     university ||..o{ student : "existing university_id"
     university ||..o{ school_domain : "proposed domain mapping"
-    student ||..o| profile_privacy : "proposed privacy policy"
     student ||..o{ listing : "proposed ownership FK"
     university |o..o{ listing : "existing school_id"
     listing ||..o{ offer : "scope proposal"
@@ -315,7 +307,7 @@ erDiagram
 |---|---|---|
 | `school_domain` → university | Objectives 1 and 2 require verified institutional access and ≥6 schools without per-student setup | S1-01/S1-03; final schools, domains, alias policy, and ADR-014 `.edu` admission breadth unresolved |
 | `student.clerk_user_id`; owner references to student IDs | ADR-012 proposes immutable Clerk identity | S1-02; vote and migration/backfill strategy needed |
-| `profile_privacy`, profile bio/photo/year | Recorded profile visibility requirement and Sprint 1 plan | S1-06/S1-07; proposed storage shape; private fields filtered server-side |
+| Profile bio/photo/year | Sprint 1 plan | S1-06/S1-07. The `profile_privacy` table proposed here was built and then removed by #112: every profile shows the same fields, so there is no per-student setting to store |
 | `listing.condition`, `pickup_location`; photo ordering/provider metadata | Required listing fields and objective 3 | S3-01; storage vendor decision gates S1-05 |
 | University theme slug (or a reviewed equivalent lookup) | Objective 8 | S2-04; official palettes, supported schools and contrast evidence needed |
 | `offer`, `seller_review` | Explicit scope additions, outside recorded contract objectives | Sprint 7 proposal; no commitment, no payment processing |
