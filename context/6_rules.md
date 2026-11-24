@@ -126,7 +126,8 @@ Ask when a required decision is unresolved or the following work is not authoriz
   responses are existing gaps, not a pattern to extend.
 - Never interpolate untrusted values or identifiers into SQL. Bind values; select
   structural clauses only from fixed, trusted code (invariant 6).
-- Never add a `Co-Authored-By` trailer, or any tool attribution, to a commit or PR.
+- Never add a `Co-Authored-By` trailer unless `.claude/settings.json` sets
+  `attribution.commit`.
 - Never save scratch files to the repo root.
 - Never disable, skip or delete a failing test to make a build pass.
 - Never reformat files unrelated to the task.

@@ -43,5 +43,7 @@ node_modules/
 # `cd frontend && npm run build`, so the output is generated, not source.
 src/main/resources/static/
 
-### Local tooling state (never publish session data) ###
+### AI/agent tooling state (local only; never publish session data) ###
+.claude/
+.claude-flow/
 .playwright-mcp/
